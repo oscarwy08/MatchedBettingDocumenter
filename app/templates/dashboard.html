@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block eyebrow %}Overview{% endblock %}
+{% block heading %}Where you stand{% endblock %}
+{% block actions %}
+  {% if show_spreadsheet_cta %}
+    <a class="btn" href="{{ url_for('main.export_page') }}">Start from a spreadsheet</a>
+  {% endif %}
+  <a class="btn btn-primary" href="{{ url_for('main.calculator_page') }}">Log a bet</a>
+{% endblock %}
+{% block content %}
+  <section class="stat-grid">
+    <article class="stat-card">
+      <p>Settled net profit</p>
+      <strong class="{{ stats.net_profit | pnl }}">{{ stats.net_profit | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Pending expected</p>
+      <strong class="{{ stats.pending_expected | pnl }}">{{ stats.pending_expected | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Bankroll</p>
+      <strong>{{ stats.bankroll | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Open lay liability</p>
+      <strong>{{ stats.open_liability | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Profit this month</p>
+      <strong class="{{ stats.month_profit | pnl }}">{{ stats.month_profit | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Bets</p>
+      <strong>{{ stats.pending_count }} pending · {{ stats.settled_count }} settled</strong>
+    </article>
+  </section>
+
+  <div class="split">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Offers in progress</h2>
+        <a href="{{ url_for('main.offers') }}">All offers</a>
+      </div>
+      {% if offer_rows %}
+        <table>
+          <thead>
+            <tr>
+              <th>Offer</th>
+              <th>Bookie</th>
+              <th>Net so far</th>
+              <th>Free funds</th>
+              <th>Legs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in offer_rows %}
+              <tr>
+                <td><a href="{{ url_for('main.offer_detail', offer_id=row.offer.id) }}">{{ row.offer.name }}</a></td>
+                <td>{{ row.offer.bookie.name }}</td>
+                <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>
+                <td class="num">{% if row.free_funds %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}–{% endif %}</td>
+                <td>{{ row.pending_count }} pending / {{ row.leg_count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No open offers. Start one from the calculator or the Offers page.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Pending bets</h2>
+        <a href="{{ url_for('main.bets', status='pending') }}">View pending</a>
+      </div>
+      {% if stats.pending_bets %}
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Bookie</th>
+              <th>Event</th>
+              <th>Expected</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for bet in stats.pending_bets[:8] %}
+              <tr>
+                <td>{{ bet.date_placed | ukdate }}</td>
+                <td><a href="{{ url_for('main.bet_detail', bet_id=bet.id) }}">{{ bet.bookie.name }}</a></td>
+                <td>{{ bet.event or "—" }}</td>
+                <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">Nothing waiting to settle.</p>
+      {% endif %}
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Profit by bookie</h2>
+    </div>
+    {% if stats.profit_by_bookie %}
+      <table>
+        <thead>
+          <tr>
+            <th>Bookie</th>
+            <th>Deposited</th>
+            <th>Bookie P&amp;L</th>
+            <th>Exchange P&amp;L</th>
+            <th>Net profit</th>
+            <th>Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for snap in stats.profit_by_bookie %}
+            <tr>
+              <td>{{ snap.account.name }}</td>
+              <td class="num">{{ snap.deposited | gbp }}</td>
+              <td class="{{ snap.bookie_profit | pnl }} num">{{ snap.bookie_profit | gbp }}</td>
+              <td class="{{ snap.exchange_profit | pnl }} num">{{ snap.exchange_profit | gbp }}</td>
+              <td class="{{ snap.net_profit | pnl }} num">{{ snap.net_profit | gbp }}</td>
+              <td class="num">{{ snap.balance | gbp }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">Settled bets will appear here, grouped by bookie.</p>
+    {% endif %}
+  </section>
+{% endblock %}

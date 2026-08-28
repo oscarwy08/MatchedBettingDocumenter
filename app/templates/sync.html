@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Devices{% endblock %}
+{% block eyebrow %}Link{% endblock %}
+{% block heading %}Devices &amp; backups{% endblock %}
+{% block content %}
+  <section class="panel">
+    <div class="panel-head"><h2>Link another computer</h2></div>
+    <p class="hint">Same Wi‑Fi. On the computer that already has the latest bets, start sharing and copy the code. On the other computer, paste it and confirm — this <strong>replaces</strong> the log on the receiving machine.</p>
+    {% if sharing %}
+      <p>Share this code:</p>
+      <p class="link-code" id="link-code">{{ link_code }}</p>
+      <div class="page-actions">
+        <button type="button" class="btn" id="copy-code">Copy code</button>
+      </div>
+      <form method="post" action="{{ url_for('main.sync_share_stop') }}">
+        <button class="btn" type="submit">Stop sharing</button>
+      </form>
+    {% else %}
+      <form method="post" action="{{ url_for('main.sync_share_start') }}">
+        <button class="btn btn-primary" type="submit">Start sharing from this computer</button>
+      </form>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Join with a code</h2></div>
+    <form method="post" action="{{ url_for('main.sync_join') }}" class="form-grid"
+          onsubmit="return confirm('This will replace all bets, offers and balances on THIS computer with the other computer’s log. Continue?');">
+      <label class="span-2">
+        Code from the other computer
+        <input name="code" required placeholder="482193@192.168.1.10:5050" autocomplete="off">
+      </label>
+      <div class="form-actions span-2">
+        <button class="btn btn-primary" type="submit">Pull latest log</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Manual backup</h2></div>
+    <p class="hint">If the computers are not on the same network, download a backup here and restore it on the other machine. Updating the app (new zip) never deletes <code>data/</code> if you use <code>./update.sh</code>.</p>
+    <p><a class="btn btn-primary" href="{{ url_for('main.sync_backup') }}">Download backup.json</a></p>
+    <form method="post" action="{{ url_for('main.sync_restore') }}" enctype="multipart/form-data" class="form-grid"
+          onsubmit="return confirm('Restore will replace all bets on this computer. Continue?');">
+      <label class="span-2">
+        Restore a backup.json
+        <input type="file" name="backup" accept=".json,application/json" required>
+      </label>
+      <div class="form-actions span-2">
+        <button class="btn" type="submit">Restore backup</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}
+{% block scripts %}
+<script>
+  const copyBtn = document.getElementById("copy-code");
+  const codeEl = document.getElementById("link-code");
+  if (copyBtn && codeEl) {
+    copyBtn.addEventListener("click", async () => {
+      const text = codeEl.textContent.trim();
+      try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = "Copied";
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(codeEl);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        copyBtn.textContent = "Select the code, then copy";
+      }
+    });
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Edit bet{% endblock %}
+{% block eyebrow %}Edit{% endblock %}
+{% block heading %}{{ bet.event or "Matched bet" }}{% endblock %}
+{% block content %}
+  <form method="post" action="{{ url_for('main.edit_bet', bet_id=bet.id) }}" id="calc-form" class="calc-layout" data-keep-commission="1">
+    <section class="panel">
+      <div class="panel-head"><h2>Bet inputs</h2></div>
+      <div class="form-grid">
+        <label>
+          Bet type
+          <select name="bet_type" id="bet_type">
+            {% for value, label in bet_types %}
+              <option value="{{ value }}" {% if bet.bet_type == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Back stake / free bet
+          <input name="back_stake" id="back_stake" type="number" step="0.01" min="0" value="{{ bet.back_stake }}" required>
+        </label>
+        <label>
+          Back odds
+          <input name="back_odds" id="back_odds" type="number" step="0.01" min="1.01" value="{{ bet.back_odds }}" required>
+        </label>
+        <label>
+          Lay odds
+          <input name="lay_odds" id="lay_odds" type="number" step="0.01" min="1.01" value="{{ bet.lay_odds }}" required>
+        </label>
+        <label>
+          Exchange
+          <select name="exchange_id" id="exchange_id">
+            {% for exchange in exchanges %}
+              <option value="{{ exchange.id }}" data-commission="{{ exchange.commission_percent }}"
+                {% if bet.exchange_id == exchange.id %}selected{% endif %}>
+                {{ exchange.name }} ({{ '%.4g'|format(exchange.commission_percent|float) }}%)
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+        <label id="cashback-field" class="is-hidden">
+          Cashback if back loses
+          <input name="cashback" id="cashback" type="number" step="0.01" min="0" value="{{ bet.cashback }}">
+        </label>
+        <label id="manual-expected" class="is-hidden">
+          Manual expected profit
+          <input name="expected_profit_manual" type="number" step="0.01" value="{{ bet.expected_profit }}">
+        </label>
+      </div>
+      <details class="more-block">
+        <summary>Advanced</summary>
+        <div class="form-grid">
+          <label>
+            Lay commission %
+            <input name="commission_percent" id="commission_percent" type="number" step="0.01" min="0" value="{{ '%.4g'|format(bet.commission_percent|float) }}">
+          </label>
+          <label>
+            Override lay stake
+            <input name="lay_stake_override" id="lay_stake_override" type="number" step="0.01" min="0"
+                   value="{{ bet.lay_stake if bet.bet_type == 'other' else '' }}"
+                   placeholder="Leave blank for optimal">
+          </label>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel results-panel">
+      <div class="panel-head"><h2>Result</h2></div>
+      <p id="calc-error" class="flash flash-error is-hidden"></p>
+      <dl class="result-dl">
+        <div><dt>Lay stake</dt><dd id="out-lay">–</dd></div>
+        <div><dt>Liability</dt><dd id="out-liability">–</dd></div>
+        <div><dt>Expected profit</dt><dd id="out-expected">–</dd></div>
+      </dl>
+      <div class="page-actions" style="margin-bottom: 0.8rem;">
+        <button type="button" class="btn" id="copy-lay">Copy lay stake</button>
+        <button type="button" class="btn" id="copy-liability">Copy liability</button>
+      </div>
+      <table class="outcome-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Bookie</th>
+            <th>Exchange</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>If back wins</th>
+            <td id="back-bookie">–</td>
+            <td id="back-exchange">–</td>
+            <td id="back-total">–</td>
+          </tr>
+          <tr>
+            <th>If lay wins</th>
+            <td id="lay-bookie">–</td>
+            <td id="lay-exchange">–</td>
+            <td id="lay-total">–</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel span-2 log-panel">
+      <div class="panel-head">
+        <h2>Details</h2>
+        <span class="hint">Same fields as when you logged the bet. Lay stake and profit update from the calculator when you save.</span>
+      </div>
+      <div class="form-grid log-core">
+        <label>
+          Bookie
+          <select name="bookie_id" id="bookie_id" required>
+            <option value="">Select bookie</option>
+            {% for bookie in bookies %}
+              <option value="{{ bookie.id }}" {% if bet.bookie_id == bookie.id %}selected{% endif %}>{{ bookie.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Date
+          <input name="date_placed" type="text" inputmode="numeric" placeholder="DD/MM/YYYY"
+                 pattern="\d{2}/\d{2}/\d{4}" value="{{ bet.date_placed | ukdate }}" required>
+        </label>
+        <label class="span-2">
+          Event
+          <input name="event" type="text" placeholder="Liverpool vs Chelsea" value="{{ bet.event }}">
+        </label>
+        <label class="span-2">
+          Offer
+          <select name="offer_id" id="offer_pick" onchange="window.syncOfferFields && window.syncOfferFields()">
+            <option value="">Don't attach</option>
+            {% for offer in offers %}
+              <option value="{{ offer.id }}" data-bookie="{{ offer.bookie_id }}"
+                {% if bet.offer_id == offer.id %}selected{% endif %}>
+                {{ offer.bookie.name }} — {{ offer.name }}
+              </option>
+            {% endfor %}
+            <option value="__new__">Create a new offer…</option>
+          </select>
+        </label>
+      </div>
+      <div id="new-offer-fields" class="form-grid new-offer">
+        <label>
+          Offer name
+          <input name="new_offer_name" id="new_offer_name" type="text" placeholder="Sky Bet Bet £5 Get £20">
+        </label>
+        <label>
+          Type
+          <select name="offer_type">
+            {% for value, label in offer_types %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Free funds
+          <input name="offer_free_funds" type="number" step="0.01" min="0" placeholder="30.00">
+        </label>
+      </div>
+      <details class="more-block" {% if bet.market or bet.notes %}open{% endif %}>
+        <summary>Market, notes, deposit</summary>
+        <div class="form-grid">
+          <label>
+            Market
+            <input name="market" type="text" placeholder="Match odds / Liverpool" value="{{ bet.market }}">
+          </label>
+          <label>
+            Deposit with new offer
+            <input name="offer_deposit" type="number" step="0.01" min="0" placeholder="0.00">
+          </label>
+          <label class="span-2">
+            Notes
+            <input name="notes" type="text" placeholder="Min odds 2.00, SNR, etc." value="{{ bet.notes }}">
+          </label>
+        </div>
+      </details>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save changes</button>
+        <a class="btn" href="{{ url_for('main.bet_detail', bet_id=bet.id) }}">Cancel</a>
+      </div>
+    </section>
+  </form>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=6"></script>
+{% endblock %}

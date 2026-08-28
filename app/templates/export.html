@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Excel{% endblock %}
+{% block eyebrow %}Workbook{% endblock %}
+{% block heading %}Spreadsheet{% endblock %}
+{% block actions %}
+  <a class="btn btn-primary" href="{{ url_for('main.download_excel') }}">Download .xlsx</a>
+{% endblock %}
+{% block content %}
+  <section class="panel workbook-meta">
+    <p>Live view of <code>{{ path }}</code>. The file is rewritten after every change — edit bets and deposits in the app, then download if you want a copy in Excel.</p>
+    {% if mtime %}
+      <p class="hint">Last written {{ mtime.strftime("%Y-%m-%d %H:%M:%S") }}</p>
+    {% endif %}
+  </section>
+
+  <details class="panel">
+    <summary>Start from an existing spreadsheet</summary>
+    <p class="hint">Upload a .xlsx you already keep. Sheets named Bets, Offers, Accounts or Transfers are read automatically. A generic bet log also works if it has columns like Date, Bookie, Back stake, Lay stake, Net profit.</p>
+    <form method="post" action="{{ url_for('main.import_spreadsheet') }}" enctype="multipart/form-data" class="form-grid">
+      <label class="span-2">
+        Excel file
+        <input type="file" name="workbook" accept=".xlsx,.xlsm" required>
+      </label>
+      <label class="span-2 checkbox-row">
+        <input type="checkbox" name="replace" value="1">
+        Replace current bets, offers and transfers first (seeded bookies stay)
+      </label>
+      <div class="form-actions span-2">
+        <button class="btn btn-primary" type="submit">Import spreadsheet</button>
+      </div>
+    </form>
+  </details>
+
+  {% if sheets %}
+    <div class="workbook">
+      {% for sheet in sheets %}
+        <div class="sheet-view{% if sheet.slug != active_sheet %} is-hidden{% endif %}"
+             data-sheet="{{ sheet.slug }}" id="sheet-{{ sheet.slug }}">
+          <div class="spreadsheet">
+            <table>
+              <thead>
+                <tr>
+                  <th class="row-head"></th>
+                  {% for letter in sheet.col_letters %}
+                    <th class="col-head">{{ letter }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in sheet.rows %}
+                  <tr>
+                    <th class="row-head">{{ loop.index }}</th>
+                    {% for cell in row %}
+                      <td class="{{ 'header-cell' if cell.header }} {{ cell.pnl }} {{ 'num' if cell.money }}">{{ cell.value }}</td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {% endfor %}
+      <div class="sheet-tabs" role="tablist">
+        {% for sheet in sheets %}
+          <button type="button" class="sheet-tab{% if sheet.slug == active_sheet %} on{% endif %}"
+                  data-sheet="{{ sheet.slug }}">{{ sheet.name }}</button>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    <p class="empty">The workbook will appear here after the first save.</p>
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  const tabs = document.querySelectorAll(".sheet-tab");
+  const views = document.querySelectorAll(".sheet-view");
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      tabs.forEach((item) => item.classList.remove("on"));
+      views.forEach((view) => view.classList.toggle("is-hidden", view.dataset.sheet !== tab.dataset.sheet));
+      tab.classList.add("on");
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Settle bet{% endblock %}
+{% block eyebrow %}{{ bet.bookie.name }} · {{ bet.exchange.name }}{% endblock %}
+{% block heading %}{{ bet.event or "Matched bet" }}{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ url_for('main.edit_bet_page', bet_id=bet.id) }}">Edit</a>
+  <form method="post" action="{{ url_for('main.duplicate_bet', bet_id=bet.id) }}" class="inline-form">
+    <button class="btn" type="submit">Duplicate</button>
+  </form>
+{% endblock %}
+{% block content %}
+  <section class="stat-grid">
+    <article class="stat-card"><p>Type</p><strong>{{ bet.bet_type | labelize }}</strong></article>
+    <article class="stat-card"><p>Back</p><strong>{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}</strong></article>
+    <article class="stat-card"><p>Lay</p><strong>{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}</strong></article>
+    <article class="stat-card"><p>Liability</p><strong>{{ bet.liability | gbp }}</strong></article>
+    <article class="stat-card"><p>Expected</p><strong class="{{ bet.expected_profit | pnl }}">{{ bet.expected_profit | gbp }}</strong></article>
+    <article class="stat-card"><p>Status</p><strong>{{ bet.status | labelize }}</strong></article>
+  </section>
+
+  {% if bet.offer %}
+    <p class="notes">Offer: <a href="{{ url_for('main.offer_detail', offer_id=bet.offer.id) }}">{{ bet.offer.name }}</a>
+      {% if bet.market %} · {{ bet.market }}{% endif %}
+      {% if bet.notes %} · {{ bet.notes }}{% endif %}
+    </p>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-head"><h2>Outcomes</h2></div>
+    <table>
+      <thead>
+        <tr><th></th><th>Bookie</th><th>Exchange</th><th>Total</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>If back wins</th>
+          <td class="{{ bet.expected_bookie_back | pnl }} num">{{ bet.expected_bookie_back | gbp }}</td>
+          <td class="{{ bet.expected_exchange_back | pnl }} num">{{ bet.expected_exchange_back | gbp }}</td>
+          <td class="num">{{ (bet.expected_bookie_back + bet.expected_exchange_back) | gbp }}</td>
+        </tr>
+        <tr>
+          <th>If lay wins</th>
+          <td class="{{ bet.expected_bookie_lay | pnl }} num">{{ bet.expected_bookie_lay | gbp }}</td>
+          <td class="{{ bet.expected_exchange_lay | pnl }} num">{{ bet.expected_exchange_lay | gbp }}</td>
+          <td class="num">{{ (bet.expected_bookie_lay + bet.expected_exchange_lay) | gbp }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  {% if bet.is_pending %}
+    <section class="panel">
+      <div class="panel-head"><h2>Settle</h2></div>
+      <form method="post" action="{{ url_for('main.settle_bet', bet_id=bet.id) }}" class="form-grid">
+        <label>
+          Outcome
+          <select name="outcome" id="settle-outcome" required>
+            <option value="back_won">Back won (bookie)</option>
+            <option value="lay_won">Lay won (exchange)</option>
+            <option value="void">Void / pushed</option>
+          </select>
+        </label>
+        <label>
+          Actual bookie P&amp;L (optional override)
+          <input name="actual_bookie_profit" type="number" step="0.01" placeholder="Leave blank to use calculated">
+        </label>
+        <label>
+          Actual exchange P&amp;L (optional override)
+          <input name="actual_exchange_profit" type="number" step="0.01" placeholder="Leave blank to use calculated">
+        </label>
+        <label>
+          Actual net profit (optional override)
+          <input name="actual_profit" type="number" step="0.01" placeholder="Leave blank to sum the two sides">
+        </label>
+        {% if bet.is_free_bet %}
+          <label id="free-bet-returned-row" class="span-2 checkbox-row is-hidden">
+            <input type="checkbox" name="free_bet_returned" value="1" checked>
+            Free bet was returned to the bookie (do not count toward used free funds)
+          </label>
+        {% endif %}
+        <div class="form-actions span-2">
+          <button class="btn btn-primary" type="submit">Settle bet</button>
+        </div>
+      </form>
+    </section>
+  {% else %}
+    <section class="panel">
+      <div class="panel-head"><h2>Settled result</h2></div>
+      <p>Bookie {{ bet.actual_bookie_profit | gbp }} · Exchange {{ bet.actual_exchange_profit | gbp }} · Net <strong class="{{ bet.actual_profit | pnl }}">{{ bet.actual_profit | gbp }}</strong></p>
+      {% if bet.status == "void" and bet.is_free_bet %}
+        <form method="post" action="{{ url_for('main.update_free_bet_returned', bet_id=bet.id) }}" class="form-grid">
+          <label class="span-2 checkbox-row">
+            <input type="checkbox" name="free_bet_returned" value="1" {% if bet.free_bet_returned %}checked{% endif %}>
+            Free bet was returned to the bookie (do not count toward used free funds)
+          </label>
+          <div class="form-actions span-2">
+            <button class="btn" type="submit">Update free funds</button>
+          </div>
+        </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('main.reopen_bet', bet_id=bet.id) }}">
+        <button class="btn" type="submit">Reopen as pending</button>
+      </form>
+    </section>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('main.delete_bet', bet_id=bet.id) }}" onsubmit="return confirm('Delete this bet?');">
+    <button class="btn btn-danger" type="submit">Delete bet</button>
+  </form>
+{% endblock %}
+{% block scripts %}
+<script>
+  const outcome = document.getElementById("settle-outcome");
+  const returnedRow = document.getElementById("free-bet-returned-row");
+  function syncReturned() {
+    if (!outcome || !returnedRow) return;
+    returnedRow.classList.toggle("is-hidden", outcome.value !== "void");
+  }
+  if (outcome) {
+    outcome.addEventListener("change", syncReturned);
+    syncReturned();
+  }
+</script>
+{% endblock %}

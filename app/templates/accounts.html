@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Accounts{% endblock %}
+{% block eyebrow %}Bankroll{% endblock %}
+{% block heading %}Accounts{% endblock %}
+{% block content %}
+  <div class="split">
+    <section class="panel">
+      <div class="panel-head"><h2>Exchanges</h2></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Exchange</th>
+            <th>Deposited</th>
+            <th>Withdrawn</th>
+            <th>P&amp;L</th>
+            <th>Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for snap in exchanges %}
+            <tr>
+              <td>
+                {{ snap.account.name }}
+                <form method="post" action="{{ url_for('main.update_account', account_id=snap.account.id) }}" class="inline-edit">
+                  <input type="hidden" name="type" value="exchange">
+                  <input name="name" type="text" value="{{ snap.account.name }}" style="width:9rem">
+                  <label>Commission %
+                    <input name="commission_percent" type="number" step="0.01" min="0" value="{{ '%.4g'|format(snap.account.commission_percent|float) }}">
+                  </label>
+                  <button class="btn" type="submit">Save</button>
+                </form>
+              </td>
+              <td class="num">{{ snap.deposited | gbp }}</td>
+              <td class="num">{{ snap.withdrawn | gbp }}</td>
+              <td class="{{ snap.exchange_profit | pnl }} num">{{ snap.exchange_profit | gbp }}</td>
+              <td class="num">{{ snap.balance | gbp }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Add account</h2></div>
+      <form method="post" action="{{ url_for('main.create_account') }}" class="stack">
+        <label>Name <input name="name" required placeholder="New bookie or exchange"></label>
+        <label>Type
+          <select name="type" required>
+            <option value="" disabled selected>Choose type</option>
+            <option value="exchange">Exchange</option>
+            <option value="bookie">Bookie</option>
+          </select>
+        </label>
+        <label>Commission % <input name="commission_percent" type="number" step="0.01" value="0"></label>
+        <button class="btn btn-primary" type="submit">Add</button>
+      </form>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Bookies with activity</h2></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Bookie</th>
+          <th>Deposited</th>
+          <th>Withdrawn</th>
+          <th>Bookie P&amp;L</th>
+          <th>Exchange P&amp;L</th>
+          <th>Net profit</th>
+          <th>Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for snap in bookies if snap.deposited or snap.withdrawn or snap.net_profit or snap.balance %}
+          <tr>
+            <td>{{ snap.account.name }}</td>
+            <td class="num">{{ snap.deposited | gbp }}</td>
+            <td class="num">{{ snap.withdrawn | gbp }}</td>
+            <td class="{{ snap.bookie_profit | pnl }} num">{{ snap.bookie_profit | gbp }}</td>
+            <td class="{{ snap.exchange_profit | pnl }} num">{{ snap.exchange_profit | gbp }}</td>
+            <td class="{{ snap.net_profit | pnl }} num">{{ snap.net_profit | gbp }}</td>
+            <td class="num">{{ snap.balance | gbp }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="7" class="empty">Deposit into a bookie to start tracking balances.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <details class="more-block">
+      <summary>All bookies (including unused)</summary>
+      <table>
+        <thead>
+          <tr><th>Rename or move</th></tr>
+        </thead>
+        <tbody>
+          {% for snap in bookies %}
+            <tr>
+              <td>
+                <form method="post" action="{{ url_for('main.update_account', account_id=snap.account.id) }}" class="inline-edit">
+                  <input name="name" type="text" value="{{ snap.account.name }}" style="width:9rem">
+                  <select name="type">
+                    <option value="bookie" selected>Bookie</option>
+                    <option value="exchange">Move to exchanges</option>
+                  </select>
+                  <input type="hidden" name="commission_percent" value="{{ snap.account.commission_percent }}">
+                  <button class="btn" type="submit">Save</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Record a transfer</h2></div>
+    <form method="post" id="transfer-form" class="form-grid">
+      <label>
+        Account
+        <select name="account_id" id="transfer-account" required>
+          <option value="">Select</option>
+          <optgroup label="Exchanges">
+            {% for snap in exchanges %}
+              <option value="{{ snap.account.id }}">{{ snap.account.name }}</option>
+            {% endfor %}
+          </optgroup>
+          <optgroup label="Bookies">
+            {% for snap in bookies %}
+              <option value="{{ snap.account.id }}">{{ snap.account.name }}</option>
+            {% endfor %}
+          </optgroup>
+        </select>
+      </label>
+      <label>
+        Kind
+        <select name="kind">
+          <option value="deposit">Deposit</option>
+          <option value="withdrawal">Withdrawal</option>
+          <option value="opening">Opening balance</option>
+        </select>
+      </label>
+      <label>Amount <input name="amount" type="number" step="0.01" min="0.01" required></label>
+      <label>Date <input name="date" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}" value="{{ today }}"></label>
+      <label class="span-2">Notes <input name="notes" type="text"></label>
+      <div class="form-actions span-2">
+        <button class="btn btn-primary" type="submit">Save transfer</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Recent transfers</h2></div>
+    {% if transfers %}
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Account</th><th>Kind</th><th>Amount</th><th>Notes</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for transfer in transfers %}
+            <tr>
+              <td>{{ transfer.date | ukdate }}</td>
+              <td>{{ transfer.account.name }}</td>
+              <td>{{ transfer.kind | labelize }}</td>
+              <td class="num">{{ transfer.amount | gbp }}</td>
+              <td>{{ transfer.notes }}</td>
+              <td>
+                <form method="post" action="{{ url_for('main.edit_transfer', transfer_id=transfer.id) }}" class="inline-edit">
+                  <select name="kind">
+                    <option value="deposit" {% if transfer.kind == 'deposit' %}selected{% endif %}>Deposit</option>
+                    <option value="withdrawal" {% if transfer.kind == 'withdrawal' %}selected{% endif %}>Withdrawal</option>
+                    <option value="opening" {% if transfer.kind == 'opening' %}selected{% endif %}>Opening</option>
+                  </select>
+                  <input name="amount" type="number" step="0.01" value="{{ transfer.amount }}" style="width:5.5rem">
+                  <input name="date" type="text" value="{{ transfer.date | ukdate }}" style="width:7rem">
+                  <input name="notes" type="text" value="{{ transfer.notes }}" placeholder="Notes">
+                  <button class="btn" type="submit">Save</button>
+                </form>
+                <form method="post" action="{{ url_for('main.delete_transfer', transfer_id=transfer.id) }}" onsubmit="return confirm('Delete this transfer?');" class="inline-form">
+                  <button class="btn btn-danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No deposits or withdrawals yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}
+{% block scripts %}
+<script>
+  const form = document.getElementById("transfer-form");
+  const account = document.getElementById("transfer-account");
+  form.addEventListener("submit", (event) => {
+    if (!account.value) {
+      event.preventDefault();
+      return;
+    }
+    form.action = "/accounts/" + account.value + "/transfer";
+  });
+</script>
+{% endblock %}

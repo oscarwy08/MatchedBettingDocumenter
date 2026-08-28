@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Bets{% endblock %}
+{% block eyebrow %}Log{% endblock %}
+{% block heading %}Bets{% endblock %}
+{% block actions %}
+  <a class="btn btn-primary" href="{{ url_for('main.calculator_page') }}">Log a bet</a>
+{% endblock %}
+{% block content %}
+  <div class="filters">
+    <a class="pill {{ 'on' if status == 'all' }}" href="{{ url_for('main.bets', status='all', q=q) }}">All</a>
+    <a class="pill {{ 'on' if status == 'pending' }}" href="{{ url_for('main.bets', status='pending', q=q) }}">Pending</a>
+    <a class="pill {{ 'on' if status == 'settled' }}" href="{{ url_for('main.bets', status='settled', q=q) }}">Settled</a>
+    <form method="get" class="search-inline">
+      <input type="hidden" name="status" value="{{ status }}">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search event, bookie, offer…">
+      <button class="btn" type="submit">Search</button>
+    </form>
+  </div>
+  <section class="panel">
+    {% if bets %}
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Offer</th>
+            <th>Bookie</th>
+            <th>Type</th>
+            <th>Event</th>
+            <th>Expected</th>
+            <th>Actual</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bet in bets %}
+            <tr>
+              <td>{{ bet.date_placed | ukdate }}</td>
+              <td>{% if bet.offer %}<a href="{{ url_for('main.offer_detail', offer_id=bet.offer.id) }}">{{ bet.offer.name }}</a>{% else %}—{% endif %}</td>
+              <td>{{ bet.bookie.name }}</td>
+              <td>{{ bet.bet_type | labelize }}</td>
+              <td><a href="{{ url_for('main.bet_detail', bet_id=bet.id) }}">{{ bet.event or "Untitled" }}</a></td>
+              <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
+              <td class="{{ bet.actual_profit | pnl }} num">{{ bet.actual_profit | gbp }}</td>
+              <td><span class="pill">{{ bet.status | labelize }}</span></td>
+              <td><a href="{{ url_for('main.edit_bet_page', bet_id=bet.id) }}">Edit</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No bets in this filter.</p>
+    {% endif %}
+  </section>
+{% endblock %}
