@@ -104,7 +104,9 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Account pages have P&L and cashflow charts with £ axis labels and hover values. "
+        "Pair your own computers so they stay in step, with snapshots before every replace. "
+        "Friends can view a read-only dashboard (live or last available). "
+        "The public internet only reaches tokened APIs — the website stays on this PC and Wi‑Fi. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
