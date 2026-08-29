@@ -358,8 +358,8 @@ def reachability(port: int | None = None) -> dict:
         label = "Only this computer"
         kind = "local"
     if wan and not mapped and is_public_wan(str(wan)):
-        label = "Internet mapping failed · linked computers still sync on this Wi‑Fi"
-        kind = "failed"
+        label = "On this Wi‑Fi · this house is not accepting inbound internet (normal on many ISPs)"
+        kind = "lan"
     return {
         "lan_ip": lan,
         "wan_ip": wan if wan and is_public_wan(str(wan)) else None,

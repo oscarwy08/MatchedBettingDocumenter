@@ -6,6 +6,7 @@ import json
 import random
 import secrets
 import socket
+import time
 from pathlib import Path
 
 from app.nat import format_hosts, lan_ip
@@ -166,6 +167,38 @@ def authorize_linked(token: str) -> bool:
     if not token or is_friend_token(token):
         return False
     return any(peer.get("token") == token for peer in load_state().get("peers") or [])
+
+
+def remember_linked_device(
+    *,
+    device_id: str,
+    token: str,
+    nickname: str = "",
+    lan_host: str = "",
+    port: int = 5050,
+) -> dict | None:
+    """Record the computer that just talked to us so pairing is two-way."""
+    device_id = (device_id or "").strip()
+    token = (token or "").strip()
+    if not device_id or not token:
+        return None
+    me = ensure_state()
+    if device_id == me.get("device_id") or token == me.get("device_token"):
+        return None
+    peer = {
+        "device_id": device_id,
+        "token": token,
+        "nickname": (nickname or "").strip() or "Paired computer",
+        "our_token": me["device_token"],
+        "last_seen": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "online": True,
+    }
+    lan_host = (lan_host or "").strip()
+    if lan_host:
+        peer["lan_host"] = lan_host
+        peer["port"] = int(port or 5050)
+        peer["host"] = lan_host if ":" in lan_host else f"{lan_host}:{peer['port']}"
+    return upsert_peer(peer)
 
 
 def upsert_peer(peer: dict) -> dict:

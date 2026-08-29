@@ -22,10 +22,10 @@ from app.sync import (
     upsert_peer,
 )
 
-POLL_EVERY_SEC = 30
+POLL_EVERY_SEC = 8
 REQUEST_TIMEOUT = 3.0
-LAN_TIMEOUT = 0.8
-FRESHNESS_TIMEOUT = 0.9
+LAN_TIMEOUT = 2.0
+FRESHNESS_TIMEOUT = 1.5
 
 _lock = threading.Lock()
 _wakeup = threading.Event()
@@ -37,6 +37,19 @@ def _headers(token: str | None = None) -> dict:
     headers = {"Accept": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    try:
+        from app.nat import lan_ip
+        from app.settings import get as setting_get
+        from app.sync import ensure_state
+
+        me = ensure_state()
+        headers["X-MBD-Device-Id"] = str(me.get("device_id") or "")
+        headers["X-MBD-Device-Token"] = str(me.get("device_token") or "")
+        headers["X-MBD-Nickname"] = str(me.get("nickname") or "")
+        headers["X-MBD-Lan"] = lan_ip()
+        headers["X-MBD-Port"] = str(int(setting_get("port")))
+    except Exception:  # noqa: BLE001
+        pass
     return headers
 
 
@@ -293,7 +306,9 @@ def apply_push(session: Session, body: dict, *, force: bool = False) -> dict:
     incoming_fp = snap.get("fingerprint") or ""
     if incoming_fp and incoming_fp == local["fingerprint"]:
         return {"same": True, **local["counts"]}
-    if would_shrink(local, snap) and not force:
+    last = load_state().get("last_agreed") or ""
+    we_unchanged = bool(last and last == local["fingerprint"])
+    if would_shrink(local, snap) and not force and not we_unchanged:
         set_conflict(
             {
                 "peer_id": body.get("device_id"),
@@ -401,19 +416,8 @@ def _poll_once() -> None:
                 )
                 continue
             if action == "pull":
-                if would_shrink(local["counts"], remote.get("counts") or {}):
-                    set_conflict(
-                        {
-                            "peer_id": peer.get("id"),
-                            "peer_name": peer.get("nickname") or "the other computer",
-                            "local": local["counts"],
-                            "remote": remote.get("counts"),
-                            "shrink": True,
-                            "reason": "smaller",
-                        }
-                    )
-                    continue
-                pull_peer(session, peer)
+                # Only they changed — including a delete — so take their log.
+                pull_peer(session, peer, force=True)
                 session.commit()
                 from app.settings import get as setting_get
                 from app.excel import sync_workbook

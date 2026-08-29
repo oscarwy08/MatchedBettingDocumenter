@@ -50,7 +50,8 @@ def test_mapping_failed_label(monkeypatch):
         {"lan_ip": "192.168.1.10", "wan_ip": "203.0.113.4", "mapped": False, "mapped_port": None, "error": None}
     )
     status = nat.reachability(5050)
-    assert status["kind"] == "failed"
+    assert status["kind"] == "lan"
+    assert "Wi‑Fi" in status["label"]
 
 
 def test_refresh_uses_mocked_upnp(monkeypatch):

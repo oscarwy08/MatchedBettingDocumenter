@@ -66,6 +66,7 @@ from app.sync import (
     parse_link_code,
     parse_link_targets,
     peer_by_id,
+    remember_linked_device,
     set_last_agreed,
     start_share,
     stop_share,
@@ -1159,9 +1160,25 @@ def sync_share_stop():
     return redirect(url_for("main.sync_page"))
 
 
+def _remember_caller() -> None:
+    try:
+        port_raw = request.headers.get("X-MBD-Port") or request.args.get("peer_port") or ""
+        port = int(port_raw) if str(port_raw).isdigit() else _app_port()
+    except ValueError:
+        port = _app_port()
+    remember_linked_device(
+        device_id=request.headers.get("X-MBD-Device-Id") or request.args.get("peer_id") or "",
+        token=request.headers.get("X-MBD-Device-Token") or request.args.get("peer_token") or "",
+        nickname=request.headers.get("X-MBD-Nickname") or "",
+        lan_host=request.headers.get("X-MBD-Lan") or request.args.get("peer_lan") or "",
+        port=port,
+    )
+
+
 def _sync_status_body(session, token: str):
     if not authorize_device(token):
         abort(403)
+    _remember_caller()
     from app.nat import reachability
     from app.sync import status_payload
 
@@ -1208,20 +1225,12 @@ def sync_hello():
     payload = request.get_json(silent=True) or {}
     if not payload.get("token") or not payload.get("device_id"):
         abort(400)
-    import secrets as _secrets
-
-    upsert_peer(
-        {
-            "id": _secrets.token_hex(6),
-            "device_id": str(payload["device_id"]),
-            "nickname": (payload.get("nickname") or "Paired computer").strip(),
-            "token": str(payload["token"]),
-            "host": payload.get("host") or payload.get("lan_host") or "",
-            "lan_host": payload.get("lan_host") or "",
-            "wan_host": payload.get("wan_host") or "",
-            "port": int(payload.get("port") or _app_port()),
-            "our_token": ensure_state()["device_token"],
-        }
+    remember_linked_device(
+        device_id=str(payload["device_id"]),
+        token=str(payload["token"]),
+        nickname=(payload.get("nickname") or "Paired computer").strip(),
+        lan_host=str(payload.get("lan_host") or payload.get("host") or ""),
+        port=int(payload.get("port") or _app_port()),
     )
     return jsonify({"ok": True, "device_id": ensure_state()["device_id"]})
 
@@ -1234,6 +1243,7 @@ def sync_push_api():
     token = _bearer_token()
     if not authorize_linked(token):
         abort(403)
+    _remember_caller()
     session = get_session()
     try:
         counts = apply_push(session, request.get_json(silent=True) or {})
@@ -1309,28 +1319,39 @@ def sync_join():
         )
         set_last_agreed(payload.get("fingerprint") or dump_snapshot(session)["fingerprint"])
         reach = reachability(_app_port())
-        try:
-            post_json(
-                hosts,
-                "/api/sync/hello",
-                {
-                    "device_id": me["device_id"],
-                    "nickname": me["nickname"],
-                    "token": me["device_token"],
-                    "lan_host": reach.get("lan_ip"),
-                    "wan_host": reach.get("wan_ip") if reach.get("mapped") else None,
-                    "port": _app_port(),
-                    "host": f"{reach.get('lan_ip')}:{_app_port()}",
-                },
-                pin,
+        hello_ok = False
+        for _attempt in range(2):
+            try:
+                post_json(
+                    hosts,
+                    "/api/sync/hello",
+                    {
+                        "device_id": me["device_id"],
+                        "nickname": me["nickname"],
+                        "token": me["device_token"],
+                        "lan_host": reach.get("lan_ip"),
+                        "wan_host": reach.get("wan_ip") if reach.get("mapped") else None,
+                        "port": _app_port(),
+                        "host": f"{reach.get('lan_ip')}:{_app_port()}",
+                    },
+                    pin,
+                )
+                hello_ok = True
+                break
+            except Exception:  # noqa: BLE001
+                continue
+        if hello_ok:
+            flash(
+                f"Copied {counts['bets']} bets, {counts['offers']} offers, "
+                f"{counts['accounts']} accounts. Both computers should now list each other.",
+                "ok",
             )
-        except Exception:  # noqa: BLE001
-            pass
-        flash(
-            f"Copied {counts['bets']} bets, {counts['offers']} offers, "
-            f"{counts['accounts']} accounts from the other computer.",
-            "ok",
-        )
+        else:
+            flash(
+                f"Copied {counts['bets']} bets from the other computer, but it may not list this one yet. "
+                "Leave sharing on over there and pull once more from here — or pull on that computer after it shows you under Paired computers.",
+                "error",
+            )
     except ValueError as exc:
         flash(str(exc), "error")
     except HTTPError:

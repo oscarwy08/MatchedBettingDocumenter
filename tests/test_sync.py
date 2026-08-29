@@ -11,6 +11,7 @@ from app.sync import (
     authorize_device,
     authorize_linked,
     compare_fingerprints,
+    remember_linked_device,
     ensure_state,
     make_link_code,
     parse_link_code,
@@ -183,6 +184,26 @@ def test_migrate_last_agreed_from_bets_only_hash(tmp_path, monkeypatch):
     migrate_last_agreed(session)
     assert ensure_state()["last_agreed"] == snap["fingerprint"]
     session.close()
+
+
+def test_remember_linked_device_is_two_way(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    me = ensure_state()
+    remember_linked_device(
+        device_id="laptop-1",
+        token="laptop-token",
+        nickname="Laptop",
+        lan_host="192.168.1.20",
+        port=5050,
+    )
+    peers = ensure_state()["peers"]
+    assert len(peers) == 1
+    assert peers[0]["token"] == "laptop-token"
+    assert peers[0]["our_token"] == me["device_token"]
+    assert peers[0]["host"] == "192.168.1.20:5050"
+    remember_linked_device(device_id="laptop-1", token="laptop-token", nickname="Laptop")
+    assert ensure_state()["peers"][0]["lan_host"] == "192.168.1.20"
+    assert remember_linked_device(device_id=me["device_id"], token=me["device_token"]) is None
 
 
 def test_authorize_linked_accepts_peer_token(tmp_path, monkeypatch):

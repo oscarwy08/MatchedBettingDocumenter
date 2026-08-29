@@ -373,8 +373,8 @@ def fetch_live(friend: dict) -> dict:
         except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
             last_error = str(exc)
     raise ValueError(
-        "Could not reach them. Their app needs to be running on the same Wi‑Fi "
-        f"(or a reachable address in the code). {last_error}"
+        "Could not reach them. Use the same home Wi‑Fi — a phone hotspot address "
+        f"(like 172.20.10.x) only works while you are still on that hotspot. {last_error}"
     )
 
 

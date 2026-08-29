@@ -107,8 +107,9 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Fix Windows Start: discovery no longer binds UDP on the Flask port "
-        "(WinError 10013). Paired computers still share one account on the same Wi‑Fi. "
+        "Pairing is two-way (both Devices pages list each other). "
+        "A delete on one computer syncs to the other. "
+        "Friends need the same home Wi‑Fi, not a leftover hotspot address. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
