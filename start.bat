@@ -54,6 +54,12 @@ if not exist .venv (
 )
 python -m pip install -q -r requirements.txt
 
+if not exist "%MBD_ROOT%data\firewall.ok" if exist "%MBD_ROOT%allow-firewall.bat" (
+  echo.
+  echo Allowing this app through Windows Firewall. Click Yes on the Windows prompt.
+  powershell -NoProfile -Command "Start-Process -FilePath '%MBD_ROOT%allow-firewall.bat' -Verb RunAs -Wait"
+)
+
 echo.
 echo Matched Betting Documenter is starting.
 echo Leave this window open. Press Ctrl+C to stop.

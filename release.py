@@ -107,8 +107,8 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Windows PC: unlink stays unlinked, the laptop sends the log when this PC cannot dial it, "
-        "and Start tries to allow the app through Windows Firewall. "
+        "Windows: Start asks once to allow the app through the firewall "
+        "(or double-click allow-firewall.bat and click Yes). "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

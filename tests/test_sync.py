@@ -218,6 +218,12 @@ def test_remember_linked_device_is_two_way(tmp_path, monkeypatch):
     assert remember_linked_device(device_id=me["device_id"], token=me["device_token"]) is None
 
 
+def test_firewall_helper_is_windows_only():
+    from app.win_firewall import allow_port
+
+    assert allow_port(5050) is False
+
+
 def test_unlink_stays_unlinked(tmp_path, monkeypatch):
     monkeypatch.setenv("MBD_ROOT", str(tmp_path))
     ensure_state()

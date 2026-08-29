@@ -5,6 +5,8 @@ You need Python 3.10+ from https://www.python.org/downloads/
 On Windows, tick "Add python.exe to PATH" when installing.
 
 Windows:  double-click  start.bat
+If another computer cannot connect, double-click allow-firewall.bat
+and click Yes so Windows Firewall allows the app.
 Mac / Linux:  chmod +x start.sh && ./start.sh
 
 That is the only file you need to click. The program folder is hidden on
