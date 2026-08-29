@@ -11,15 +11,18 @@ from typing import Callable
 from app.nat import is_cgnat, is_lan_ip, lan_ip, local_ipv4s
 
 ANNOUNCE_EVERY_SEC = 8
+# Stay off the Flask TCP port — Windows forbids a second bind on 5050 (WinError 10013).
+DISCOVERY_OFFSETS = (1, 2, 3, 4, 5)
 _seen: dict[str, dict] = {}
 _seen_lock = threading.Lock()
 _started = False
-_port = 5050
+_http_port = 5050
 _on_peer: Callable[[dict], None] | None = None
 
 
-def punch_port(http_port: int) -> int:
-    return int(http_port)
+def discovery_ports(http_port: int) -> list[int]:
+    base = int(http_port)
+    return [base + offset for offset in DISCOVERY_OFFSETS]
 
 
 def remember(device_id: str, host: str, *, nickname: str = "") -> None:
@@ -99,27 +102,53 @@ def _broadcast_addrs() -> list[str]:
     return [item for item in addrs if item != "<broadcast>"] + (["<broadcast>"] if "<broadcast>" in addrs else [])
 
 
-def _send_announce(port: int) -> None:
-    payload = json.dumps(announce_payload(port), separators=(",", ":")).encode("utf-8")
+def _send_announce(http_port: int) -> None:
+    payload = json.dumps(announce_payload(http_port), separators=(",", ":")).encode("utf-8")
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        except OSError:
+            pass
         for dest in _broadcast_addrs():
-            try:
-                sock.sendto(payload, (dest, port))
-            except OSError:
-                continue
+            for port in discovery_ports(http_port):
+                try:
+                    sock.sendto(payload, (dest, port))
+                except OSError:
+                    continue
     finally:
         sock.close()
 
 
-def _listen_loop(port: int) -> None:
+def _open_listen_socket(http_port: int) -> socket.socket | None:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.bind(("0.0.0.0", port))
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        except OSError:
+            pass
+        for port in discovery_ports(http_port):
+            try:
+                sock.bind(("0.0.0.0", port))
+                return sock
+            except OSError:
+                continue
+    except OSError:
+        pass
+    try:
+        sock.close()
+    except OSError:
+        pass
+    return None
+
+
+def _listen_loop(http_port: int) -> None:
+    sock = _open_listen_socket(http_port)
+    if sock is None:
+        return
+    try:
         sock.settimeout(1.0)
         while True:
             try:
@@ -137,20 +166,20 @@ def _listen_loop(port: int) -> None:
         sock.close()
 
 
-def _announce_loop(port: int) -> None:
+def _announce_loop(http_port: int) -> None:
     while True:
         try:
-            _send_announce(port)
+            _send_announce(http_port)
         except Exception:  # noqa: BLE001
             pass
         time.sleep(ANNOUNCE_EVERY_SEC)
 
 
 def start_background(http_port: int) -> None:
-    global _started, _port
+    global _started, _http_port
     if _started:
         return
     _started = True
-    _port = punch_port(http_port)
-    threading.Thread(target=_listen_loop, args=(_port,), name="mbd-p2p-listen", daemon=True).start()
-    threading.Thread(target=_announce_loop, args=(_port,), name="mbd-p2p-announce", daemon=True).start()
+    _http_port = int(http_port)
+    threading.Thread(target=_listen_loop, args=(_http_port,), name="mbd-p2p-listen", daemon=True).start()
+    threading.Thread(target=_announce_loop, args=(_http_port,), name="mbd-p2p-announce", daemon=True).start()

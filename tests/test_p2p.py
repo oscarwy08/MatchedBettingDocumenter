@@ -3,6 +3,28 @@ from app.live_sync import apply_push, peer_hosts
 from app.sync import ensure_state, upsert_peer
 
 
+def test_discovery_stays_off_http_port():
+    ports = p2p.discovery_ports(5050)
+    assert 5050 not in ports
+    assert ports[0] == 5051
+
+
+def test_listen_bind_failure_is_quiet(monkeypatch):
+    class Boom:
+        def setsockopt(self, *_args, **_kwargs):
+            return None
+
+        def bind(self, _addr):
+            raise PermissionError("WinError 10013")
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(p2p.socket, "socket", lambda *_args, **_kwargs: Boom())
+    assert p2p._open_listen_socket(5050) is None
+    p2p._listen_loop(5050)
+
+
 def test_announce_remembers_paired_peer(tmp_path, monkeypatch):
     monkeypatch.setenv("MBD_ROOT", str(tmp_path))
     me = ensure_state()

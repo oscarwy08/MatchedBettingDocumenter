@@ -107,9 +107,8 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Paired computers share one account (bets, offers, and Friends). "
-        "A save is pushed to the other machine when both apps are on the same Wi‑Fi; "
-        "stale LAN addresses are refreshed automatically. "
+        "Fix Windows Start: discovery no longer binds UDP on the Flask port "
+        "(WinError 10013). Paired computers still share one account on the same Wi‑Fi. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
