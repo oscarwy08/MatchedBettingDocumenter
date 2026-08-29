@@ -107,8 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Windows: Start asks once to allow the app through the firewall "
-        "(or double-click allow-firewall.bat and click Yes). "
+        "allow-firewall.bat now sits next to Start after an update (it was not copied before). "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

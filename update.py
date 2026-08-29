@@ -20,7 +20,7 @@ from pathlib import Path
 
 KEEP_TOP = {"data", ".venv", "venv"}
 SKIP_NAMES = {".git", "__pycache__", ".pytest_cache", "dist", ".env"}
-FRONT_FILES = ("start.sh", "start.bat", "README.txt")
+FRONT_FILES = ("start.sh", "start.bat", "README.txt", "allow-firewall.bat")
 MOVE_INTO_PROGRAM = ("app", "run.py", "update.py", "requirements.txt", ".venv", "venv")
 OBSOLETE_FILES = (
     "update.sh",
@@ -300,6 +300,10 @@ def _hide_internal(front: Path) -> None:
     _drop_other_os_launcher(front)
     if os.name == "nt":
         subprocess.run(["attrib", "+h", str(front / "program")], check=False, capture_output=True)
+        for name in ("start.bat", "allow-firewall.bat", "README.txt"):
+            path = front / name
+            if path.is_file():
+                subprocess.run(["attrib", "-h", "-s", str(path)], check=False, capture_output=True)
         return
     if (front / "program" / "run.py").is_file():
         (front / ".hidden").write_text("program\n", encoding="utf-8")
