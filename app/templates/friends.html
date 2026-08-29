@@ -4,7 +4,7 @@
 {% block heading %}Friends{% endblock %}
 {% block content %}
   <p class="reach-line reach-{{ reach.kind }}">{{ reach.label }}{% if reach.lan_ip %} · this Wi‑Fi {{ reach.lan_ip }}:{{ app_port }}{% endif %}{% if reach.mapped and reach.wan_ip %} · internet {{ reach.wan_ip }}:{{ app_port }}{% endif %}</p>
-  <p class="hint">Friends see a read-only dashboard. Their token cannot replace your log. If they are offline you still see the last available view this app already stored.</p>
+  <p class="hint">Friends see a read-only dashboard. Their token cannot replace your log. Invites and your friend list belong to this account, so they stay the same on every linked computer. Viewing is a direct connection — both apps on the same Wi‑Fi (or a reachable address in the code). If they are offline you still see the last available view.</p>
 
   <section class="panel">
     <div class="panel-head"><h2>Invite a viewer</h2></div>

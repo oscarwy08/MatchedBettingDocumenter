@@ -9,6 +9,7 @@ from app.seed import seed_accounts
 from app.snapshot import apply_snapshot, dump_snapshot, fingerprint_payload, would_shrink
 from app.sync import (
     authorize_device,
+    authorize_linked,
     compare_fingerprints,
     ensure_state,
     make_link_code,
@@ -139,3 +140,55 @@ def test_snapshot_round_trip(tmp_path, monkeypatch):
     assert fresh.id > copied.bookie_id
     other.close()
     assert "482193" in make_link_code("482193", 5050)
+
+
+def test_snapshot_includes_friends_account(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    from app.friends import create_invite, load_state as load_friends
+    from app.snapshot import fingerprint_bets_only
+
+    Session = init_db(tmp_path / "a.db")
+    session = Session()
+    seed_accounts(session)
+    session.commit()
+    create_invite("Sam")
+    payload = dump_snapshot(session)
+    assert payload["friends"]["invites"]
+    assert payload["fingerprint"] != fingerprint_bets_only(payload)
+    session.close()
+
+    Session2 = init_db(tmp_path / "b.db")
+    other = Session2()
+    apply_snapshot(other, payload)
+    other.commit()
+    other.close()
+    invites = load_friends()["invites"]
+    assert len(invites) == 1
+    assert invites[0]["nickname"] == "Sam"
+
+
+def test_migrate_last_agreed_from_bets_only_hash(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    from app.live_sync import migrate_last_agreed
+    from app.snapshot import fingerprint_bets_only
+
+    Session = init_db(tmp_path / "a.db")
+    session = Session()
+    seed_accounts(session)
+    session.commit()
+    snap = dump_snapshot(session)
+    state = ensure_state()
+    state["last_agreed"] = fingerprint_bets_only(snap)
+    save_state(state)
+    migrate_last_agreed(session)
+    assert ensure_state()["last_agreed"] == snap["fingerprint"]
+    session.close()
+
+
+def test_authorize_linked_accepts_peer_token(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    ensure_state()
+    upsert_peer({"device_id": "other", "token": "peer-secret-token", "host": "192.168.1.9:5050"})
+    assert authorize_linked("peer-secret-token")
+    assert not authorize_device("peer-secret-token")
+    assert not authorize_linked("view.not-an-invite")

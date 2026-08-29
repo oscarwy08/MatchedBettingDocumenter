@@ -57,6 +57,7 @@ from app.services import (
 from app.snapshot import apply_snapshot, dump_snapshot, would_shrink
 from app.sync import (
     authorize_device,
+    authorize_linked,
     current_pin,
     ensure_state,
     forget_peer,
@@ -93,12 +94,17 @@ BET_TYPE_CHOICES = [
 ]
 
 
-def _commit_and_sync(session: Session) -> None:
-    session.commit()
+def _notify_linked() -> None:
     from app.live_sync import notify_after_save
-    from app.settings import get as setting
 
     notify_after_save()
+
+
+def _commit_and_sync(session: Session) -> None:
+    session.commit()
+    from app.settings import get as setting
+
+    _notify_linked()
     if not setting("excel_sync"):
         return
     try:
@@ -1220,6 +1226,32 @@ def sync_hello():
     return jsonify({"ok": True, "device_id": ensure_state()["device_id"]})
 
 
+@bp.post("/api/sync/push")
+def sync_push_api():
+    from app.live_sync import apply_push
+    from app.settings import get as setting
+
+    token = _bearer_token()
+    if not authorize_linked(token):
+        abort(403)
+    session = get_session()
+    try:
+        counts = apply_push(session, request.get_json(silent=True) or {})
+        session.commit()
+        if setting("excel_sync"):
+            try:
+                sync_workbook(session)
+            except Exception:  # noqa: BLE001
+                pass
+        return jsonify({"ok": True, **counts})
+    except ValueError as exc:
+        session.rollback()
+        return jsonify({"ok": False, "error": str(exc)}), 409
+    except Exception as exc:  # noqa: BLE001
+        session.rollback()
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
 @bp.get("/api/sync/freshness")
 def sync_freshness_api():
     from app.live_sync import freshness
@@ -1262,6 +1294,7 @@ def sync_join():
         wan = remote.get("wan_ip") or ""
         if "+" in (request.form.get("code") or "") and len(hosts) > 1:
             wan = wan or hosts[1].split(":")[0]
+        me = ensure_state()
         upsert_peer(
             {
                 "device_id": remote.get("device_id") or hosts[0],
@@ -1271,10 +1304,10 @@ def sync_join():
                 "lan_host": lan,
                 "wan_host": wan,
                 "port": port,
+                "our_token": me["device_token"],
             }
         )
         set_last_agreed(payload.get("fingerprint") or dump_snapshot(session)["fingerprint"])
-        me = ensure_state()
         reach = reachability(_app_port())
         try:
             post_json(
@@ -1338,7 +1371,11 @@ def sync_pull_peer(peer_id: str):
         flash(str(exc), "error")
     except Exception as exc:  # noqa: BLE001
         session.rollback()
-        flash(f"Could not pull: {exc}", "error")
+        flash(
+            f"Could not reach the other computer ({exc}). Both apps need to be running "
+            "on the same Wi‑Fi — the address updates automatically when they can see each other.",
+            "error",
+        )
     return redirect(url_for("main.sync_page"))
 
 
@@ -1440,9 +1477,8 @@ def sync_restore():
 
 @bp.get("/friends")
 def friends_page():
-    from app.friends import invite_code, load_state as load_friends
+    from app.friends import account_name, invite_code, load_state as load_friends
     from app.nat import reachability
-    from app.sync import default_nickname
 
     port = _app_port()
     state = load_friends()
@@ -1458,15 +1494,14 @@ def friends_page():
         live=False,
         last_available=None,
         fetch_error=None,
-        nickname=default_nickname(),
+        nickname=account_name(),
     )
 
 
 @bp.get("/friends/<friend_id>")
 def friend_detail(friend_id: str):
-    from app.friends import fetch_live, friend_by_id, invite_code, load_cache, load_state as load_friends, store_cache
+    from app.friends import account_name, fetch_live, friend_by_id, invite_code, load_cache, load_state as load_friends, store_cache
     from app.nat import reachability
-    from app.sync import default_nickname
 
     friend = friend_by_id(friend_id)
     if not friend:
@@ -1499,7 +1534,7 @@ def friend_detail(friend_id: str):
         last_available=last_available,
         fetch_error=fetch_error,
         selected=friend,
-        nickname=default_nickname(),
+        nickname=account_name(),
     )
 
 
@@ -1513,7 +1548,8 @@ def friends_invite():
         nat_refresh(_app_port())
     except Exception:  # noqa: BLE001
         pass
-    flash("Viewer invite created. Send them the code — they see your dashboard only.", "ok")
+    _notify_linked()
+    flash("Viewer invite created. Send them the code — they see your dashboard only. It also appears on your other linked computers.", "ok")
     return redirect(url_for("main.friends_page"))
 
 
@@ -1522,6 +1558,7 @@ def friends_revoke(invite_id: str):
     from app.friends import revoke_invite
 
     revoke_invite(invite_id)
+    _notify_linked()
     flash("That viewer invite is no longer valid.", "ok")
     return redirect(url_for("main.friends_page"))
 
@@ -1531,6 +1568,7 @@ def friends_stop():
     from app.friends import stop_all_invites
 
     stop_all_invites()
+    _notify_linked()
     flash("All viewer invites stopped.", "ok")
     return redirect(url_for("main.friends_page"))
 
@@ -1543,6 +1581,8 @@ def friends_add():
 
     try:
         secret, hosts = parse_friend_code(request.form.get("code") or "")
+        if not hosts:
+            raise ValueError("That code has no address. Ask them to copy a fresh invite while their app is running.")
         lan = hosts[0].split(":")[0]
         port = int(hosts[0].rsplit(":", 1)[-1])
         wan = hosts[1].split(":")[0] if len(hosts) > 1 else ""
@@ -1557,6 +1597,7 @@ def friends_add():
         from app.friends import load_state as load_friends
 
         upsert_friend(friend)
+        _notify_linked()
         # Re-read id after upsert
         saved = next(
             (item for item in load_friends()["friends"] if item.get("secret") == secret),
@@ -1582,14 +1623,14 @@ def friends_forget(friend_id: str):
     from app.friends import forget_friend
 
     forget_friend(friend_id)
+    _notify_linked()
     flash("Friend removed.", "ok")
     return redirect(url_for("main.friends_page"))
 
 
 @bp.get("/api/friend/view")
 def friend_view_api():
-    from app.friends import allow_rate, encrypt_view, invite_by_secret, view_dto
-    from app.sync import default_nickname
+    from app.friends import account_name, allow_rate, encrypt_view, invite_by_secret, view_dto
 
     token = _bearer_token()
     if not token.startswith("view."):
@@ -1603,7 +1644,7 @@ def friend_view_api():
     if not allow_rate(client_ip() or "local"):
         abort(429)
     session = get_session()
-    dto = view_dto(session, nickname=default_nickname())
+    dto = view_dto(session, nickname=account_name())
     return jsonify({"ciphertext": encrypt_view(secret, dto)})
 
 

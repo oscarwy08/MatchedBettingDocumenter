@@ -16,6 +16,7 @@ _REMOTE_PATHS = {
     "/api/sync/status",
     "/api/sync/snapshot",
     "/api/sync/hello",
+    "/api/sync/push",
     "/api/friend/view",
 }
 

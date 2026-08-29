@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import ipaddress
 import re
 import socket
 import struct
+import subprocess
 import urllib.error
 import urllib.request
 from typing import Callable
 from xml.etree import ElementTree as ET
+
+CGNAT = ipaddress.ip_network("100.64.0.0/10")
+_RFC1918 = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+)
 
 SSDP_ADDR = ("239.255.255.250", 1900)
 SSDP_ST = "urn:schemas-upnp-org:device:InternetGatewayDevice:1"
@@ -30,7 +39,41 @@ _upnp_backend: Callable[[int], dict | None] | None = None
 _stun_backend: Callable[[], str | None] | None = None
 
 
-def lan_ip() -> str:
+def _as_ip(raw: str):
+    try:
+        return ipaddress.ip_address((raw or "").split("%")[0])
+    except ValueError:
+        return None
+
+
+def is_cgnat(ip: str) -> bool:
+    addr = _as_ip(ip)
+    return bool(addr and addr in CGNAT)
+
+
+def is_rfc1918(ip: str) -> bool:
+    addr = _as_ip(ip)
+    return bool(addr and any(addr in net for net in _RFC1918))
+
+
+def is_lan_ip(ip: str) -> bool:
+    addr = _as_ip(ip)
+    if addr is None or addr.is_loopback or addr.is_link_local or addr in CGNAT:
+        return False
+    return is_rfc1918(str(addr))
+
+
+def is_public_wan(ip: str) -> bool:
+    """Real internet address — not LAN, not CGNAT. TEST-NET counts so tests can mock a WAN."""
+    addr = _as_ip(ip)
+    if addr is None or addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_unspecified:
+        return False
+    if addr in CGNAT or is_rfc1918(str(addr)):
+        return False
+    return True
+
+
+def _route_ip() -> str:
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.connect(("8.8.8.8", 80))
@@ -39,6 +82,45 @@ def lan_ip() -> str:
         return "127.0.0.1"
     finally:
         sock.close()
+
+
+def local_ipv4s() -> list[str]:
+    found: list[str] = []
+    for candidate in [_route_ip()]:
+        if candidate and candidate not in found:
+            found.append(candidate)
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if ip and ip not in found:
+                found.append(ip)
+    except OSError:
+        pass
+    try:
+        out = subprocess.run(
+            ["ip", "-4", "-o", "addr", "show"],
+            capture_output=True,
+            text=True,
+            timeout=1,
+            check=False,
+        )
+        for line in out.stdout.splitlines():
+            parts = line.split()
+            if "inet" in parts:
+                ip = parts[parts.index("inet") + 1].split("/")[0]
+                if ip and ip not in found:
+                    found.append(ip)
+    except (OSError, ValueError):
+        pass
+    return found
+
+
+def lan_ip() -> str:
+    for ip in local_ipv4s():
+        if is_lan_ip(ip):
+            return ip
+    route = _route_ip()
+    return route if route else "127.0.0.1"
 
 
 def stun_wan_ip(timeout: float = 1.5) -> str | None:
@@ -222,25 +304,26 @@ def refresh(port: int) -> dict:
     except Exception as exc:  # noqa: BLE001
         _state["error"] = str(exc)
     global _mapping_meta
-    if mapped:
+    wan = (mapped or {}).get("wan_ip") if mapped else None
+    if not wan:
+        try:
+            wan = stun_wan_ip()
+        except Exception:  # noqa: BLE001
+            wan = None
+    # UPnP on a CGNAT "WAN" only maps the home router. The ISP still blocks inbound.
+    internet = bool(mapped) and bool(wan) and is_public_wan(str(wan))
+    if mapped and internet:
         _state["mapped"] = True
         _state["mapped_port"] = port
-        _state["wan_ip"] = mapped.get("wan_ip")
+        _state["wan_ip"] = wan
         _mapping_meta = mapped
     else:
         _state["mapped"] = False
         _state["mapped_port"] = None
-        _mapping_meta = None
-        if not _state["wan_ip"]:
-            try:
-                _state["wan_ip"] = stun_wan_ip()
-            except Exception:  # noqa: BLE001
-                pass
-    if mapped and not _state["wan_ip"]:
-        try:
-            _state["wan_ip"] = stun_wan_ip()
-        except Exception:  # noqa: BLE001
-            pass
+        _mapping_meta = mapped if mapped else None
+        _state["wan_ip"] = wan
+        if wan and is_cgnat(str(wan)):
+            _state["error"] = "cgnat"
     return reachability(port)
 
 
@@ -262,37 +345,52 @@ def reachability(port: int | None = None) -> dict:
     lan = _state.get("lan_ip") or lan_ip()
     wan = _state.get("wan_ip")
     mapped = bool(_state.get("mapped"))
-    if mapped and wan:
+    if mapped and wan and is_public_wan(str(wan)):
         label = "Reachable from the internet"
         kind = "internet"
+    elif wan and (is_cgnat(str(wan)) or _state.get("error") == "cgnat"):
+        label = "This house cannot accept inbound internet (carrier NAT). Linked computers sync on the same Wi‑Fi."
+        kind = "cgnat"
     elif lan and lan != "127.0.0.1":
         label = "Reachable on this Wi‑Fi"
         kind = "lan"
     else:
-        label = "Internet mapping failed" if wan and not mapped else "Only this computer"
+        label = "Only this computer"
         kind = "local"
-    if wan and not mapped:
-        label = "Internet mapping failed"
+    if wan and not mapped and is_public_wan(str(wan)):
+        label = "Internet mapping failed · linked computers still sync on this Wi‑Fi"
         kind = "failed"
     return {
         "lan_ip": lan,
-        "wan_ip": wan,
+        "wan_ip": wan if wan and is_public_wan(str(wan)) else None,
         "mapped": mapped,
         "port": port or _state.get("mapped_port"),
         "label": label,
         "kind": kind,
         "error": _state.get("error"),
+        "cgnat": bool(wan and is_cgnat(str(wan))),
     }
 
 
 def share_hosts(port: int) -> list[str]:
-    """Host:port pairs for a share/friend code (LAN first, WAN if mapped)."""
+    """LAN addresses for same Wi‑Fi. CGNAT 100.x is never advertised as internet."""
+    hosts: list[str] = []
+    for ip in local_ipv4s():
+        if is_lan_ip(ip):
+            item = f"{ip}:{port}"
+            if item not in hosts:
+                hosts.append(item)
+    if not hosts:
+        fallback = lan_ip()
+        if fallback and not is_cgnat(fallback):
+            hosts.append(f"{fallback}:{port}")
     status = reachability(port)
-    hosts = [f"{status['lan_ip']}:{port}"]
     wan = status.get("wan_ip")
-    if status.get("mapped") and wan and wan != status["lan_ip"]:
-        hosts.append(f"{wan}:{port}")
-    return hosts
+    if status.get("mapped") and wan and is_public_wan(str(wan)):
+        item = f"{wan}:{port}"
+        if item not in hosts:
+            hosts.append(item)
+    return hosts or [f"{lan_ip()}:{port}"]
 
 
 def format_hosts(port: int) -> str:

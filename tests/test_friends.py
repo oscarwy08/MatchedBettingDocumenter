@@ -1,7 +1,9 @@
 from app.friends import (
+    apply_account,
     create_invite,
     decrypt_view,
     encrypt_view,
+    export_account,
     invite_by_secret,
     is_viewer_secret,
     load_cache,
@@ -26,6 +28,18 @@ def test_invite_and_friend_token_cannot_write(tmp_path, monkeypatch):
     assert not authorize_device("view." + secret)
 
 
+def test_export_apply_account(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    create_invite("Sam")
+    blob = export_account()
+    assert blob["invites"][0]["nickname"] == "Sam"
+    apply_account({"account_name": "House", "invites": [], "friends": [{"id": "ab", "secret": "x" * 20, "nickname": "Alex"}]})
+    again = export_account()
+    assert again["account_name"] == "House"
+    assert again["invites"] == []
+    assert again["friends"][0]["nickname"] == "Alex"
+
+
 def test_encrypt_round_trip():
     payload = {"stats": {"net_profit": "1.50"}, "recent_bets": []}
     blob = encrypt_view("super-secret", payload)
@@ -38,6 +52,9 @@ def test_parse_friend_code():
     assert secret == "abcDEF1234567890"
     assert hosts[0] == "10.0.0.2:5050"
     assert hosts[1] == "8.8.8.8:5050"
+    secret, hosts = parse_friend_code("view.abcDEF1234567890xyz")
+    assert secret == "abcDEF1234567890xyz"
+    assert hosts == []
 
 
 def test_last_available_cache(tmp_path, monkeypatch):

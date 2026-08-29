@@ -20,6 +20,7 @@ def test_remote_only_token_apis():
     assert remote_api_allowed("/api/sync/status")
     assert remote_api_allowed("/api/sync/snapshot")
     assert remote_api_allowed("/api/sync/hello")
+    assert remote_api_allowed("/api/sync/push")
     assert remote_api_allowed("/api/sync/482193")
     assert remote_api_allowed("/api/friend/view")
     assert not remote_api_allowed("/")

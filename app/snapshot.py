@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.models import Account, Bet, Offer, Transfer
 from app.version import VERSION
 
-SNAPSHOT_FORMAT = 1
+SNAPSHOT_FORMAT = 2
 
 
 def _jsonable(value):
@@ -78,6 +78,9 @@ def dump_snapshot(session: Session) -> dict:
             _row(item, TRANSFER_FIELDS) for item in session.scalars(select(Transfer).order_by(Transfer.id))
         ],
     }
+    from app.friends import export_account
+
+    payload["friends"] = export_account()
     payload["counts"] = snapshot_counts(payload)
     payload["fingerprint"] = fingerprint_payload(payload)
     return payload
@@ -101,12 +104,36 @@ def snapshot_counts(payload: dict) -> dict:
     }
 
 
+def _friends_body(payload: dict) -> dict:
+    friends = payload.get("friends")
+    if not isinstance(friends, dict):
+        return {"account_name": "", "invites": [], "friends": []}
+    return {
+        "account_name": friends.get("account_name") or "",
+        "invites": friends.get("invites") or [],
+        "friends": friends.get("friends") or [],
+    }
+
+
+def fingerprint_bets_only(payload: dict) -> str:
+    """Pre-1.6.2 hash — used to keep last_agreed after the friends field was added."""
+    body = {
+        "accounts": payload.get("accounts") or [],
+        "offers": payload.get("offers") or [],
+        "bets": payload.get("bets") or [],
+        "transfers": payload.get("transfers") or [],
+    }
+    raw = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 def fingerprint_payload(payload: dict) -> str:
     body = {
         "accounts": payload.get("accounts") or [],
         "offers": payload.get("offers") or [],
         "bets": payload.get("bets") or [],
         "transfers": payload.get("transfers") or [],
+        "friends": _friends_body(payload),
     }
     raw = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -235,6 +262,10 @@ def apply_snapshot(session: Session, payload: dict, *, backup_why: str | None = 
         )
     session.flush()
     _reset_sqlite_sequences(session, payload)
+    if "friends" in payload:
+        from app.friends import apply_account
+
+        apply_account(payload.get("friends"))
     return {
         "accounts": len(payload.get("accounts", [])),
         "offers": len(payload.get("offers", [])),

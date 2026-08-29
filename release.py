@@ -94,6 +94,7 @@ def main() -> int:
         return 1
 
     print(f"Publishing {tag} to {repo}…")
+    target = (_run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout or "").strip() or "master"
     _gh(
         "release",
         "create",
@@ -101,11 +102,14 @@ def main() -> int:
         str(zip_path),
         "--repo",
         repo,
+        "--target",
+        target,
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Fix: logging a bet no longer crashes after pairing (count vs snapshot mix-up). "
-        "Friends shows a real error if the other app cannot be reached, and tries addresses in parallel. "
+        "Paired computers share one account (bets, offers, and Friends). "
+        "A save is pushed to the other machine when both apps are on the same Wi‑Fi; "
+        "stale LAN addresses are refreshed automatically. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

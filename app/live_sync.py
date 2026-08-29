@@ -17,7 +17,6 @@ from app.snapshot import apply_snapshot, dump_snapshot, snapshot_counts, would_s
 from app.sync import (
     compare_fingerprints,
     load_state,
-    save_state,
     set_conflict,
     set_last_agreed,
     upsert_peer,
@@ -25,8 +24,8 @@ from app.sync import (
 
 POLL_EVERY_SEC = 30
 REQUEST_TIMEOUT = 3.0
-LAN_TIMEOUT = 1.2
-FRESHNESS_TIMEOUT = 1.2
+LAN_TIMEOUT = 0.8
+FRESHNESS_TIMEOUT = 0.9
 
 _lock = threading.Lock()
 _wakeup = threading.Event()
@@ -41,20 +40,30 @@ def _headers(token: str | None = None) -> dict:
     return headers
 
 
+def _host_item(raw, port: int) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    if ":" in text:
+        return text
+    return f"{text}:{port}"
+
+
 def peer_hosts(peer: dict) -> list[str]:
+    from app.nat import is_cgnat
+    from app.p2p import host_for
+
     hosts: list[str] = []
-    lan = peer.get("lan_host") or ""
-    wan = peer.get("wan_host") or ""
     port = int(peer.get("port") or 5050)
-    fallback = peer.get("host") or ""
-    if lan:
-        hosts.append(lan if ":" in lan else f"{lan}:{port}")
-    if fallback and fallback not in hosts:
-        hosts.append(fallback if ":" in str(fallback) else f"{fallback}:{port}")
-    if wan:
-        item = wan if ":" in wan else f"{wan}:{port}"
-        if item not in hosts:
-            hosts.append(item)
+    discovered = host_for(peer.get("device_id"))
+    for raw in (discovered, peer.get("lan_host"), peer.get("host"), peer.get("wan_host")):
+        item = _host_item(raw, port)
+        if not item or item in hosts:
+            continue
+        ip = item.rsplit(":", 1)[0].strip("[]")
+        if is_cgnat(ip):
+            continue
+        hosts.append(item)
     return hosts
 
 
@@ -69,6 +78,40 @@ def _fetch_one(host: str, path: str, token: str | None, timeout: float) -> dict:
     if not isinstance(payload, dict):
         raise ValueError("The other computer sent something that is not a log.")
     return payload
+
+
+def _refresh_peer_address(peer: dict, remote: dict) -> None:
+    lan = remote.get("lan_ip") or ""
+    ips = [ip for ip in (remote.get("lan_ips") or []) if ip]
+    if lan and lan not in ips:
+        ips.insert(0, lan)
+    if not ips and not lan:
+        return
+    port = int(remote.get("port") or peer.get("port") or 5050)
+    host = f"{(lan or ips[0])}:{port}"
+    from app.p2p import remember
+
+    if peer.get("device_id") and host:
+        remember(str(peer["device_id"]), host, nickname=str(remote.get("nickname") or ""))
+    upsert_peer(
+        {
+            **peer,
+            "lan_host": lan or peer.get("lan_host") or "",
+            "host": host or peer.get("host") or "",
+            "port": port,
+            "last_seen": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "online": True,
+        }
+    )
+
+
+def migrate_last_agreed(session: Session) -> None:
+    from app.snapshot import fingerprint_bets_only
+
+    local = dump_snapshot(session)
+    last = load_state().get("last_agreed") or ""
+    if last and last == fingerprint_bets_only(local) and last != local["fingerprint"]:
+        set_last_agreed(local["fingerprint"])
 
 
 def fetch_json(hosts: list[str], path: str, token: str | None = None, timeout: float = REQUEST_TIMEOUT) -> dict:
@@ -153,6 +196,7 @@ def freshness(session: Session | None = None) -> dict:
 
 
 def _freshness(session: Session) -> dict:
+    migrate_last_agreed(session)
     local = dump_snapshot(session)
     state = load_state()
     last = state.get("last_agreed") or ""
@@ -175,6 +219,7 @@ def _freshness(session: Session) -> dict:
             )
         except Exception:  # noqa: BLE001
             continue
+        _refresh_peer_address(peer, remote)
         action = compare_fingerprints(local["fingerprint"], remote.get("fingerprint") or "", last)
         info = {
             "action": action,
@@ -240,6 +285,79 @@ def pull_peer(session: Session, peer: dict, *, force: bool = False) -> dict:
     return counts
 
 
+def apply_push(session: Session, body: dict, *, force: bool = False) -> dict:
+    snap = body.get("snapshot") if isinstance(body.get("snapshot"), dict) else body
+    if not isinstance(snap, dict) or "accounts" not in snap:
+        raise ValueError("The other computer did not send a log.")
+    local = dump_snapshot(session)
+    incoming_fp = snap.get("fingerprint") or ""
+    if incoming_fp and incoming_fp == local["fingerprint"]:
+        return {"same": True, **local["counts"]}
+    if would_shrink(local, snap) and not force:
+        set_conflict(
+            {
+                "peer_id": body.get("device_id"),
+                "peer_name": body.get("nickname") or "the other computer",
+                "local": local["counts"],
+                "remote": snapshot_counts(snap),
+                "shrink": True,
+                "reason": "smaller",
+            }
+        )
+        raise ValueError(
+            f"Replace {local['counts']['bets']} bets with {snapshot_counts(snap)['bets']} "
+            f"from {body.get('nickname') or 'the other computer'}? Confirm to overwrite."
+        )
+    counts = apply_snapshot(session, snap, backup_why="before-sync")
+    set_last_agreed(snap.get("fingerprint") or dump_snapshot(session)["fingerprint"])
+    if body.get("device_id"):
+        existing = None
+        for peer in load_state().get("peers") or []:
+            if peer.get("device_id") == body.get("device_id"):
+                existing = peer
+                break
+        if existing:
+            _refresh_peer_address(existing, body)
+    return {"same": False, **counts}
+
+
+def push_to_peers(session: Session | None = None) -> None:
+    if not setting("auto_sync") or not setting("allow_lan"):
+        return
+    peers = load_state().get("peers") or []
+    if not peers:
+        return
+    own = session is None
+    if own:
+        session = _session()
+    try:
+        migrate_last_agreed(session)
+        snap = dump_snapshot(session)
+        me = load_state()
+        from app.nat import lan_ip
+        from app.settings import get as setting_get
+
+        body = {
+            "snapshot": snap,
+            "device_id": me["device_id"],
+            "nickname": me.get("nickname") or "",
+            "lan_ip": lan_ip(),
+            "lan_ips": [],
+            "port": int(setting_get("port")),
+        }
+        for peer in peers:
+            hosts = peer_hosts(peer)
+            if not hosts:
+                continue
+            try:
+                post_json(hosts, "/api/sync/push", body, me.get("device_token"))
+            except Exception:  # noqa: BLE001
+                continue
+    finally:
+        if own and session is not None:
+            session.close()
+
+
 def _poll_once() -> None:
     global _last_error
     if not setting("auto_sync") or not setting("allow_lan"):
@@ -250,16 +368,18 @@ def _poll_once() -> None:
         return
     session = _session()
     try:
+        migrate_last_agreed(session)
         local = dump_snapshot(session)
         last = state.get("last_agreed") or ""
         for peer in peers:
             try:
-                remote = fetch_json(peer_hosts(peer), "/api/sync/status", peer.get("token"))
+                remote = fetch_json(peer_hosts(peer), "/api/sync/status", peer.get("token"), timeout=LAN_TIMEOUT)
             except Exception as exc:  # noqa: BLE001
                 _last_error = str(exc)
                 upsert_peer({**peer, "online": False})
                 continue
             _last_error = None
+            _refresh_peer_address(peer, remote)
             upsert_peer({**peer, "online": True, "last_seen": time.strftime("%Y-%m-%dT%H:%M:%S")})
             action = compare_fingerprints(local["fingerprint"], remote.get("fingerprint") or "", last)
             if action == "same":
@@ -319,6 +439,18 @@ def tick() -> None:
 
 def notify_after_save() -> None:
     _wakeup.set()
+    threading.Thread(target=_push_after_save, name="mbd-push", daemon=True).start()
+
+
+def _push_after_save() -> None:
+    if not _lock.acquire(blocking=False):
+        return
+    try:
+        push_to_peers()
+    except Exception:  # noqa: BLE001
+        pass
+    finally:
+        _lock.release()
 
 
 def last_error() -> str | None:

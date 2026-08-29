@@ -159,6 +159,15 @@ def authorize_device(token: str) -> bool:
     return any(peer.get("our_token") == token for peer in state.get("peers") or [])
 
 
+def authorize_linked(token: str) -> bool:
+    """Paired computer proving who they are (their device token), or any authorize_device token."""
+    if authorize_device(token):
+        return True
+    if not token or is_friend_token(token):
+        return False
+    return any(peer.get("token") == token for peer in load_state().get("peers") or [])
+
+
 def upsert_peer(peer: dict) -> dict:
     state = load_state()
     peers = state.get("peers") or []
@@ -233,6 +242,8 @@ def status_payload(session, *, include_token: bool = False) -> dict:
 
     snap = dump_snapshot(session)
     state = ensure_state()
+    from app.nat import lan_ip, local_ipv4s
+
     out = {
         "device_id": state["device_id"],
         "nickname": state["nickname"],
@@ -240,6 +251,8 @@ def status_payload(session, *, include_token: bool = False) -> dict:
         "counts": snapshot_counts(snap),
         "last_agreed": state.get("last_agreed") or "",
         "port": None,
+        "lan_ip": lan_ip(),
+        "lan_ips": [ip for ip in local_ipv4s() if ip and not ip.startswith("127.")],
     }
     if include_token:
         out["token"] = state["device_token"]

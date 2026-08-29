@@ -31,7 +31,7 @@ def cache_dir() -> Path:
 
 
 def empty_state() -> dict:
-    return {"invites": [], "friends": []}
+    return {"account_name": "", "invites": [], "friends": []}
 
 
 def load_state() -> dict:
@@ -45,9 +45,41 @@ def load_state() -> dict:
     if not isinstance(raw, dict):
         return empty_state()
     return {
+        "account_name": str(raw.get("account_name") or ""),
         "invites": [item for item in raw.get("invites") or [] if isinstance(item, dict)],
         "friends": [item for item in raw.get("friends") or [] if isinstance(item, dict)],
     }
+
+
+def account_name() -> str:
+    name = (load_state().get("account_name") or "").strip()
+    if name:
+        return name
+    from app.sync import default_nickname
+
+    return default_nickname()
+
+
+def export_account() -> dict:
+    state = load_state()
+    return {
+        "account_name": state.get("account_name") or "",
+        "invites": list(state.get("invites") or []),
+        "friends": list(state.get("friends") or []),
+    }
+
+
+def apply_account(payload: dict | None) -> None:
+    if not isinstance(payload, dict):
+        return
+    current = load_state()
+    save_state(
+        {
+            "account_name": str(payload.get("account_name") or current.get("account_name") or ""),
+            "invites": [item for item in (payload.get("invites") or []) if isinstance(item, dict)],
+            "friends": [item for item in (payload.get("friends") or []) if isinstance(item, dict)],
+        }
+    )
 
 
 def save_state(state: dict) -> dict:
@@ -104,9 +136,31 @@ def stop_all_invites() -> dict:
     return save_state(state)
 
 
+def account_hosts(port: int) -> str:
+    """Every address a friend can try: this computer plus paired ones we last saw."""
+    try:
+        hosts = format_hosts(port).split("+")
+    except Exception:  # noqa: BLE001
+        hosts = [f"{lan_ip()}:{port}"]
+    from app.p2p import host_for
+    from app.sync import load_state
+
+    for peer in load_state().get("peers") or []:
+        discovered = host_for(peer.get("device_id"))
+        extras = [discovered, peer.get("lan_host"), peer.get("host")]
+        peer_port = int(peer.get("port") or port)
+        for raw in extras:
+            if not raw:
+                continue
+            item = raw if ":" in str(raw) else f"{raw}:{peer_port}"
+            if item not in hosts:
+                hosts.append(item)
+    return "+".join(hosts)
+
+
 def invite_code(invite: dict, port: int) -> str:
     try:
-        hosts = format_hosts(port)
+        hosts = account_hosts(port)
     except Exception:  # noqa: BLE001
         hosts = f"{lan_ip()}:{port}"
     return f"{VIEW_PREFIX}{invite['secret']}@{hosts}"
@@ -115,7 +169,15 @@ def invite_code(invite: dict, port: int) -> str:
 def parse_friend_code(raw: str) -> tuple[str, list[str]]:
     from app.sync import parse_link_targets
 
-    token, hosts = parse_link_targets(raw)
+    text = (raw or "").strip().replace(" ", "")
+    if "@" not in text:
+        if not text.startswith(VIEW_PREFIX):
+            raise ValueError("A friend code starts with view. then a long secret.")
+        secret = text[len(VIEW_PREFIX) :]
+        if len(secret) < 16:
+            raise ValueError("That friend code is too short.")
+        return secret, []
+    token, hosts = parse_link_targets(text)
     if not token.startswith(VIEW_PREFIX):
         raise ValueError("A friend code starts with view. then a long secret.")
     secret = token[len(VIEW_PREFIX) :]
@@ -288,7 +350,7 @@ def store_cache(friend_id: str, payload: dict) -> dict:
 def fetch_live(friend: dict) -> dict:
     from urllib.error import HTTPError, URLError
 
-    from app.live_sync import REQUEST_TIMEOUT, fetch_json, peer_hosts
+    from app.live_sync import fetch_json, peer_hosts
 
     hosts = peer_hosts(
         {
@@ -301,23 +363,19 @@ def fetch_live(friend: dict) -> dict:
     if not hosts:
         raise ValueError("That friend has no address to try.")
     token = VIEW_PREFIX + friend["secret"]
-    try:
-        remote = fetch_json(hosts, "/api/friend/view", token, timeout=REQUEST_TIMEOUT)
-    except HTTPError as exc:
-        if exc.code == 403:
-            raise ValueError("The other app rejected the code. Is their viewer invite still on?") from exc
-        if exc.code == 429:
-            raise ValueError("The other app asked to slow down. Try again in a minute.") from exc
-        raise ValueError(f"The other app returned {exc.code}.") from exc
-    except URLError as exc:
-        raise ValueError(
-            f"Could not reach them ({exc.reason if getattr(exc, 'reason', None) else exc}). "
-            "Both apps need to be running. Same Wi‑Fi uses the local address; another house needs the internet mapping."
-        ) from exc
-    cipher = remote.get("ciphertext") or remote.get("payload")
-    if not isinstance(cipher, str):
-        raise ValueError("The other app did not send a friend view.")
-    return decrypt_view(friend["secret"], cipher)
+    last_error = "no address to try"
+    if hosts:
+        try:
+            remote = fetch_json(hosts, "/api/friend/view", token, timeout=1.5)
+            cipher = remote.get("ciphertext") or remote.get("payload")
+            if isinstance(cipher, str):
+                return decrypt_view(friend["secret"], cipher)
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
+            last_error = str(exc)
+    raise ValueError(
+        "Could not reach them. Their app needs to be running on the same Wi‑Fi "
+        f"(or a reachable address in the code). {last_error}"
+    )
 
 
 def load_cache(friend_id: str) -> dict | None:

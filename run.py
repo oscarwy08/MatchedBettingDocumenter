@@ -90,6 +90,7 @@ if __name__ == "__main__":
     from app.friends import has_active_invite
     from app.live_sync import start_background
     from app.nat import refresh as nat_refresh
+    from app.p2p import start_background as start_p2p
     from app.sync import ensure_state, has_paired_peers
 
     ensure_state()
@@ -115,4 +116,6 @@ if __name__ == "__main__":
                 pass
     _maybe_open_browser(url)
     start_background()
+    if want_lan:
+        start_p2p(port)
     app.run(host=host, port=port, debug=False, use_reloader=False)
