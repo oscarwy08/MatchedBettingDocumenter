@@ -61,6 +61,20 @@ def test_peer_hosts_prefers_discovery_skips_cgnat(tmp_path, monkeypatch):
     assert "100.120.12.40" not in "".join(hosts)
 
 
+def test_peer_hosts_prefers_last_ok(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    hosts = peer_hosts(
+        {
+            "device_id": "laptop-1",
+            "last_ok_host": "192.168.1.20:5050",
+            "lan_host": "192.168.1.138",
+            "host": "192.168.1.138:5050",
+            "port": 5050,
+        }
+    )
+    assert hosts[0] == "192.168.1.20:5050"
+
+
 def test_apply_push_skips_same_fingerprint(tmp_path, monkeypatch):
     monkeypatch.setenv("MBD_ROOT", str(tmp_path))
     from app.db import init_db

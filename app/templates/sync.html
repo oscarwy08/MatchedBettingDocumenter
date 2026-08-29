@@ -28,7 +28,7 @@
 
   <section class="panel">
     <div class="panel-head"><h2>This account</h2></div>
-    <p class="hint">Every computer here is an equal copy of the same account. The Windows PC often cannot call the laptop — leave both apps open and the laptop sends the log here. Do not paste the laptop code on the PC. A snapshot is saved before anything is replaced.</p>
+    <p class="hint">Every computer here is an equal copy of the same account. The street is often one-way: the computer that can call the other both sends and fetches. Leave both apps open. A snapshot is saved before anything is replaced.</p>
     <table>
       <thead>
         <tr>
@@ -52,7 +52,7 @@
             <td>{% if peer.online %}Linked{% elif peer.last_seen %}Last seen {{ peer.last_seen }}{% else %}Linked{% endif %}</td>
             <td class="page-actions">
               <form method="post" action="{{ url_for('main.sync_pull_peer', peer_id=peer.id) }}">
-                <button class="btn" type="submit">Ask them to send</button>
+                <button class="btn" type="submit">Copy their log</button>
               </form>
               <form method="post" action="{{ url_for('main.sync_forget', peer_id=peer.id) }}" onsubmit="return confirm('Unlink this computer?');">
                 <button class="btn" type="submit">Unlink</button>
@@ -72,7 +72,7 @@
 
   <section class="panel">
     <div class="panel-head"><h2>Link another computer</h2></div>
-    <p class="hint">On either computer, start sharing and copy the code. Paste it on the other once. Both then appear on this list as equals. On Windows, <code>allow-firewall.bat</code> is next to <code>start.bat</code> — double-click it and choose Yes if this PC cannot reach the other computer.</p>
+    <p class="hint">On either computer, start sharing and copy the code. Paste it on the other once. Both then appear on this list as equals. If one side cannot receive, paste the code on the computer that <em>can</em> send — that machine will keep fetching as well as sending.</p>
     {% if sharing %}
       <p>Share this code:</p>
       <p class="link-code" id="link-code">{{ link_code }}</p>

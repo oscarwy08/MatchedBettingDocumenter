@@ -1185,7 +1185,7 @@ def _remember_caller() -> None:
 
 
 def _sync_status_body(session, token: str):
-    if not authorize_device(token):
+    if not authorize_linked(token):
         abort(403)
     _remember_caller()
     from app.nat import reachability
@@ -1209,7 +1209,7 @@ def sync_status_api():
 @bp.get("/api/sync/snapshot")
 def sync_snapshot_api():
     token = _bearer_token()
-    if not authorize_device(token):
+    if not authorize_linked(token):
         abort(403)
     session = get_session()
     snap = dump_snapshot(session)
@@ -1372,8 +1372,8 @@ def sync_join():
         flash("That code was rejected. Is sharing still on over there?", "error")
     except URLError:
         flash(
-            "This computer cannot dial that address. On Windows the other machine often blocks incoming "
-            "connections — start sharing on this PC and paste the code on the laptop instead. They stay equals.",
+            "This computer cannot dial that address. Start sharing here and paste this code on the "
+            "other computer — the machine that can send will also fetch.",
             "error",
         )
     except Exception as exc:  # noqa: BLE001
@@ -1396,7 +1396,6 @@ def sync_forget(peer_id: str):
 @bp.post("/sync/pull/<peer_id>")
 def sync_pull_peer(peer_id: str):
     from app.live_sync import pull_peer
-    from app.sync import set_want_push
 
     session = get_session()
     peer = peer_by_id(peer_id)
@@ -1408,16 +1407,11 @@ def sync_pull_peer(peer_id: str):
         _commit_and_sync(session)
         flash(f"Copied {counts['bets']} bets from {peer.get('nickname') or 'the other computer'}.", "ok")
         return redirect(url_for("main.sync_page"))
-    except ValueError:
-        pass
+    except ValueError as exc:
+        flash(str(exc), "error")
     except Exception:
         session.rollback()
-    set_want_push(peer_id, True)
-    flash(
-        "This PC cannot call the other computer — that is normal. "
-        "Asked them to send the log. Keep the laptop app open; this page should update in a few seconds.",
-        "ok",
-    )
+        flash("Could not copy their log.", "error")
     return redirect(url_for("main.sync_page"))
 
 

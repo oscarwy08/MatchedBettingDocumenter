@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "The Windows PC no longer needs to dial the laptop: it asks the laptop to send the log. "
+        "One-way streets: the computer that can call the other both sends and fetches the log. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

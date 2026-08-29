@@ -244,6 +244,16 @@ def test_request_push_from_all(tmp_path, monkeypatch):
     assert "laptop-1" in want_push_from()
 
 
+def test_fetch_tokens_try_ours_first(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    from app.live_sync import _tokens_for
+
+    me = ensure_state()
+    peer = {"token": "laptop-token"}
+    assert _tokens_for(peer)[0] == me["device_token"]
+    assert "laptop-token" in _tokens_for(peer)
+
+
 def test_authorize_linked_accepts_peer_token(tmp_path, monkeypatch):
     monkeypatch.setenv("MBD_ROOT", str(tmp_path))
     ensure_state()

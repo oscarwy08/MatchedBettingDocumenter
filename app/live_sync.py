@@ -20,7 +20,6 @@ from app.sync import (
     load_state,
     set_conflict,
     set_last_agreed,
-    set_want_push,
     upsert_peer,
 )
 
@@ -71,7 +70,14 @@ def peer_hosts(peer: dict) -> list[str]:
     hosts: list[str] = []
     port = int(peer.get("port") or 5050)
     discovered = host_for(peer.get("device_id"))
-    for raw in (discovered, peer.get("lan_host"), peer.get("host"), peer.get("wan_host")):
+    # Last address that actually answered first — one-way streets stay on the working lane.
+    for raw in (
+        peer.get("last_ok_host"),
+        discovered,
+        peer.get("lan_host"),
+        peer.get("host"),
+        peer.get("wan_host"),
+    ):
         item = _host_item(raw, port)
         if not item or item in hosts:
             continue
@@ -80,6 +86,24 @@ def peer_hosts(peer: dict) -> list[str]:
             continue
         hosts.append(item)
     return hosts
+
+
+def _mark_ok(peer: dict, host: str) -> None:
+    if not host:
+        return
+    peer["last_ok_host"] = host
+    peer["can_reach"] = True
+    peer["online"] = True
+    peer["want_push"] = False
+    peer["last_seen"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+    upsert_peer(peer)
+
+
+def _mark_unreachable(peer: dict) -> None:
+    peer["online"] = False
+    peer["can_reach"] = False
+    peer["want_push"] = True
+    upsert_peer(peer)
 
 
 def _fetch_one(host: str, path: str, token: str | None, timeout: float) -> dict:
@@ -129,7 +153,9 @@ def migrate_last_agreed(session: Session) -> None:
         set_last_agreed(local["fingerprint"])
 
 
-def fetch_json(hosts: list[str], path: str, token: str | None = None, timeout: float = REQUEST_TIMEOUT) -> dict:
+def fetch_json_host(
+    hosts: list[str], path: str, token: str | None = None, timeout: float = REQUEST_TIMEOUT
+) -> tuple[dict, str]:
     unique = []
     for host in hosts:
         if host and host not in unique:
@@ -139,7 +165,7 @@ def fetch_json(hosts: list[str], path: str, token: str | None = None, timeout: f
     errors: list[str] = []
     if len(unique) == 1:
         try:
-            return _fetch_one(unique[0], path, token, timeout)
+            return _fetch_one(unique[0], path, token, timeout), unique[0]
         except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
             raise URLError(f"{unique[0]}: {exc}") from exc
     pool = ThreadPoolExecutor(max_workers=len(unique))
@@ -150,7 +176,7 @@ def fetch_json(hosts: list[str], path: str, token: str | None = None, timeout: f
             for future in done:
                 host = futures[future]
                 try:
-                    return future.result()
+                    return future.result(), host
                 except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
                     errors.append(f"{host}: {exc}")
         except TimeoutError:
@@ -160,7 +186,12 @@ def fetch_json(hosts: list[str], path: str, token: str | None = None, timeout: f
     raise URLError("; ".join(errors) if errors else "No address to try.")
 
 
-def post_json(hosts: list[str], path: str, body: dict, token: str | None = None) -> dict:
+def fetch_json(hosts: list[str], path: str, token: str | None = None, timeout: float = REQUEST_TIMEOUT) -> dict:
+    payload, _host = fetch_json_host(hosts, path, token, timeout)
+    return payload
+
+
+def post_json_host(hosts: list[str], path: str, body: dict, token: str | None = None) -> tuple[dict, str]:
     raw = json.dumps(body).encode("utf-8")
     last_error: Exception | None = None
     for index, host in enumerate(hosts):
@@ -174,15 +205,46 @@ def post_json(hosts: list[str], path: str, body: dict, token: str | None = None)
         try:
             with urlopen(req, timeout=wait) as resp:
                 if resp.length == 0:
-                    return {}
+                    return {}, host
                 payload = json.load(resp)
-            return payload if isinstance(payload, dict) else {}
+            return (payload if isinstance(payload, dict) else {}), host
         except (HTTPError, URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
             last_error = exc
             continue
     if last_error:
         raise last_error
-    return {}
+    return {}, ""
+
+
+def post_json(hosts: list[str], path: str, body: dict, token: str | None = None) -> dict:
+    payload, _host = post_json_host(hosts, path, body, token)
+    return payload
+
+
+def _tokens_for(peer: dict) -> list[str]:
+    # Our token first — that is what a successful send already uses.
+    mine = load_state().get("device_token")
+    tokens: list[str] = []
+    for token in (mine, peer.get("token")):
+        text = str(token or "").strip()
+        if text and text not in tokens:
+            tokens.append(text)
+    return tokens
+
+
+def fetch_peer(peer: dict, path: str, timeout: float = REQUEST_TIMEOUT) -> dict:
+    last_error: Exception | None = None
+    for token in _tokens_for(peer):
+        try:
+            payload, host = fetch_json_host(peer_hosts(peer), path, token, timeout)
+            _mark_ok(peer, host)
+            return payload
+        except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
+            last_error = exc
+            continue
+    if last_error:
+        raise last_error
+    raise URLError("No address to try.")
 
 
 def _session() -> Session:
@@ -226,12 +288,7 @@ def _freshness(session: Session) -> dict:
     best = None
     for peer in peers:
         try:
-            remote = fetch_json(
-                peer_hosts(peer),
-                "/api/sync/status",
-                peer.get("token"),
-                timeout=FRESHNESS_TIMEOUT,
-            )
+            remote = fetch_peer(peer, "/api/sync/status", timeout=FRESHNESS_TIMEOUT)
         except Exception:  # noqa: BLE001
             continue
         _refresh_peer_address(peer, remote)
@@ -269,13 +326,12 @@ def _freshness(session: Session) -> dict:
 
 def pull_peer(session: Session, peer: dict, *, force: bool = False) -> dict:
     try:
-        remote = fetch_json(peer_hosts(peer), "/api/sync/snapshot", peer.get("token"))
+        remote = fetch_peer(peer, "/api/sync/snapshot")
     except (HTTPError, URLError, TimeoutError, OSError) as exc:
-        if peer.get("id"):
-            set_want_push(str(peer["id"]), True)
+        _mark_unreachable(peer)
         raise ValueError(
-            "This Windows PC cannot call the other computer (incoming connections are often blocked). "
-            "Asked them to send the log instead — leave both apps open, then refresh Devices in a few seconds."
+            "This computer cannot reach that one. Asked them to send the log if they can "
+            "call this way — leave both apps open."
         ) from exc
     snap = remote.get("snapshot") if isinstance(remote.get("snapshot"), dict) else remote
     if "accounts" not in snap:
@@ -369,7 +425,10 @@ def push_one(session: Session, peer: dict) -> bool:
     if not hosts:
         return False
     try:
-        post_json(hosts, "/api/sync/push", _push_body(session), load_state().get("device_token"))
+        _payload, host = post_json_host(
+            hosts, "/api/sync/push", _push_body(session), load_state().get("device_token")
+        )
+        _mark_ok(peer, host)
         return True
     except Exception:  # noqa: BLE001
         return False
@@ -408,16 +467,13 @@ def _poll_once() -> None:
         last = state.get("last_agreed") or ""
         for peer in peers:
             try:
-                remote = fetch_json(peer_hosts(peer), "/api/sync/status", peer.get("token"), timeout=LAN_TIMEOUT)
+                remote = fetch_peer(peer, "/api/sync/status", timeout=LAN_TIMEOUT)
             except Exception as exc:  # noqa: BLE001
                 _last_error = str(exc)
-                if peer.get("id"):
-                    set_want_push(str(peer["id"]), True)
-                upsert_peer({**peer, "online": False})
+                _mark_unreachable(peer)
                 continue
             _last_error = None
             _refresh_peer_address(peer, remote)
-            upsert_peer({**peer, "online": True, "last_seen": time.strftime("%Y-%m-%dT%H:%M:%S")})
             me_id = load_state().get("device_id")
             if me_id and me_id in (remote.get("want_push_from") or []):
                 push_one(session, peer)
@@ -427,7 +483,7 @@ def _poll_once() -> None:
                     set_last_agreed(local["fingerprint"])
                 continue
             if action == "wait":
-                # We changed; they cannot always dial us (Windows). Send the log.
+                # We can reach them, so we send. Do not wait for them to call us.
                 push_one(session, peer)
                 continue
             if action == "conflict":
@@ -443,7 +499,7 @@ def _poll_once() -> None:
                 )
                 continue
             if action == "pull":
-                # Only they changed — including a delete — so take their log.
+                # They changed and we can reach them — fetch. Same lane as a send.
                 pull_peer(session, peer, force=True)
                 session.commit()
                 from app.settings import get as setting_get
@@ -474,7 +530,8 @@ def notify_after_save() -> None:
 
 
 def _push_after_save() -> None:
-    if not _lock.acquire(blocking=False):
+    if not _lock.acquire(timeout=10):
+        _wakeup.set()
         return
     try:
         push_to_peers()
@@ -503,7 +560,4 @@ def start_background() -> None:
     if _started:
         return
     _started = True
-    from app.sync import request_push_from_all
-
-    request_push_from_all()
     threading.Thread(target=_loop, name="mbd-live-sync", daemon=True).start()
