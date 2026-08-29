@@ -28,7 +28,7 @@
 
   <section class="panel">
     <div class="panel-head"><h2>This account</h2></div>
-    <p class="hint">Every computer here is an equal copy of the same account — bets, Friends, the lot. A change on any of them is the account. Same home Wi‑Fi, both apps running. Allow this app through Windows Firewall on each machine so either side can pull. UPnP is used when the house has a real public IP. A snapshot is saved before anything is replaced.</p>
+    <p class="hint">Every computer here is an equal copy of the same account. The Windows PC often cannot call the laptop — leave both apps open and the laptop sends the log here. Do not paste the laptop code on the PC. A snapshot is saved before anything is replaced.</p>
     <table>
       <thead>
         <tr>
@@ -52,7 +52,7 @@
             <td>{% if peer.online %}Linked{% elif peer.last_seen %}Last seen {{ peer.last_seen }}{% else %}Linked{% endif %}</td>
             <td class="page-actions">
               <form method="post" action="{{ url_for('main.sync_pull_peer', peer_id=peer.id) }}">
-                <button class="btn" type="submit">Sync from them</button>
+                <button class="btn" type="submit">Ask them to send</button>
               </form>
               <form method="post" action="{{ url_for('main.sync_forget', peer_id=peer.id) }}" onsubmit="return confirm('Unlink this computer?');">
                 <button class="btn" type="submit">Unlink</button>

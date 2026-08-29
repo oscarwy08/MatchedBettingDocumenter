@@ -293,6 +293,13 @@ def set_want_push(peer_id: str, value: bool = True) -> dict:
     return save_state(state)
 
 
+def request_push_from_all() -> dict:
+    state = load_state()
+    for peer in state.get("peers") or []:
+        peer["want_push"] = True
+    return save_state(state)
+
+
 def want_push_from() -> list[str]:
     return [
         str(peer["device_id"])

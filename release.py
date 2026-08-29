@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "allow-firewall.bat now sits next to Start after an update (it was not copied before). "
+        "The Windows PC no longer needs to dial the laptop: it asks the laptop to send the log. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

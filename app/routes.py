@@ -1396,6 +1396,7 @@ def sync_forget(peer_id: str):
 @bp.post("/sync/pull/<peer_id>")
 def sync_pull_peer(peer_id: str):
     from app.live_sync import pull_peer
+    from app.sync import set_want_push
 
     session = get_session()
     peer = peer_by_id(peer_id)
@@ -1405,16 +1406,18 @@ def sync_pull_peer(peer_id: str):
     try:
         counts = pull_peer(session, peer, force=request.form.get("force") == "1")
         _commit_and_sync(session)
-        flash(f"Pulled {counts['bets']} bets from {peer.get('nickname') or 'the other computer'}.", "ok")
-    except ValueError as exc:
-        flash(str(exc), "error")
-    except Exception as exc:  # noqa: BLE001
+        flash(f"Copied {counts['bets']} bets from {peer.get('nickname') or 'the other computer'}.", "ok")
+        return redirect(url_for("main.sync_page"))
+    except ValueError:
+        pass
+    except Exception:
         session.rollback()
-        flash(
-            f"Could not reach the other computer ({exc}). Both apps need to be running "
-            "on the same Wi‑Fi — the address updates automatically when they can see each other.",
-            "error",
-        )
+    set_want_push(peer_id, True)
+    flash(
+        "This PC cannot call the other computer — that is normal. "
+        "Asked them to send the log. Keep the laptop app open; this page should update in a few seconds.",
+        "ok",
+    )
     return redirect(url_for("main.sync_page"))
 
 

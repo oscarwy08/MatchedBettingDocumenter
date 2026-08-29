@@ -411,6 +411,8 @@ def _poll_once() -> None:
                 remote = fetch_json(peer_hosts(peer), "/api/sync/status", peer.get("token"), timeout=LAN_TIMEOUT)
             except Exception as exc:  # noqa: BLE001
                 _last_error = str(exc)
+                if peer.get("id"):
+                    set_want_push(str(peer["id"]), True)
                 upsert_peer({**peer, "online": False})
                 continue
             _last_error = None
@@ -501,4 +503,7 @@ def start_background() -> None:
     if _started:
         return
     _started = True
+    from app.sync import request_push_from_all
+
+    request_push_from_all()
     threading.Thread(target=_loop, name="mbd-live-sync", daemon=True).start()
