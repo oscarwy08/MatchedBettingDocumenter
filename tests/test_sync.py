@@ -8,9 +8,11 @@ from app.models import Account, Bet, BetStatus, BetType
 from app.seed import seed_accounts
 from app.snapshot import apply_snapshot, dump_snapshot, fingerprint_payload, would_shrink
 from app.sync import (
+    adopt_pair_secret,
     authorize_device,
     authorize_linked,
     compare_fingerprints,
+    ensure_pair_secret,
     remember_linked_device,
     ensure_state,
     make_link_code,
@@ -184,6 +186,15 @@ def test_migrate_last_agreed_from_bets_only_hash(tmp_path, monkeypatch):
     migrate_last_agreed(session)
     assert ensure_state()["last_agreed"] == snap["fingerprint"]
     session.close()
+
+
+def test_pair_secret_is_shared(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    first = ensure_pair_secret()
+    assert first
+    assert ensure_pair_secret() == first
+    adopt_pair_secret("shared-pair-from-other")
+    assert ensure_state()["pair_secret"] == "shared-pair-from-other"
 
 
 def test_remember_linked_device_is_two_way(tmp_path, monkeypatch):

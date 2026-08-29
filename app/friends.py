@@ -360,10 +360,8 @@ def fetch_live(friend: dict) -> dict:
             "port": friend.get("port") or 5050,
         }
     )
-    if not hosts:
-        raise ValueError("That friend has no address to try.")
     token = VIEW_PREFIX + friend["secret"]
-    last_error = "no address to try"
+    last_error = ""
     if hosts:
         try:
             remote = fetch_json(hosts, "/api/friend/view", token, timeout=1.5)
@@ -372,9 +370,21 @@ def fetch_live(friend: dict) -> dict:
                 return decrypt_view(friend["secret"], cipher)
         except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
             last_error = str(exc)
+    from app.mailbox import get as mailbox_get
+
+    try:
+        blob = mailbox_get("view", friend["secret"], timeout=10)
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(
+            f"Could not reach them on Wi‑Fi or the internet path ({exc}). "
+            "Their app must be running with the invite still on."
+        ) from exc
+    if blob:
+        return decrypt_view(friend["secret"], blob)
     raise ValueError(
-        "Could not reach them. Use the same home Wi‑Fi — a phone hotspot address "
-        f"(like 172.20.10.x) only works while you are still on that hotspot. {last_error}"
+        "No live view yet. Their app must be running with the invite still on — "
+        "it publishes every few seconds. "
+        + (f"Wi‑Fi try: {last_error}" if last_error else "")
     )
 
 

@@ -32,6 +32,7 @@ def empty_state() -> dict:
         "device_id": secrets.token_hex(8),
         "nickname": default_nickname(),
         "device_token": secrets.token_urlsafe(24),
+        "pair_secret": secrets.token_urlsafe(24),
         "peers": [],
         "last_agreed": "",
         "conflict": None,
@@ -56,6 +57,8 @@ def load_state() -> dict:
         state["nickname"] = str(raw["nickname"])
     if raw.get("device_token"):
         state["device_token"] = str(raw["device_token"])
+    if raw.get("pair_secret"):
+        state["pair_secret"] = str(raw["pair_secret"])
     if isinstance(raw.get("peers"), list):
         state["peers"] = [item for item in raw["peers"] if isinstance(item, dict)]
     if raw.get("last_agreed"):
@@ -91,10 +94,30 @@ def device_token() -> str:
     return ensure_state()["device_token"]
 
 
+def ensure_pair_secret() -> str:
+    state = ensure_state()
+    if not state.get("pair_secret"):
+        state["pair_secret"] = secrets.token_urlsafe(24)
+        save_state(state)
+    return state["pair_secret"]
+
+
+def adopt_pair_secret(secret: str) -> dict:
+    """Both computers keep the same pair secret so they are equals, not parent/child."""
+    text = (secret or "").strip()
+    if not text:
+        return ensure_state()
+    state = ensure_state()
+    if state.get("pair_secret") == text:
+        return state
+    state["pair_secret"] = text
+    return save_state(state)
+
+
 def start_share() -> str:
     global _share_pin
     _share_pin = f"{random.randint(0, 999999):06d}"
-    ensure_state()
+    ensure_pair_secret()
     return _share_pin
 
 
@@ -286,6 +309,7 @@ def status_payload(session, *, include_token: bool = False) -> dict:
         "port": None,
         "lan_ip": lan_ip(),
         "lan_ips": [ip for ip in local_ipv4s() if ip and not ip.startswith("127.")],
+        "pair_secret": state.get("pair_secret") or "",
     }
     if include_token:
         out["token"] = state["device_token"]

@@ -736,6 +736,7 @@ a.account-card:hover {
 .reach-failed { color: var(--muted); }
 .conflict-panel { border-color: var(--line); }
 .mono { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; }
+.account-you td { font-weight: 600; }
 .snapshot-table { margin-top: 0.8rem; }
 .friend-code { font-size: 0.95rem; word-break: break-all; }
 .invite-block { margin: 0.85rem 0; }

@@ -56,6 +56,7 @@ from app.services import (
 )
 from app.snapshot import apply_snapshot, dump_snapshot, would_shrink
 from app.sync import (
+    adopt_pair_secret,
     authorize_device,
     authorize_linked,
     current_pin,
@@ -1126,14 +1127,22 @@ def sync_page():
 
     pin = current_pin()
     port = _app_port()
+    state = load_state()
+    reach = reachability(port)
+    this_computer = {
+        "nickname": state.get("nickname") or "This computer",
+        "lan_host": reach.get("lan_ip") or "",
+        "port": port,
+    }
     return render_template(
         "sync.html",
         sharing=bool(pin),
         pin=pin,
         link_code=make_link_code(pin, port) if pin else "",
         lan_ip=None,
-        reach=reachability(port),
-        peers=load_state().get("peers") or [],
+        reach=reach,
+        this_computer=this_computer,
+        peers=state.get("peers") or [],
         conflict=load_state().get("conflict"),
         backups=list_backups(),
         auto_sync=setting("auto_sync"),
@@ -1305,6 +1314,7 @@ def sync_join():
         if "+" in (request.form.get("code") or "") and len(hosts) > 1:
             wan = wan or hosts[1].split(":")[0]
         me = ensure_state()
+        adopt_pair_secret(str(remote.get("pair_secret") or ""))
         upsert_peer(
             {
                 "device_id": remote.get("device_id") or hosts[0],
@@ -1570,7 +1580,18 @@ def friends_invite():
     except Exception:  # noqa: BLE001
         pass
     _notify_linked()
-    flash("Viewer invite created. Send them the code — they see your dashboard only. It also appears on your other linked computers.", "ok")
+    try:
+        from app.live_friends import notify, publish_now
+
+        publish_now()
+        notify()
+    except Exception:  # noqa: BLE001
+        pass
+    flash(
+        "Viewer invite created. Same Wi‑Fi is direct; another house uses the internet mailbox "
+        "while both apps are running. The invite also appears on your other linked computers.",
+        "ok",
+    )
     return redirect(url_for("main.friends_page"))
 
 
@@ -1602,15 +1623,17 @@ def friends_add():
 
     try:
         secret, hosts = parse_friend_code(request.form.get("code") or "")
-        if not hosts:
-            raise ValueError("That code has no address. Ask them to copy a fresh invite while their app is running.")
-        lan = hosts[0].split(":")[0]
-        port = int(hosts[0].rsplit(":", 1)[-1])
-        wan = hosts[1].split(":")[0] if len(hosts) > 1 else ""
+        if hosts:
+            lan = hosts[0].split(":")[0]
+            port = int(hosts[0].rsplit(":", 1)[-1])
+            wan = hosts[1].split(":")[0] if len(hosts) > 1 else ""
+            label = hosts[0]
+        else:
+            lan, wan, port, label = "", "", 5050, "internet"
         friend = {
             "secret": secret,
-            "nickname": (request.form.get("nickname") or hosts[0]).strip() or hosts[0],
-            "host": hosts[0],
+            "nickname": (request.form.get("nickname") or label).strip() or "Friend",
+            "host": hosts[0] if hosts else "",
             "lan_host": lan,
             "wan_host": wan,
             "port": port,

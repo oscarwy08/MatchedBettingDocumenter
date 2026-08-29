@@ -27,8 +27,52 @@
   {% endif %}
 
   <section class="panel">
+    <div class="panel-head"><h2>This account</h2></div>
+    <p class="hint">Every computer here is an equal copy of the same account — bets, Friends, the lot. A change on any of them is the account. Same home Wi‑Fi, both apps running. Allow this app through Windows Firewall on each machine so either side can pull. UPnP is used when the house has a real public IP. A snapshot is saved before anything is replaced.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Computer</th>
+          <th>Address</th>
+          <th>Role</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="account-you">
+          <td>{{ this_computer.nickname }}</td>
+          <td class="mono">{% if this_computer.lan_host %}{{ this_computer.lan_host }}:{{ this_computer.port }}{% else %}this computer{% endif %}</td>
+          <td>This computer</td>
+          <td></td>
+        </tr>
+        {% for peer in peers %}
+          <tr>
+            <td>{{ peer.nickname or "Computer" }}</td>
+            <td class="mono">{{ peer.lan_host or peer.host or "—" }}{% if peer.wan_host %} · {{ peer.wan_host }}{% endif %}</td>
+            <td>{% if peer.online %}Linked{% elif peer.last_seen %}Last seen {{ peer.last_seen }}{% else %}Linked{% endif %}</td>
+            <td class="page-actions">
+              <form method="post" action="{{ url_for('main.sync_pull_peer', peer_id=peer.id) }}">
+                <button class="btn" type="submit">Sync from them</button>
+              </form>
+              <form method="post" action="{{ url_for('main.sync_forget', peer_id=peer.id) }}" onsubmit="return confirm('Unlink this computer?');">
+                <button class="btn" type="submit">Unlink</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if not peers %}
+      <p class="empty">Only this computer so far. Link another with the code below — after that they are equals, not parent and child.</p>
+    {% endif %}
+    {% if not auto_sync %}
+      <p class="hint">Auto-sync is off in <a href="{{ url_for('main.settings_page') }}">Settings</a>.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
     <div class="panel-head"><h2>Link another computer</h2></div>
-    <p class="hint">Paired computers share one account — bets, offers, and Friends. Start sharing on the computer that already has the latest log, paste the code once on the other. Both Devices pages should then list each other. Same home Wi‑Fi, both apps running. Allow this app through Windows Firewall on each PC or the other side cannot pull. A snapshot is saved here before anything is replaced.</p>
+    <p class="hint">On either computer, start sharing and copy the code. Paste it on the other once. Both then appear on this list as equals.</p>
     {% if sharing %}
       <p>Share this code:</p>
       <p class="link-code" id="link-code">{{ link_code }}</p>
@@ -57,47 +101,9 @@
         <span>Allow replacing a larger log with a smaller one</span>
       </label>
       <div class="form-actions span-2">
-        <button class="btn btn-primary" type="submit">Pull latest log</button>
+        <button class="btn btn-primary" type="submit">Link as an equal</button>
       </div>
     </form>
-  </section>
-
-  <section class="panel">
-    <div class="panel-head"><h2>Paired computers</h2></div>
-    {% if peers %}
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Address</th>
-            <th>Last seen</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for peer in peers %}
-            <tr>
-              <td>{{ peer.nickname or "Computer" }}</td>
-              <td class="mono">{{ peer.lan_host or peer.host }}{% if peer.wan_host %} · {{ peer.wan_host }}{% endif %}</td>
-              <td>{% if peer.online %}Online{% elif peer.last_seen %}{{ peer.last_seen }}{% else %}—{% endif %}</td>
-              <td class="page-actions">
-                <form method="post" action="{{ url_for('main.sync_pull_peer', peer_id=peer.id) }}">
-                  <button class="btn" type="submit">Pull now</button>
-                </form>
-                <form method="post" action="{{ url_for('main.sync_forget', peer_id=peer.id) }}" onsubmit="return confirm('Forget this computer?');">
-                  <button class="btn" type="submit">Forget</button>
-                </form>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <p class="empty">No paired computers yet. Join with a code once and they reconnect on Start.</p>
-    {% endif %}
-    {% if not auto_sync %}
-      <p class="hint">Auto-sync is off in <a href="{{ url_for('main.settings_page') }}">Settings</a>.</p>
-    {% endif %}
   </section>
 
   <section class="panel">

@@ -4,7 +4,7 @@
 {% block heading %}Friends{% endblock %}
 {% block content %}
   <p class="reach-line reach-{{ reach.kind }}">{{ reach.label }}{% if reach.lan_ip %} · this Wi‑Fi {{ reach.lan_ip }}:{{ app_port }}{% endif %}{% if reach.mapped and reach.wan_ip %} · internet {{ reach.wan_ip }}:{{ app_port }}{% endif %}</p>
-  <p class="hint">Friends see a read-only dashboard. Their token cannot replace your log. Invites and your friend list belong to this account, so they stay the same on every linked computer. Viewing is a direct connection on the same Wi‑Fi — copy a fresh code if they changed network (a phone hotspot address will not work at home). If they are offline you still see the last available view.</p>
+  <p class="hint">Friends see a read-only dashboard. Their token cannot replace your log. Invites belong to this account on every linked computer. Same Wi‑Fi is a direct link. Another house uses an outbound internet mailbox (both apps running — no VPN). If they are offline you still see the last available view.</p>
 
   <section class="panel">
     <div class="panel-head"><h2>Invite a viewer</h2></div>

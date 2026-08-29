@@ -107,9 +107,8 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Pairing is two-way (both Devices pages list each other). "
-        "A delete on one computer syncs to the other. "
-        "Friends need the same home Wi‑Fi, not a leftover hotspot address. "
+        "Devices are equals on one account (Wi‑Fi / UPnP). "
+        "Friends can use an outbound internet mailbox when they are not on the same Wi‑Fi. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
