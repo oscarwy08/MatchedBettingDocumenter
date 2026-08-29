@@ -4,10 +4,17 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Dashboard{% endblock %} · Matched Betting Documenter</title>
+  <script>
+    try {
+      if (localStorage.getItem("mbd-theme") === "dark") {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    } catch (e) {}
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=7">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=27">
 </head>
 <body>
   <div class="shell">
@@ -25,10 +32,15 @@
         <a href="{{ url_for('main.offers') }}" class="{{ 'on' if request.path.startswith('/offers') }}">Offers</a>
         <a href="{{ url_for('main.bets') }}" class="{{ 'on' if request.path.startswith('/bets') }}">Bets</a>
         <a href="{{ url_for('main.accounts') }}" class="{{ 'on' if request.path.startswith('/accounts') }}">Accounts</a>
+        <a href="{{ url_for('main.visualiser_page') }}" class="{{ 'on' if request.path.startswith('/visualiser') }}">Visualiser</a>
         <a href="{{ url_for('main.export_page') }}" class="{{ 'on' if request.path.startswith('/export') }}">Excel</a>
         <a href="{{ url_for('main.sync_page') }}" class="{{ 'on' if request.path.startswith('/sync') }}">Devices</a>
+        <a href="{{ url_for('main.settings_page') }}" class="{{ 'on' if request.path.startswith('/settings') }}">Settings</a>
       </nav>
-      <p class="rail-note">v{{ app_version }}. SQLite in <code>data/</code> is yours — app updates do not wipe it.</p>
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false">
+        <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+        Dark mode
+      </button>
     </aside>
     <main class="canvas">
       {% with messages = get_flashed_messages(with_categories=true) %}
@@ -50,6 +62,17 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+  <aside id="update-bar" class="update-pop" hidden role="dialog" aria-labelledby="update-pop-title">
+    <p class="update-pop-kicker">Update found</p>
+    <h2 id="update-pop-title">Version <strong data-latest></strong> is ready</h2>
+    <p class="update-pop-copy">Install it now, or later. Your <code>data/</code> folder is left alone.</p>
+    <div class="update-pop-actions">
+      <button type="button" class="btn btn-primary" data-now>Update now</button>
+      <button type="button" class="btn" data-later>Later</button>
+    </div>
+  </aside>
+  <script src="{{ url_for('static', filename='theme.js') }}?v=1"></script>
+  <script src="{{ url_for('static', filename='update.js') }}?v=6"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

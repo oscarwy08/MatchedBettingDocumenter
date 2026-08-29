@@ -28,8 +28,9 @@
         </select>
       </label>
       <label>
-        Deposit now
+        Bookie deposit
         <input name="deposit_amount" type="number" step="0.01" min="0" placeholder="0.00">
+        <span class="hint">Creates one transfer. Don’t also add the same deposit on Accounts.</span>
       </label>
       <label>
         Total free funds
@@ -54,11 +55,11 @@
             <th>Offer</th>
             <th>Bookie</th>
             <th>Type</th>
-            <th>Deposited</th>
-            <th>Free funds</th>
-            <th>Bookie P&amp;L</th>
-            <th>Exchange P&amp;L</th>
-            <th>Net</th>
+            <th class="num">Deposited</th>
+            <th class="num">Free funds</th>
+            <th class="num">Bookie P&amp;L</th>
+            <th class="num">Exchange P&amp;L</th>
+            <th class="num">Net</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -66,7 +67,7 @@
           {% for row in rows %}
             <tr>
               <td><a href="{{ url_for('main.offer_detail', offer_id=row.offer.id) }}">{{ row.offer.name }}</a></td>
-              <td>{{ row.offer.bookie.name }}</td>
+              <td><a href="{{ url_for('main.account_detail', account_id=row.offer.bookie_id) }}">{{ row.offer.bookie.name }}</a></td>
               <td>{{ row.offer.type | labelize }}</td>
               <td class="num">{{ row.deposited | gbp }}</td>
               <td class="num">{% if row.free_funds %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}–{% endif %}</td>

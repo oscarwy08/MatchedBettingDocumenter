@@ -12,6 +12,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.dates import parse_uk
+from app.services import reconcile_offer_deposits
 from app.models import (
     Account,
     AccountType,
@@ -27,7 +28,9 @@ from app.models import (
 ZERO = Decimal("0.00")
 
 BET_ALIASES = {
-    "date": {"date", "date of bet", "placed"},
+    "date": {"date", "date of bet"},
+    "placed_at": {"placed", "placed at", "time placed"},
+    "settled_at": {"settled", "settled at", "time settled"},
     "offer": {"offer", "campaign", "promotion"},
     "event": {"event", "selection", "fixture"},
     "market": {"market"},
@@ -142,6 +145,36 @@ def _date(value) -> date:
         except Exception:
             pass
     return parse_uk(str(value))
+
+
+def _datetime(value) -> datetime | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None) if value.tzinfo else value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    if isinstance(value, (int, float)) and value > 20000:
+        try:
+            from openpyxl.utils.datetime import from_excel
+
+            converted = from_excel(value)
+            if isinstance(converted, datetime):
+                return converted
+            if isinstance(converted, date):
+                return datetime.combine(converted, datetime.min.time())
+        except Exception:
+            return None
+    text = str(value).strip()
+    for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
 
 
 def _text(value) -> str:
@@ -276,6 +309,7 @@ def import_workbook(
     if "offers" in sheets:
         counts["offers"] += _import_offers(session, sheets["offers"])
         used.append("Offers")
+        reconcile_offer_deposits(session)
 
     bet_sheet = sheets.get("bets")
     if bet_sheet is None:
@@ -461,10 +495,16 @@ def _import_bets(session: Session, ws) -> int:
         commission = _money(_cell(row, mapping, "commission"))
         liability = _money(_cell(row, mapping, "liability"))
         expected = _money(_cell(row, mapping, "expected"))
+        date_placed = _date(_cell(row, mapping, "date")) if "date" in mapping else date.today()
+        placed_at = _datetime(_cell(row, mapping, "placed_at")) if "placed_at" in mapping else None
+        if "date" not in mapping and placed_at is not None:
+            date_placed = placed_at.date()
+        settled_at = _datetime(_cell(row, mapping, "settled_at")) if "settled_at" in mapping else None
         session.add(
             Bet(
                 offer_id=offer_id,
-                date_placed=_date(_cell(row, mapping, "date")),
+                date_placed=date_placed,
+                placed_at=placed_at,
                 event=_text(_cell(row, mapping, "event")),
                 market=_text(_cell(row, mapping, "market")),
                 notes=_text(_cell(row, mapping, "notes")),
@@ -487,6 +527,7 @@ def _import_bets(session: Session, ws) -> int:
                 actual_profit=actual_val if status != BetStatus.PENDING else None,
                 actual_bookie_profit=bookie_pl if status != BetStatus.PENDING else None,
                 actual_exchange_profit=exchange_pl if status != BetStatus.PENDING else None,
+                settled_at=settled_at if status != BetStatus.PENDING else None,
             )
         )
         count += 1

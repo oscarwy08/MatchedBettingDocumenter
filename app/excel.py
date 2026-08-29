@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import EXCEL_PATH
+from app.dates import format_uk_time
 from app.models import Account, AccountType, Bet, Offer, Transfer
 from app.services import account_snapshot, dashboard_stats, offer_snapshot
 
@@ -191,6 +192,8 @@ def _write_bets(ws, bets: list[Bet]) -> None:
         ws,
         [
             "Date",
+            "Placed",
+            "Settled",
             "Offer",
             "Event",
             "Market",
@@ -213,25 +216,29 @@ def _write_bets(ws, bets: list[Bet]) -> None:
     )
     for i, bet in enumerate(bets, start=2):
         ws.cell(i, 1, bet.date_placed.isoformat())
-        ws.cell(i, 2, bet.offer.name if bet.offer else "")
-        ws.cell(i, 3, bet.event)
-        ws.cell(i, 4, bet.market)
-        ws.cell(i, 5, bet.bet_type.replace("_", " ").title())
-        ws.cell(i, 6, bet.bookie.name)
-        _money(ws.cell(i, 7), bet.back_stake)
-        ws.cell(i, 8, float(bet.back_odds))
-        ws.cell(i, 9, bet.exchange.name)
-        _money(ws.cell(i, 10), bet.lay_stake)
-        ws.cell(i, 11, float(bet.lay_odds))
-        ws.cell(i, 12, float(bet.commission_percent))
-        _money(ws.cell(i, 13), bet.liability)
-        _money(ws.cell(i, 14), bet.expected_profit)
-        _money(ws.cell(i, 15), bet.actual_profit)
-        _money(ws.cell(i, 16), bet.actual_bookie_profit)
-        _money(ws.cell(i, 17), bet.actual_exchange_profit)
-        ws.cell(i, 18, bet.status.replace("_", " ").title())
-        ws.cell(i, 19, bet.notes)
-    _stripe(ws, 2, 19)
+        placed = format_uk_time(bet.placed_at or bet.date_placed)
+        ws.cell(i, 2, "" if placed == "–" else placed)
+        settled = format_uk_time(bet.settled_at)
+        ws.cell(i, 3, "" if settled == "–" else settled)
+        ws.cell(i, 4, bet.offer.name if bet.offer else "")
+        ws.cell(i, 5, bet.event)
+        ws.cell(i, 6, bet.market)
+        ws.cell(i, 7, bet.bet_type.replace("_", " ").title())
+        ws.cell(i, 8, bet.bookie.name)
+        _money(ws.cell(i, 9), bet.back_stake)
+        ws.cell(i, 10, float(bet.back_odds))
+        ws.cell(i, 11, bet.exchange.name)
+        _money(ws.cell(i, 12), bet.lay_stake)
+        ws.cell(i, 13, float(bet.lay_odds))
+        ws.cell(i, 14, float(bet.commission_percent))
+        _money(ws.cell(i, 15), bet.liability)
+        _money(ws.cell(i, 16), bet.expected_profit)
+        _money(ws.cell(i, 17), bet.actual_profit)
+        _money(ws.cell(i, 18), bet.actual_bookie_profit)
+        _money(ws.cell(i, 19), bet.actual_exchange_profit)
+        ws.cell(i, 20, bet.status.replace("_", " ").title())
+        ws.cell(i, 21, bet.notes)
+    _stripe(ws, 2, 21)
     _autosize(ws)
 
 

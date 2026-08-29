@@ -1,44 +1,116 @@
 {% extends "base.html" %}
+{% macro account_tile(snap) %}
+  {% if snap.account.is_bookie %}
+    {% set meta %}{{ snap.bets }} bet{% if snap.bets != 1 %}s{% endif %}{% if snap.offers %} · {{ snap.offers }} offer{% if snap.offers != 1 %}s{% endif %}{% endif %}{% endset %}
+    {% set pl_label = "Net" %}
+    {% set pl_value = snap.net_profit %}
+  {% else %}
+    {% set meta %}{{ snap.bets }} bet{% if snap.bets != 1 %}s{% endif %}{% if snap.account.commission_percent %} · {{ '%.4g'|format(snap.account.commission_percent|float) }}% comm{% endif %}{% endset %}
+    {% set pl_label = "P&L" %}
+    {% set pl_value = snap.exchange_profit %}
+  {% endif %}
+  <a class="account-card" href="{{ url_for('main.account_detail', account_id=snap.account.id) }}">
+    <div class="account-card-main">
+      <strong>{{ snap.account.name }}</strong>
+      <div class="account-card-graph">
+        <span class="account-card-meta">{{ meta }}</span>
+        <svg class="account-spark{% if snap.spark.down %} is-neg{% endif %}" viewBox="0 0 100 42" preserveAspectRatio="none" aria-hidden="true">
+          <path d="{{ snap.spark.area }}"></path>
+          <polyline points="{{ snap.spark.points }}"></polyline>
+        </svg>
+      </div>
+    </div>
+    <div class="account-card-stats">
+      <div>
+        <span>Balance</span>
+        <strong>{{ snap.balance | gbp }}</strong>
+      </div>
+      <div>
+        <span>{{ pl_label }}</span>
+        <strong class="{{ pl_value | pnl }}">{{ pl_value | gbp }}</strong>
+      </div>
+      <div>
+        <span>Deposited</span>
+        <strong>{{ snap.deposited | gbp }}</strong>
+      </div>
+    </div>
+  </a>
+{% endmacro %}
 {% block title %}Accounts{% endblock %}
 {% block eyebrow %}Bankroll{% endblock %}
 {% block heading %}Accounts{% endblock %}
 {% block content %}
+  <section class="stat-grid">
+    <article class="stat-card">
+      <p>Bankroll</p>
+      <strong>{{ totals.balance | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Deposited</p>
+      <strong>{{ totals.deposited | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Net from bookies</p>
+      <strong class="{{ totals.net_profit | pnl }}">{{ totals.net_profit | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Active bookies</p>
+      <strong>{{ active_bookies | length }}</strong>
+    </article>
+  </section>
+
+  <section class="panel chart-panel" data-seeded-chart>
+    <div class="chart-head">
+      <div>
+        <p class="chart-kicker">Profit by account</p>
+        <strong class="chart-value {{ accounts_chart.total | pnl }}" data-chart-total>{{ accounts_chart.total | gbp }}</strong>
+        <p class="chart-sub">Hover a bar for the exact figure</p>
+      </div>
+    </div>
+    <div class="chart-plot" data-chart-plot></div>
+    <script type="application/json" data-chart-seed>{{ accounts_chart | tojson }}</script>
+  </section>
+
+  <div class="section-head">
+    <div>
+      <h2>Bookies</h2>
+      <p class="hint">Open a bookie for its bets, offers, and deposits.</p>
+    </div>
+  </div>
+  {% if active_bookies %}
+    <div class="account-grid">
+      {% for snap in active_bookies %}
+        {{ account_tile(snap) }}
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="empty">No bookie activity yet. Add a deposit or log a bet.</p>
+  {% endif %}
+
+  <div class="section-head">
+    <div>
+      <h2>Exchanges</h2>
+      <p class="hint">Same idea — open one for lay bets and balance.</p>
+    </div>
+  </div>
+  <div class="account-grid">
+    {% for snap in exchanges %}
+      {{ account_tile(snap) }}
+    {% endfor %}
+  </div>
+
+  {% if unused_bookies %}
+    <details class="more-block">
+      <summary>Unused bookies ({{ unused_bookies | length }})</summary>
+      <div class="unused-list">
+        {% for snap in unused_bookies %}
+          <a class="pill" href="{{ url_for('main.account_detail', account_id=snap.account.id) }}">{{ snap.account.name }}</a>
+        {% endfor %}
+      </div>
+    </details>
+  {% endif %}
+
   <div class="split">
-    <section class="panel">
-      <div class="panel-head"><h2>Exchanges</h2></div>
-      <table>
-        <thead>
-          <tr>
-            <th>Exchange</th>
-            <th>Deposited</th>
-            <th>Withdrawn</th>
-            <th>P&amp;L</th>
-            <th>Balance</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for snap in exchanges %}
-            <tr>
-              <td>
-                {{ snap.account.name }}
-                <form method="post" action="{{ url_for('main.update_account', account_id=snap.account.id) }}" class="inline-edit">
-                  <input type="hidden" name="type" value="exchange">
-                  <input name="name" type="text" value="{{ snap.account.name }}" style="width:9rem">
-                  <label>Commission %
-                    <input name="commission_percent" type="number" step="0.01" min="0" value="{{ '%.4g'|format(snap.account.commission_percent|float) }}">
-                  </label>
-                  <button class="btn" type="submit">Save</button>
-                </form>
-              </td>
-              <td class="num">{{ snap.deposited | gbp }}</td>
-              <td class="num">{{ snap.withdrawn | gbp }}</td>
-              <td class="{{ snap.exchange_profit | pnl }} num">{{ snap.exchange_profit | gbp }}</td>
-              <td class="num">{{ snap.balance | gbp }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </section>
     <section class="panel">
       <div class="panel-head"><h2>Add account</h2></div>
       <form method="post" action="{{ url_for('main.create_account') }}" class="stack">
@@ -54,128 +126,79 @@
         <button class="btn btn-primary" type="submit">Add</button>
       </form>
     </section>
-  </div>
-
-  <section class="panel">
-    <div class="panel-head"><h2>Bookies with activity</h2></div>
-    <table>
-      <thead>
-        <tr>
-          <th>Bookie</th>
-          <th>Deposited</th>
-          <th>Withdrawn</th>
-          <th>Bookie P&amp;L</th>
-          <th>Exchange P&amp;L</th>
-          <th>Net profit</th>
-          <th>Balance</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for snap in bookies if snap.deposited or snap.withdrawn or snap.net_profit or snap.balance %}
-          <tr>
-            <td>{{ snap.account.name }}</td>
-            <td class="num">{{ snap.deposited | gbp }}</td>
-            <td class="num">{{ snap.withdrawn | gbp }}</td>
-            <td class="{{ snap.bookie_profit | pnl }} num">{{ snap.bookie_profit | gbp }}</td>
-            <td class="{{ snap.exchange_profit | pnl }} num">{{ snap.exchange_profit | gbp }}</td>
-            <td class="{{ snap.net_profit | pnl }} num">{{ snap.net_profit | gbp }}</td>
-            <td class="num">{{ snap.balance | gbp }}</td>
-          </tr>
-        {% else %}
-          <tr><td colspan="7" class="empty">Deposit into a bookie to start tracking balances.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <details class="more-block">
-      <summary>All bookies (including unused)</summary>
-      <table>
-        <thead>
-          <tr><th>Rename or move</th></tr>
-        </thead>
-        <tbody>
-          {% for snap in bookies %}
-            <tr>
-              <td>
-                <form method="post" action="{{ url_for('main.update_account', account_id=snap.account.id) }}" class="inline-edit">
-                  <input name="name" type="text" value="{{ snap.account.name }}" style="width:9rem">
-                  <select name="type">
-                    <option value="bookie" selected>Bookie</option>
-                    <option value="exchange">Move to exchanges</option>
-                  </select>
-                  <input type="hidden" name="commission_percent" value="{{ snap.account.commission_percent }}">
-                  <button class="btn" type="submit">Save</button>
-                </form>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </details>
-  </section>
-
-  <section class="panel">
-    <div class="panel-head"><h2>Record a transfer</h2></div>
-    <form method="post" id="transfer-form" class="form-grid">
-      <label>
-        Account
-        <select name="account_id" id="transfer-account" required>
-          <option value="">Select</option>
-          <optgroup label="Exchanges">
-            {% for snap in exchanges %}
-              <option value="{{ snap.account.id }}">{{ snap.account.name }}</option>
-            {% endfor %}
-          </optgroup>
-          <optgroup label="Bookies">
-            {% for snap in bookies %}
-              <option value="{{ snap.account.id }}">{{ snap.account.name }}</option>
-            {% endfor %}
-          </optgroup>
-        </select>
-      </label>
-      <label>
-        Kind
-        <select name="kind">
-          <option value="deposit">Deposit</option>
-          <option value="withdrawal">Withdrawal</option>
-          <option value="opening">Opening balance</option>
-        </select>
-      </label>
-      <label>Amount <input name="amount" type="number" step="0.01" min="0.01" required></label>
-      <label>Date <input name="date" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}" value="{{ today }}"></label>
-      <label class="span-2">Notes <input name="notes" type="text"></label>
-      <div class="form-actions span-2">
+    <section class="panel">
+      <div class="panel-head"><h2>Record a transfer</h2></div>
+      <form method="post" id="transfer-form" class="stack">
+        <label>
+          Account
+          <select name="account_id" id="transfer-account" required>
+            <option value="">Select</option>
+            <optgroup label="Exchanges">
+              {% for snap in exchanges %}
+                <option value="{{ snap.account.id }}">{{ snap.account.name }}</option>
+              {% endfor %}
+            </optgroup>
+            <optgroup label="Bookies">
+              {% for snap in bookies %}
+                <option value="{{ snap.account.id }}">{{ snap.account.name }}</option>
+              {% endfor %}
+            </optgroup>
+          </select>
+        </label>
+        <label>
+          Kind
+          <select name="kind">
+            <option value="deposit">Deposit</option>
+            <option value="withdrawal">Withdrawal</option>
+            <option value="opening">Opening balance</option>
+          </select>
+        </label>
+        <label>Amount <input name="amount" type="number" step="0.01" min="0.01" required></label>
+        <label>Date <input name="date" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}" value="{{ today }}"></label>
+        <label>Notes <input name="notes" type="text"></label>
         <button class="btn btn-primary" type="submit">Save transfer</button>
-      </div>
-    </form>
-  </section>
+      </form>
+    </section>
+  </div>
 
   <section class="panel">
     <div class="panel-head"><h2>Recent transfers</h2></div>
     {% if transfers %}
       <table>
         <thead>
-          <tr><th>Date</th><th>Account</th><th>Kind</th><th>Amount</th><th>Notes</th><th></th></tr>
+          <tr>
+            <th>Date</th>
+            <th>Account</th>
+            <th>Kind</th>
+            <th class="num">Amount</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
         </thead>
         <tbody>
           {% for transfer in transfers %}
             <tr>
-              <td>{{ transfer.date | ukdate }}</td>
-              <td>{{ transfer.account.name }}</td>
-              <td>{{ transfer.kind | labelize }}</td>
-              <td class="num">{{ transfer.amount | gbp }}</td>
-              <td>{{ transfer.notes }}</td>
               <td>
-                <form method="post" action="{{ url_for('main.edit_transfer', transfer_id=transfer.id) }}" class="inline-edit">
-                  <select name="kind">
-                    <option value="deposit" {% if transfer.kind == 'deposit' %}selected{% endif %}>Deposit</option>
-                    <option value="withdrawal" {% if transfer.kind == 'withdrawal' %}selected{% endif %}>Withdrawal</option>
-                    <option value="opening" {% if transfer.kind == 'opening' %}selected{% endif %}>Opening</option>
-                  </select>
-                  <input name="amount" type="number" step="0.01" value="{{ transfer.amount }}" style="width:5.5rem">
-                  <input name="date" type="text" value="{{ transfer.date | ukdate }}" style="width:7rem">
-                  <input name="notes" type="text" value="{{ transfer.notes }}" placeholder="Notes">
-                  <button class="btn" type="submit">Save</button>
-                </form>
+                <form method="post" action="{{ url_for('main.edit_transfer', transfer_id=transfer.id) }}" id="edit-t-{{ transfer.id }}"></form>
+                <input form="edit-t-{{ transfer.id }}" name="date" type="text" value="{{ transfer.date | ukdate }}" style="width:7rem">
+              </td>
+              <td>
+                <a href="{{ url_for('main.account_detail', account_id=transfer.account_id) }}">{{ transfer.account.name }}</a>
+                {% if transfer.offer %}
+                  <div class="hint"><a href="{{ url_for('main.offer_detail', offer_id=transfer.offer.id) }}">{{ transfer.offer.name }}</a></div>
+                {% endif %}
+              </td>
+              <td>
+                <select form="edit-t-{{ transfer.id }}" name="kind">
+                  <option value="deposit" {% if transfer.kind == 'deposit' %}selected{% endif %}>Deposit</option>
+                  <option value="withdrawal" {% if transfer.kind == 'withdrawal' %}selected{% endif %}>Withdrawal</option>
+                  <option value="opening" {% if transfer.kind == 'opening' %}selected{% endif %}>Opening</option>
+                </select>
+              </td>
+              <td class="num"><input form="edit-t-{{ transfer.id }}" name="amount" type="number" step="0.01" value="{{ transfer.amount }}" style="width:5.5rem"></td>
+              <td><input form="edit-t-{{ transfer.id }}" name="notes" type="text" value="{{ transfer.notes }}" placeholder="Notes"></td>
+              <td>
+                <button class="btn" form="edit-t-{{ transfer.id }}" type="submit">Save</button>
                 <form method="post" action="{{ url_for('main.delete_transfer', transfer_id=transfer.id) }}" onsubmit="return confirm('Delete this transfer?');" class="inline-form">
                   <button class="btn btn-danger" type="submit">Delete</button>
                 </form>
@@ -190,6 +213,8 @@
   </section>
 {% endblock %}
 {% block scripts %}
+  <script src="{{ url_for('static', filename='charts.js') }}?v=2"></script>
+  <script>MBDCharts.seeded();</script>
 <script>
   const form = document.getElementById("transfer-form");
   const account = document.getElementById("transfer-account");

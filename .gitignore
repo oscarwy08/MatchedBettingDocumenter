@@ -5,6 +5,9 @@ venv/
 .env
 data/*.db
 data/*.xlsx
+data/update_repo
+data/github_token
+data/settings.json
 .pytest_cache/
 *.egg-info/
 dist/

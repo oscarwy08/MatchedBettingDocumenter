@@ -80,6 +80,12 @@ async function refresh() {
 
 const exchange = document.getElementById("exchange_id");
 const commission = document.getElementById("commission_percent");
+if (exchange && commission) {
+  const selected = exchange.selectedOptions[0];
+  if (selected && selected.dataset.commission !== undefined) {
+    commission.value = selected.dataset.commission;
+  }
+}
 if (exchange) {
   exchange.addEventListener("change", () => {
     const option = exchange.selectedOptions[0];

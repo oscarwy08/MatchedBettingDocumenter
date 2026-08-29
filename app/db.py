@@ -38,6 +38,14 @@ def _ensure_sqlite_columns(engine: Engine) -> None:
         bet_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(bets)"))}
         if "free_bet_returned" not in bet_cols:
             conn.execute(text("ALTER TABLE bets ADD COLUMN free_bet_returned INTEGER DEFAULT 0"))
+        if "placed_at" not in bet_cols:
+            conn.execute(text("ALTER TABLE bets ADD COLUMN placed_at DATETIME"))
+            conn.execute(
+                text(
+                    "UPDATE bets SET placed_at = datetime(date_placed) "
+                    "WHERE placed_at IS NULL AND date_placed IS NOT NULL"
+                )
+            )
 
 
 def get_session() -> Session:

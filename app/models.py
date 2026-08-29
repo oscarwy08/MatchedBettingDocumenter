@@ -96,9 +96,8 @@ class Offer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     bookie: Mapped[Account] = relationship(back_populates="offers")
-    bets: Mapped[list[Bet]] = relationship(
-        back_populates="offer", cascade="all, delete-orphan"
-    )
+    bets: Mapped[list[Bet]] = relationship(back_populates="offer")
+    transfers: Mapped[list[Transfer]] = relationship(back_populates="offer")
 
     @property
     def free_funds_used(self) -> Decimal:
@@ -154,6 +153,7 @@ class Bet(Base):
     actual_bookie_profit: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
     actual_exchange_profit: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
     settled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    placed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     free_bet_returned: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
@@ -191,4 +191,4 @@ class Transfer(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     account: Mapped[Account] = relationship(back_populates="transfers")
-    offer: Mapped[Offer | None] = relationship()
+    offer: Mapped[Offer | None] = relationship(back_populates="transfers")

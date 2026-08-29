@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -42,6 +43,7 @@ def test_snapshot_round_trip(tmp_path):
             expected_bookie_lay=Decimal("-10"),
             expected_exchange_lay=Decimal("9.43"),
             status=BetStatus.PENDING,
+            placed_at=datetime(2026, 8, 1, 11, 30),
         )
     )
     session.commit()
@@ -56,6 +58,7 @@ def test_snapshot_round_trip(tmp_path):
     copied = other.scalars(select(Bet)).one()
     assert copied.event == "Keep me"
     assert copied.back_stake == Decimal("10.00")
+    assert copied.placed_at == datetime(2026, 8, 1, 11, 30)
     other.add(Account(name="Brand New Bookie", type="bookie", commission_percent=Decimal("0")))
     other.commit()
     fresh = other.scalars(select(Account).where(Account.name == "Brand New Bookie")).one()

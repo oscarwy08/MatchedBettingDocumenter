@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block title %}{{ account.name }}{% endblock %}
+{% block eyebrow %}{{ account.type | labelize }}{% endblock %}
+{% block heading %}{{ account.name }}{% endblock %}
+{% block actions %}
+  {% if account.is_bookie %}
+    <a class="btn btn-primary" href="{{ url_for('main.calculator_page', bookie_id=account.id) }}">Log a bet</a>
+  {% endif %}
+  <a class="btn" href="{{ url_for('main.accounts') }}">All accounts</a>
+{% endblock %}
+{% block content %}
+  <section class="stat-grid">
+    <article class="stat-card">
+      <p>Deposited</p>
+      <strong>{{ snap.deposited | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Withdrawn</p>
+      <strong>{{ snap.withdrawn | gbp }}</strong>
+    </article>
+    {% if snap.opening %}
+      <article class="stat-card">
+        <p>Opening</p>
+        <strong>{{ snap.opening | gbp }}</strong>
+      </article>
+    {% endif %}
+    <article class="stat-card">
+      <p>Bookie P&amp;L</p>
+      <strong class="{{ snap.bookie_profit | pnl }}">{{ snap.bookie_profit | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Exchange P&amp;L</p>
+      <strong class="{{ snap.exchange_profit | pnl }}">{{ snap.exchange_profit | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Net profit</p>
+      <strong class="{{ snap.net_profit | pnl }}">{{ snap.net_profit | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Balance</p>
+      <strong>{{ snap.balance | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Pending expected</p>
+      <strong class="{{ pending_expected | pnl }}">{{ pending_expected | gbp }}</strong>
+    </article>
+  </section>
+
+  <div class="split">
+    <section class="panel chart-panel" data-account-chart data-account-id="{{ account.id }}" data-view="profit_time">
+      <div class="chart-head">
+        <div>
+          <p class="chart-kicker">Profit &amp; loss</p>
+          <strong class="chart-value {{ profit_chart.total | pnl }}" data-chart-total>{{ profit_chart.total | gbp }}</strong>
+          <p class="chart-sub"><span data-chart-pending>{{ profit_chart.pending | gbp }}</span> potential · hover the line</p>
+        </div>
+        <div class="chart-ranges" role="group" aria-label="Chart range">
+          <button type="button" class="pill" data-range="1D">1D</button>
+          <button type="button" class="pill on" data-range="1W">1W</button>
+          <button type="button" class="pill" data-range="1M">1M</button>
+          <button type="button" class="pill" data-range="1Y">1Y</button>
+        </div>
+      </div>
+      <div class="chart-plot" data-chart-plot></div>
+      <script type="application/json" data-chart-seed>{{ profit_chart | tojson }}</script>
+    </section>
+    <section class="panel chart-panel" data-account-chart data-account-id="{{ account.id }}" data-view="cashflow">
+      <div class="chart-head">
+        <div>
+          <p class="chart-kicker">Cashflow</p>
+          <strong class="chart-value" data-chart-total>{{ cash_chart.total | gbp }}</strong>
+          <p class="chart-sub">Deposits, withdrawals, opening</p>
+        </div>
+        <div class="chart-ranges" role="group" aria-label="Cashflow range">
+          <button type="button" class="pill" data-range="1D">1D</button>
+          <button type="button" class="pill on" data-range="1W">1W</button>
+          <button type="button" class="pill" data-range="1M">1M</button>
+          <button type="button" class="pill" data-range="1Y">1Y</button>
+        </div>
+      </div>
+      <div class="chart-plot" data-chart-plot></div>
+      <script type="application/json" data-chart-seed>{{ cash_chart | tojson }}</script>
+    </section>
+  </div>
+  {% if offer_chart %}
+    <section class="panel chart-panel" data-account-chart data-account-id="{{ account.id }}" data-view="by_offer">
+      <div class="chart-head">
+        <div>
+          <p class="chart-kicker">By offer</p>
+          <strong class="chart-value {{ offer_chart.total | pnl }}" data-chart-total>{{ offer_chart.total | gbp }}</strong>
+        </div>
+        <div class="chart-ranges" role="group" aria-label="Offer range">
+          <button type="button" class="pill" data-range="1D">1D</button>
+          <button type="button" class="pill on" data-range="1W">1W</button>
+          <button type="button" class="pill" data-range="1M">1M</button>
+          <button type="button" class="pill" data-range="1Y">1Y</button>
+        </div>
+      </div>
+      <div class="chart-plot" data-chart-plot></div>
+      <script type="application/json" data-chart-seed>{{ offer_chart | tojson }}</script>
+    </section>
+  {% endif %}
+
+  {% if offers %}
+    <section class="panel">
+      <div class="panel-head"><h2>Offers</h2></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Offer</th>
+            <th>Type</th>
+            <th class="num">Deposited</th>
+            <th class="num">Free funds</th>
+            <th class="num">Net</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in offers %}
+            <tr>
+              <td><a href="{{ url_for('main.offer_detail', offer_id=row.offer.id) }}">{{ row.offer.name }}</a></td>
+              <td>{{ row.offer.type | labelize }}</td>
+              <td class="num">{{ row.deposited | gbp }}</td>
+              <td class="num">{% if row.free_funds %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}—{% endif %}</td>
+              <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>
+              <td><span class="pill">{{ row.status }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-head"><h2>Bets</h2></div>
+    {% if bets %}
+      <table>
+        <thead>
+          <tr>
+            <th>Placed</th>
+            <th>Offer</th>
+            {% if account.is_bookie %}<th>Exchange</th>{% else %}<th>Bookie</th>{% endif %}
+            <th>Type</th>
+            <th>Event</th>
+            <th class="num">Expected</th>
+            <th class="num">Actual</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bet in bets %}
+            <tr>
+              <td>{{ (bet.placed_at or bet.date_placed) | uktime }}</td>
+              <td>{% if bet.offer %}<a href="{{ url_for('main.offer_detail', offer_id=bet.offer.id) }}">{{ bet.offer.name }}</a>{% else %}—{% endif %}</td>
+              <td>
+                {% if account.is_bookie %}
+                  <a href="{{ url_for('main.account_detail', account_id=bet.exchange_id) }}">{{ bet.exchange.name }}</a>
+                {% else %}
+                  <a href="{{ url_for('main.account_detail', account_id=bet.bookie_id) }}">{{ bet.bookie.name }}</a>
+                {% endif %}
+              </td>
+              <td>{{ bet.bet_type | labelize }}</td>
+              <td><a href="{{ url_for('main.bet_detail', bet_id=bet.id) }}">{{ bet.event or "Untitled" }}</a></td>
+              <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
+              <td class="{{ bet.actual_profit | pnl }} num">{{ bet.actual_profit | gbp }}</td>
+              <td><span class="pill">{{ bet.status | labelize }}</span></td>
+              <td><a href="{{ url_for('main.edit_bet_page', bet_id=bet.id) }}">Edit</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No bets on this {{ account.type }} yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Transfers</h2></div>
+    {% if transfers %}
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Kind</th>
+            <th class="num">Amount</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for transfer in transfers %}
+            <tr>
+              <td>{{ transfer.date | ukdate }}</td>
+              <td>{{ transfer.kind | labelize }}</td>
+              <td class="num">{{ transfer.amount | gbp }}</td>
+              <td>
+                {{ transfer.notes }}
+                {% if transfer.offer %}
+                  · <a href="{{ url_for('main.offer_detail', offer_id=transfer.offer.id) }}">{{ transfer.offer.name }}</a>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No deposits or withdrawals on this account.</p>
+    {% endif %}
+  </section>
+
+  <div class="split">
+    <section class="panel">
+      <div class="panel-head"><h2>Record a transfer</h2></div>
+      <form method="post" action="{{ url_for('main.add_transfer', account_id=account.id) }}" class="stack">
+        <input type="hidden" name="next" value="detail">
+        <label>
+          Kind
+          <select name="kind">
+            <option value="deposit">Deposit</option>
+            <option value="withdrawal">Withdrawal</option>
+            <option value="opening">Opening balance</option>
+          </select>
+        </label>
+        <label>Amount <input name="amount" type="number" step="0.01" min="0.01" required></label>
+        <label>Date <input name="date" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}" value="{{ today }}"></label>
+        <label>Notes <input name="notes" type="text"></label>
+        <button class="btn btn-primary" type="submit">Save transfer</button>
+      </form>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Account</h2></div>
+      <form method="post" action="{{ url_for('main.update_account', account_id=account.id) }}" class="stack">
+        <label>Name <input name="name" type="text" value="{{ account.name }}" required></label>
+        <label>
+          Type
+          <select name="type">
+            <option value="bookie" {% if account.is_bookie %}selected{% endif %}>Bookie</option>
+            <option value="exchange" {% if account.is_exchange %}selected{% endif %}>Exchange</option>
+          </select>
+        </label>
+        <label>Commission % <input name="commission_percent" type="number" step="0.01" min="0" value="{{ '%.4g'|format(account.commission_percent|float) }}"></label>
+        <button class="btn" type="submit">Save</button>
+      </form>
+      {% if snap.can_delete %}
+        <form method="post" action="{{ url_for('main.delete_account', account_id=account.id) }}" onsubmit="return confirm('Delete {{ account.name }}?');" class="form-actions">
+          <button class="btn btn-danger" type="submit">Delete account</button>
+        </form>
+      {% endif %}
+    </section>
+  </div>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='charts.js') }}?v=2"></script>
+  <script>MBDCharts.account();</script>
+{% endblock %}

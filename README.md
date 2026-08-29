@@ -11,11 +11,11 @@ The calculator uses the same core formulas as [Matched Betting Blog](https://mat
 
 They need **Python 3.10+** installed ([python.org/downloads](https://www.python.org/downloads/) — on Windows, tick **Add python.exe to PATH**).
 
-1. Zip this folder **without** `.venv`, `.git`, or `data/*.db` / `data/*.xlsx` (those are your personal bets).
-2. Send the zip.
-3. They unzip it, then:
-   - **Mac / Linux:** `chmod +x start.sh && ./start.sh`
+1. Send `dist/MatchedBettingDocumenter.zip` (from `./pack.sh`).
+2. They unzip it. The folder should show **Start** and a **data** folder — everything else is hidden on purpose.
+3. They click Start:
    - **Windows:** double-click `start.bat`
+   - **Mac / Linux:** `chmod +x start.sh && ./start.sh`
 4. Open [http://127.0.0.1:5050](http://127.0.0.1:5050).
 
 Their own database and spreadsheet are created locally in `data/` the first time they run it. Nothing is uploaded anywhere.
@@ -28,36 +28,35 @@ To build a clean zip from this repo:
 
 That writes `dist/MatchedBettingDocumenter.zip`.
 
-## Update without losing bets
+## Auto-update (GitHub Releases)
 
-Keep your existing folder. Drop the new zip next to it, then:
+Installed copies check GitHub when Start runs. If a newer release exists they download `MatchedBettingDocumenter.zip` and overlay the app. `data/` and `.venv/` stay put. You can also drop a new zip next to Start and click Start again.
 
-**Mac / Linux**
+A git checkout (this repo) skips that check so it cannot overwrite your working tree.
+
+### Publish a release
+
+You need the [GitHub CLI](https://cli.github.com/) once:
+
+```bash
+gh auth login
+./release.sh
+```
+
+That creates a public `MatchedBettingDocumenter` repo if needed, writes the repo name into `app/update_source.py`, packs the zip, and uploads it as `v` + the version in `app/version.py`. Bump that version before each release.
+
+Friends’ copies then update on next start. For a private repo, put a token in `data/github_token` (not shared) or set `GITHUB_TOKEN`.
+
+## Update from a zip by hand
+
+Keep your existing folder. Drop `MatchedBettingDocumenter.zip` next to Start and click Start again. The zip is applied and then deleted. `data/` is not overwritten.
+
+From this source checkout:
 
 ```bash
 ./update.sh dist/MatchedBettingDocumenter.zip
 ./start.sh
 ```
-
-**Windows**
-
-`update.bat` has to live **inside the unzipped app folder** (next to `start.bat`), not inside the zip preview in Explorer.
-
-1. Stop the app if it is running.
-2. Copy the new `MatchedBettingDocumenter.zip` onto the PC (Downloads is fine).
-3. Open the **existing** app folder in Explorer.
-4. Double-click `update.bat` and choose that zip in the file picker.
-
-In PowerShell you must type a `.\` and be in that folder:
-
-```powershell
-cd path\to\MatchedBettingDocumenter
-.\update.bat C:\Users\You\Downloads\MatchedBettingDocumenter.zip
-```
-
-If `update.bat` is missing, this copy is still the old app. Unzip the new zip to a **new** folder, copy the old `data` folder into it, then double-click `start.bat` there.
-
-`data/app.db` and `data/matched_betting.xlsx` are not overwritten. After a successful update the zip file is deleted.
 
 ## Link a laptop and a PC
 

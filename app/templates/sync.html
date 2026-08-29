@@ -28,7 +28,7 @@
           onsubmit="return confirm('This will replace all bets, offers and balances on THIS computer with the other computer’s log. Continue?');">
       <label class="span-2">
         Code from the other computer
-        <input name="code" required placeholder="482193@192.168.1.10:5050" autocomplete="off">
+        <input name="code" required placeholder="482193@192.168.1.10:{{ app_port }}" autocomplete="off">
       </label>
       <div class="form-actions span-2">
         <button class="btn btn-primary" type="submit">Pull latest log</button>
@@ -37,8 +37,14 @@
   </section>
 
   <section class="panel">
+    <div class="panel-head"><h2>App updates</h2></div>
+    <p>This copy is <strong>{{ app_version }}</strong>. The auto updater and the in-app popup are separate toggles in <a href="{{ url_for('main.settings_page') }}">Settings</a>. Your <code>data/</code> folder is left alone.</p>
+    <p class="hint">If you publish releases, use <code>./release.sh</code> (or <code>release.bat</code>) from the source folder after <code>gh auth login</code>.</p>
+  </section>
+
+  <section class="panel">
     <div class="panel-head"><h2>Manual backup</h2></div>
-    <p class="hint">If the computers are not on the same network, download a backup here and restore it on the other machine. Updating the app (new zip) never deletes <code>data/</code> if you use <code>./update.sh</code>.</p>
+    <p class="hint">If the computers are not on the same network, download a backup here and restore it on the other machine. Updating the app never deletes <code>data/</code>.</p>
     <p><a class="btn btn-primary" href="{{ url_for('main.sync_backup') }}">Download backup.json</a></p>
     <form method="post" action="{{ url_for('main.sync_restore') }}" enctype="multipart/form-data" class="form-grid"
           onsubmit="return confirm('Restore will replace all bets on this computer. Continue?');">

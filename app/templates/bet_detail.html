@@ -15,6 +15,7 @@
     <article class="stat-card"><p>Lay</p><strong>{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}</strong></article>
     <article class="stat-card"><p>Liability</p><strong>{{ bet.liability | gbp }}</strong></article>
     <article class="stat-card"><p>Expected</p><strong class="{{ bet.expected_profit | pnl }}">{{ bet.expected_profit | gbp }}</strong></article>
+    <article class="stat-card"><p>Placed</p><strong>{{ (bet.placed_at or bet.date_placed) | uktime }}</strong></article>
     <article class="stat-card"><p>Status</p><strong>{{ bet.status | labelize }}</strong></article>
   </section>
 
@@ -29,7 +30,7 @@
     <div class="panel-head"><h2>Outcomes</h2></div>
     <table>
       <thead>
-        <tr><th></th><th>Bookie</th><th>Exchange</th><th>Total</th></tr>
+        <tr><th></th><th class="num">Bookie</th><th class="num">Exchange</th><th class="num">Total</th></tr>
       </thead>
       <tbody>
         <tr>
@@ -86,7 +87,9 @@
   {% else %}
     <section class="panel">
       <div class="panel-head"><h2>Settled result</h2></div>
-      <p>Bookie {{ bet.actual_bookie_profit | gbp }} · Exchange {{ bet.actual_exchange_profit | gbp }} · Net <strong class="{{ bet.actual_profit | pnl }}">{{ bet.actual_profit | gbp }}</strong></p>
+      <p>Bookie {{ bet.actual_bookie_profit | gbp }} · Exchange {{ bet.actual_exchange_profit | gbp }} · Net <strong class="{{ bet.actual_profit | pnl }}">{{ bet.actual_profit | gbp }}</strong>
+        {% if bet.settled_at %} · Settled {{ bet.settled_at | uktime }}{% endif %}
+      </p>
       {% if bet.status == "void" and bet.is_free_bet %}
         <form method="post" action="{{ url_for('main.update_free_bet_returned', bet_id=bet.id) }}" class="form-grid">
           <label class="span-2 checkbox-row">

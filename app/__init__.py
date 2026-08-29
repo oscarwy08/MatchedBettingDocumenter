@@ -1,8 +1,10 @@
+import os
 from pathlib import Path
 
 from flask import Flask, g
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+_env_root = (os.environ.get("MBD_ROOT") or "").strip()
+ROOT_DIR = Path(_env_root).expanduser().resolve() if _env_root else Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
 DB_PATH = DATA_DIR / "app.db"
 EXCEL_PATH = DATA_DIR / "matched_betting.xlsx"
@@ -60,16 +62,25 @@ def create_app() -> Flask:
         from app.dates import format_uk
         return format_uk(value)
 
+    @app.template_filter("uktime")
+    def uktime(value):
+        from app.dates import format_uk_time
+        return format_uk_time(value)
+
     @app.context_processor
     def inject_globals():
+        from app.settings import get as setting
         from app.version import VERSION
 
-        return {"app_version": VERSION}
+        return {"app_version": VERSION, "app_port": setting("port")}
 
     boot = Session()
     try:
         seed_accounts(boot)
-        sync_workbook(boot)
+        from app.settings import get as setting
+
+        if setting("excel_sync"):
+            sync_workbook(boot)
     finally:
         boot.close()
 

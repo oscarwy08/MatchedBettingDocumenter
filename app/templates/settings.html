@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block eyebrow %}Options{% endblock %}
+{% block heading %}Settings{% endblock %}
+{% block content %}
+  <form method="post" action="{{ url_for('main.settings_save') }}" class="stack">
+    <section class="panel">
+      <div class="panel-head"><h2>Startup</h2></div>
+      <label class="setting-row">
+        <input class="switch-input" type="checkbox" name="open_browser" {% if settings.open_browser %}checked{% endif %}>
+        <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+        <span>
+          <strong>Open in the browser when starting</strong>
+          <small>After you click Start, open this app at http://127.0.0.1:{{ settings.port }}. Turn off if you prefer to open it yourself.</small>
+        </span>
+      </label>
+      <label class="setting-row">
+        <input class="switch-input" type="checkbox" name="allow_lan" {% if settings.allow_lan %}checked{% endif %}>
+        <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+        <span>
+          <strong>Allow other devices on this Wi‑Fi</strong>
+          <small>Lets phones and other computers reach this copy on the port below. Needed for Devices pairing. Applies the next time you Start.</small>
+        </span>
+      </label>
+      <label class="setting-field">
+        Port
+        <input name="port" type="number" min="1024" max="65535" step="1" required value="{{ settings.port }}">
+        <small>Default is 5050. Change this if something else is already using that port. Applies the next time you Start.</small>
+      </label>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Calculator</h2></div>
+      <label class="setting-field">
+        Default exchange
+        <select name="default_exchange_id">
+          <option value="">Smarkets (built-in default)</option>
+          {% for exchange in exchanges %}
+            <option value="{{ exchange.id }}" {% if settings.default_exchange_id == exchange.id %}selected{% endif %}>
+              {{ exchange.name }} ({{ '%.4g'|format(exchange.commission_percent|float) }}%)
+            </option>
+          {% endfor %}
+        </select>
+        <small>Used on the calculator when you have not just logged a bet. Commission follows the exchange.</small>
+      </label>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Excel</h2></div>
+      <label class="setting-row">
+        <input class="switch-input" type="checkbox" name="excel_sync" {% if settings.excel_sync %}checked{% endif %}>
+        <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+        <span>
+          <strong>Keep Excel in sync</strong>
+          <small>Rewrite <code>data/matched_betting.xlsx</code> after each save. Turn off if that feels slow — the database is still the source of truth, and Excel still builds when you open or download it.</small>
+        </span>
+      </label>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Updates</h2></div>
+      <p class="hint">This copy is <strong>{{ app_version }}</strong>. Your <code>data/</code> folder is never overwritten.</p>
+      <label class="setting-row">
+        <input class="switch-input" type="checkbox" name="update_on_start" {% if settings.update_on_start %}checked{% endif %}>
+        <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+        <span>
+          <strong>Auto updater</strong>
+          <small>When you Start, check GitHub and install a newer zip if there is one.</small>
+        </span>
+      </label>
+      <label class="setting-row">
+        <input class="switch-input" type="checkbox" name="update_popup" {% if settings.update_popup %}checked{% endif %}>
+        <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+        <span>
+          <strong>Update popup</strong>
+          <small>While the app is open, re-read the tiny latest.txt about once a minute and show a corner card when a newer version is ready. You choose Update now or Later.</small>
+        </span>
+      </label>
+    </section>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit">Save settings</button>
+    </div>
+  </form>
+{% endblock %}

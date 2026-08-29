@@ -80,23 +80,23 @@
         <thead>
           <tr>
             <th></th>
-            <th>Bookie</th>
-            <th>Exchange</th>
-            <th>Total</th>
+            <th class="num">Bookie</th>
+            <th class="num">Exchange</th>
+            <th class="num">Total</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <th>If back wins</th>
-            <td id="back-bookie">–</td>
-            <td id="back-exchange">–</td>
-            <td id="back-total">–</td>
+            <td class="num" id="back-bookie">–</td>
+            <td class="num" id="back-exchange">–</td>
+            <td class="num" id="back-total">–</td>
           </tr>
           <tr>
             <th>If lay wins</th>
-            <td id="lay-bookie">–</td>
-            <td id="lay-exchange">–</td>
-            <td id="lay-total">–</td>
+            <td class="num" id="lay-bookie">–</td>
+            <td class="num" id="lay-exchange">–</td>
+            <td class="num" id="lay-total">–</td>
           </tr>
         </tbody>
       </table>
@@ -168,6 +168,7 @@
           <label>
             Deposit with new offer
             <input name="offer_deposit" type="number" step="0.01" min="0" placeholder="0.00">
+            <span class="hint">One transfer only — don’t also record it on Accounts.</span>
           </label>
           <label class="span-2">
             Notes
@@ -183,5 +184,5 @@
   </form>
 {% endblock %}
 {% block scripts %}
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=6"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=7"></script>
 {% endblock %}

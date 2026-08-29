@@ -5,25 +5,23 @@ cd "$(dirname "$0")"
 OUT_DIR="dist"
 ZIP_NAME="MatchedBettingDocumenter.zip"
 STAGING="$OUT_DIR/MatchedBettingDocumenter"
+PROG="$STAGING/program"
 
 rm -rf "$OUT_DIR"
-mkdir -p "$STAGING"
+mkdir -p "$PROG" "$STAGING/data"
 
-# Copy the app, skip local venv, git, caches, and personal data files.
+# Runtime only — launchers stay at the zip root; code goes in program/.
 rsync -a \
-  --exclude '.git/' \
-  --exclude '.venv/' \
-  --exclude 'venv/' \
   --exclude '__pycache__/' \
-  --exclude '.pytest_cache/' \
-  --exclude 'dist/' \
-  --exclude 'data/*.db' \
-  --exclude 'data/*.xlsx' \
-  --exclude '.env' \
-  ./ "$STAGING/"
+  --exclude '*.pyc' \
+  app "$PROG/"
 
-mkdir -p "$STAGING/data"
-chmod +x "$STAGING/start.sh" "$STAGING/pack.sh" "$STAGING/update.sh" "$STAGING/update.py" 2>/dev/null || true
+cp run.py update.py requirements.txt "$PROG/"
+cp start.bat "$STAGING/start.bat"
+cp start.sh "$STAGING/start.sh"
+cp share/README.txt "$STAGING/README.txt"
+
+chmod +x "$STAGING/start.sh" "$PROG/update.py" 2>/dev/null || true
 
 (
   cd "$OUT_DIR"

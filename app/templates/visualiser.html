@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Visualiser{% endblock %}
+{% block eyebrow %}Charts{% endblock %}
+{% block heading %}Visualiser{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ url_for('main.dashboard') }}">Dashboard</a>
+{% endblock %}
+{% block content %}
+  <section class="panel vis-toolbar" id="visualiser" data-vis-root>
+    <div class="filters vis-views" role="group" aria-label="Chart type">
+      <button type="button" class="pill on" data-view="profit_time">Profit over time</button>
+      <button type="button" class="pill" data-view="by_bookie">By bookie</button>
+      <button type="button" class="pill" data-view="by_exchange">By exchange</button>
+      <button type="button" class="pill" data-view="by_offer_type">By offer type</button>
+      <button type="button" class="pill" data-view="by_bet_type">By bet type</button>
+      <button type="button" class="pill" data-view="by_offer">By offer</button>
+      <button type="button" class="pill" data-view="outcomes">Outcomes</button>
+      <button type="button" class="pill" data-view="activity">Activity</button>
+      <button type="button" class="pill" data-view="balances">Balances</button>
+      <button type="button" class="pill" data-view="cashflow">Cashflow</button>
+    </div>
+    <form class="form-grid vis-filters" data-vis-filters>
+      <label>
+        Range
+        <select name="range">
+          <option value="1D">1 day</option>
+          <option value="1W" selected>1 week</option>
+          <option value="1M">1 month</option>
+          <option value="1Y">1 year</option>
+        </select>
+      </label>
+      <label>
+        From
+        <input name="from" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" autocomplete="off">
+      </label>
+      <label>
+        To
+        <input name="to" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" autocomplete="off">
+      </label>
+      <label>
+        Bookie
+        <select name="bookie_id">
+          <option value="">All bookies</option>
+          {% for account in bookies %}
+            <option value="{{ account.id }}">{{ account.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Exchange
+        <select name="exchange_id">
+          <option value="">All exchanges</option>
+          {% for account in exchanges %}
+            <option value="{{ account.id }}">{{ account.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Bet type
+        <select name="bet_type">
+          <option value="">All types</option>
+          {% for value, label in bet_types %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="span-2">
+        Offer
+        <select name="offer_id">
+          <option value="">All offers</option>
+          {% for offer in offers %}
+            <option value="{{ offer.id }}">{{ offer.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </form>
+  </section>
+
+  <section class="panel chart-panel vis-chart">
+    <div class="chart-head">
+      <div>
+        <p class="chart-kicker" data-vis-title>Profit over time</p>
+        <strong class="chart-value" data-chart-total>£0.00</strong>
+        <p class="chart-sub" data-vis-sub></p>
+      </div>
+    </div>
+    <div class="chart-plot vis-plot" data-chart-plot></div>
+    <p class="empty is-hidden" data-vis-empty>Nothing in this range yet.</p>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Figures</h2>
+    </div>
+    <table data-vis-table>
+      <thead>
+        <tr>
+          <th>Label</th>
+          <th class="num">Value</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='charts.js') }}?v=2"></script>
+  <script>MBDCharts.visualiser();</script>
+{% endblock %}

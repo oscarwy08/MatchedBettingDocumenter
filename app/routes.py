@@ -20,7 +20,16 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.calculator import CalcBetType, calculate
-from app.dates import format_uk, parse_uk
+from app.charts import (
+    RANGES,
+    VIEWS,
+    account_sparklines,
+    accounts_profit_bars,
+    apply_sparklines,
+    profit_series,
+    visualiser_payload,
+)
+from app.dates import combine_date, format_uk, local_now, parse_uk
 from app.db import get_session
 from app.excel import preview_workbook, sync_workbook
 from app.importer import import_workbook
@@ -35,7 +44,16 @@ from app.models import (
     Transfer,
     TransferKind,
 )
-from app.services import account_snapshot, dashboard_stats, offer_snapshot
+from app.services import (
+    account_snapshot,
+    account_usage,
+    dashboard_stats,
+    offer_snapshot,
+    reconcile_offer_deposits,
+    reconcile_settlement_sides,
+    suggested_settlement,
+    sync_offer_deposit,
+)
 from app.snapshot import apply_snapshot, dump_snapshot
 from app.sync import current_pin, make_link_code, parse_link_code, start_share, stop_share
 from app.version import VERSION
@@ -63,10 +81,20 @@ BET_TYPE_CHOICES = [
 
 def _commit_and_sync(session: Session) -> None:
     session.commit()
+    from app.settings import get as setting
+
+    if not setting("excel_sync"):
+        return
     try:
         sync_workbook(session)
     except Exception as exc:  # noqa: BLE001
         flash(f"Saved, but Excel sync failed: {exc}", "error")
+
+
+def _app_port() -> int:
+    from app.settings import get as setting
+
+    return int(setting("port"))
 
 
 def _parse_decimal(name: str, default: str = "0") -> Decimal:
@@ -120,9 +148,17 @@ def _form_context(session: Session) -> dict:
     }
 
 
+def _maybe_reconcile(session: Session) -> None:
+    changed = bool(reconcile_offer_deposits(session))
+    changed = bool(reconcile_settlement_sides(session)) or changed
+    if changed:
+        _commit_and_sync(session)
+
+
 @bp.get("/")
 def dashboard():
     session = get_session()
+    _maybe_reconcile(session)
     stats = dashboard_stats(session)
     offer_rows = [offer_snapshot(offer) for offer in stats["in_progress_offers"]]
     show_spreadsheet_cta = session.scalars(select(Bet.id).limit(1)).first() is None
@@ -131,6 +167,46 @@ def dashboard():
         stats=stats,
         offer_rows=offer_rows,
         show_spreadsheet_cta=show_spreadsheet_cta,
+        profit_chart=profit_series(session, range_key="1W"),
+    )
+
+
+def _optional_int(raw: str | None) -> int | None:
+    text = (raw or "").strip()
+    if text.isdigit():
+        return int(text)
+    return None
+
+
+@bp.get("/visualiser")
+def visualiser_page():
+    session = get_session()
+    _maybe_reconcile(session)
+    ctx = _form_context(session)
+    return render_template(
+        "visualiser.html",
+        views=VIEWS,
+        ranges=RANGES,
+        **ctx,
+    )
+
+
+@bp.get("/api/charts")
+def charts_api():
+    session = get_session()
+    return jsonify(
+        visualiser_payload(
+            session,
+            view=(request.args.get("view") or "profit_time").strip(),
+            range_key=(request.args.get("range") or "1W").strip(),
+            start_raw=request.args.get("from"),
+            end_raw=request.args.get("to"),
+            bookie_id=_optional_int(request.args.get("bookie_id")),
+            exchange_id=_optional_int(request.args.get("exchange_id")),
+            bet_type=(request.args.get("bet_type") or "").strip() or None,
+            offer_id=_optional_int(request.args.get("offer_id")),
+            account_id=_optional_int(request.args.get("account_id")),
+        )
     )
 
 
@@ -149,7 +225,16 @@ def calculator_page():
             selected_offer_id = ""
     ctx["selected_offer_id"] = selected_offer_id
     ctx["selected_bookie_id"] = selected_bookie_id or str(web_session.get("last_bookie_id") or "")
-    ctx["selected_exchange_id"] = str(web_session.get("last_exchange_id") or "")
+    from app.settings import get as setting
+
+    selected_exchange = str(web_session.get("last_exchange_id") or "")
+    if not selected_exchange:
+        default_exchange = setting("default_exchange_id")
+        if default_exchange:
+            selected_exchange = str(default_exchange)
+    if selected_exchange.isdigit() and session.get(Account, int(selected_exchange)) is None:
+        selected_exchange = ""
+    ctx["selected_exchange_id"] = selected_exchange
     return render_template("calculator.html", **ctx)
 
 
@@ -257,17 +342,7 @@ def _resolve_offer(session: Session, bookie_id: int) -> Offer | None:
     )
     session.add(offer)
     session.flush()
-    if deposit > 0:
-        session.add(
-            Transfer(
-                account_id=bookie_id,
-                kind=TransferKind.DEPOSIT,
-                amount=deposit,
-                date=parse_uk(request.form.get("date_placed")),
-                notes=f"Deposit for {new_name}",
-                offer_id=offer.id,
-            )
-        )
+    sync_offer_deposit(session, offer, when=parse_uk(request.form.get("date_placed")))
     return offer
 
 
@@ -281,9 +356,11 @@ def log_bet():
             raise ValueError("Choose both a bookie and an exchange.")
         numbers = _calculation_from_form()
         offer = _resolve_offer(session, bookie_id)
+        placed_at = local_now()
         bet = Bet(
             offer_id=offer.id if offer else None,
             date_placed=parse_uk(request.form.get("date_placed")),
+            placed_at=placed_at,
             event=(request.form.get("event") or "").strip(),
             market=(request.form.get("market") or "").strip(),
             notes=(request.form.get("notes") or "").strip(),
@@ -331,16 +408,7 @@ def create_offer():
         )
         session.add(offer)
         session.flush()
-        if deposit > 0:
-            session.add(
-                Transfer(
-                    account_id=bookie_id,
-                    kind=TransferKind.DEPOSIT,
-                    amount=deposit,
-                    notes=f"Deposit for {name}",
-                    offer_id=offer.id,
-                )
-            )
+        sync_offer_deposit(session, offer)
         _commit_and_sync(session)
         flash("Offer created.", "ok")
         return redirect(url_for("main.offer_detail", offer_id=offer.id))
@@ -373,9 +441,13 @@ def delete_offer(offer_id: int):
     session = get_session()
     offer = session.get(Offer, offer_id)
     if offer:
+        for bet in list(offer.bets):
+            bet.offer_id = None
+        for transfer in list(offer.transfers):
+            transfer.offer_id = None
         session.delete(offer)
         _commit_and_sync(session)
-        flash("Offer deleted.", "ok")
+        flash("Offer deleted. Bets and deposits stay in the log.", "ok")
     return redirect(url_for("main.offers"))
 
 
@@ -414,28 +486,8 @@ def bet_detail(bet_id: int):
     if bet is None:
         flash("Bet not found.", "error")
         return redirect(url_for("main.bets"))
-    suggested = _suggested_settlement(bet)
+    suggested = suggested_settlement(bet)
     return render_template("bet_detail.html", bet=bet, suggested=suggested)
-
-
-def _suggested_settlement(bet: Bet) -> dict:
-    return {
-        BetStatus.BACK_WON: {
-            "bookie": bet.expected_bookie_back,
-            "exchange": bet.expected_exchange_back,
-            "net": bet.expected_bookie_back + bet.expected_exchange_back,
-        },
-        BetStatus.LAY_WON: {
-            "bookie": bet.expected_bookie_lay,
-            "exchange": bet.expected_exchange_lay,
-            "net": bet.expected_bookie_lay + bet.expected_exchange_lay,
-        },
-        BetStatus.VOID: {
-            "bookie": Decimal("0.00"),
-            "exchange": Decimal("0.00"),
-            "net": Decimal("0.00"),
-        },
-    }
 
 
 @bp.post("/bets/<int:bet_id>/settle")
@@ -449,27 +501,37 @@ def settle_bet(bet_id: int):
         outcome = request.form.get("outcome") or ""
         if outcome not in {BetStatus.BACK_WON, BetStatus.LAY_WON, BetStatus.VOID}:
             raise ValueError("Choose how the bet settled.")
-        suggested = _suggested_settlement(bet)[outcome]
+        suggested = suggested_settlement(bet)[outcome]
+        bookie_over = request.form.get("actual_bookie_profit") not in (None, "")
+        exchange_over = request.form.get("actual_exchange_profit") not in (None, "")
+        net_over = request.form.get("actual_profit") not in (None, "")
         bookie_pl = (
             _parse_decimal("actual_bookie_profit", str(suggested["bookie"]))
-            if request.form.get("actual_bookie_profit") not in (None, "")
+            if bookie_over
             else suggested["bookie"]
         )
         exchange_pl = (
             _parse_decimal("actual_exchange_profit", str(suggested["exchange"]))
-            if request.form.get("actual_exchange_profit") not in (None, "")
+            if exchange_over
             else suggested["exchange"]
         )
-        net = (
-            _parse_decimal("actual_profit", str(suggested["net"]))
-            if request.form.get("actual_profit") not in (None, "")
-            else bookie_pl + exchange_pl
-        )
+        if net_over and not bookie_over and not exchange_over:
+            net = _parse_decimal("actual_profit", str(suggested["net"]))
+            bookie_pl = suggested["bookie"]
+            exchange_pl = net - bookie_pl
+        elif net_over and bookie_over and not exchange_over:
+            net = _parse_decimal("actual_profit", str(suggested["net"]))
+            exchange_pl = net - bookie_pl
+        elif net_over and exchange_over and not bookie_over:
+            net = _parse_decimal("actual_profit", str(suggested["net"]))
+            bookie_pl = net - exchange_pl
+        else:
+            net = bookie_pl + exchange_pl
         bet.status = outcome
         bet.actual_bookie_profit = bookie_pl
         bet.actual_exchange_profit = exchange_pl
         bet.actual_profit = net
-        bet.settled_at = datetime.now()
+        bet.settled_at = local_now()
         if outcome == BetStatus.VOID and bet.is_free_bet:
             bet.free_bet_returned = request.form.get("free_bet_returned") == "1"
         else:
@@ -535,8 +597,12 @@ def delete_bet(bet_id: int):
 @bp.get("/accounts")
 def accounts():
     session = get_session()
+    _maybe_reconcile(session)
     bookies = [account_snapshot(session, a) for a in _bookies(session)]
     exchanges = [account_snapshot(session, a) for a in _exchanges(session)]
+    apply_sparklines(bookies + exchanges, account_sparklines(session))
+    for snap in bookies + exchanges:
+        snap.update(account_usage(session, snap["account"].id))
     transfers = list(
         session.scalars(
             select(Transfer)
@@ -545,12 +611,88 @@ def accounts():
             .limit(80)
         )
     )
+    active_bookies = [
+        snap
+        for snap in bookies
+        if snap["deposited"] or snap["withdrawn"] or snap["net_profit"] or snap["balance"]
+    ]
+    unused_bookies = [snap for snap in bookies if snap not in active_bookies]
+    totals = {
+        "balance": sum((snap["balance"] for snap in bookies + exchanges), Decimal("0")),
+        "deposited": sum((snap["deposited"] for snap in bookies + exchanges), Decimal("0")),
+        "net_profit": sum((snap["net_profit"] for snap in active_bookies), Decimal("0")),
+    }
     return render_template(
         "accounts.html",
         bookies=bookies,
+        active_bookies=active_bookies,
+        unused_bookies=unused_bookies,
         exchanges=exchanges,
         transfers=transfers,
+        totals=totals,
         today=format_uk(date.today()),
+        accounts_chart=accounts_profit_bars(session),
+    )
+
+
+@bp.get("/accounts/<int:account_id>")
+def account_detail(account_id: int):
+    session = get_session()
+    account = session.get(Account, account_id)
+    if account is None:
+        flash("Account not found.", "error")
+        return redirect(url_for("main.accounts"))
+    snap = account_snapshot(session, account)
+    snap.update(account_usage(session, account.id))
+    bet_filter = Bet.bookie_id == account.id if account.is_bookie else Bet.exchange_id == account.id
+    bets = list(
+        session.scalars(
+            select(Bet)
+            .options(
+                selectinload(Bet.bookie),
+                selectinload(Bet.exchange),
+                selectinload(Bet.offer),
+            )
+            .where(bet_filter)
+            .order_by(Bet.date_placed.desc(), Bet.id.desc())
+        )
+    )
+    offers = []
+    if account.is_bookie:
+        offers = [
+            offer_snapshot(offer)
+            for offer in session.scalars(
+                select(Offer)
+                .options(selectinload(Offer.bets), selectinload(Offer.bookie))
+                .where(Offer.bookie_id == account.id)
+                .order_by(Offer.created_at.desc())
+            )
+        ]
+    transfers = list(
+        session.scalars(
+            select(Transfer)
+            .options(selectinload(Transfer.offer))
+            .where(Transfer.account_id == account.id)
+            .order_by(Transfer.date.desc(), Transfer.id.desc())
+        )
+    )
+    pending_expected = sum(
+        (bet.expected_profit or 0) for bet in bets if bet.status == BetStatus.PENDING
+    )
+    return render_template(
+        "account_detail.html",
+        account=account,
+        snap=snap,
+        bets=bets,
+        offers=offers,
+        transfers=transfers,
+        pending_expected=pending_expected,
+        today=format_uk(date.today()),
+        profit_chart=visualiser_payload(session, view="profit_time", account_id=account.id),
+        cash_chart=visualiser_payload(session, view="cashflow", account_id=account.id),
+        offer_chart=visualiser_payload(session, view="by_offer", account_id=account.id)
+        if account.is_bookie
+        else None,
     )
 
 
@@ -596,11 +738,37 @@ def update_account(account_id: int):
         account.commission_percent = _parse_decimal("commission_percent")
         _commit_and_sync(session)
         flash(f"{account.name} updated.", "ok")
+        return redirect(url_for("main.account_detail", account_id=account.id))
     except IntegrityError:
         session.rollback()
         flash("An account with that name already exists.", "error")
     except (ValueError, InvalidOperation) as exc:
         flash(str(exc), "error")
+    return redirect(url_for("main.account_detail", account_id=account.id))
+
+
+@bp.post("/accounts/<int:account_id>/delete")
+def delete_account(account_id: int):
+    session = get_session()
+    account = session.get(Account, account_id)
+    if account is None:
+        flash("Account not found.", "error")
+        return redirect(url_for("main.accounts"))
+    usage = account_usage(session, account.id)
+    if not usage["can_delete"]:
+        bits = []
+        if usage["bets"]:
+            bits.append(f"{usage['bets']} bet{'s' if usage['bets'] != 1 else ''}")
+        if usage["offers"]:
+            bits.append(f"{usage['offers']} offer{'s' if usage['offers'] != 1 else ''}")
+        if usage["transfers"]:
+            bits.append(f"{usage['transfers']} transfer{'s' if usage['transfers'] != 1 else ''}")
+        flash(f"Can't delete {account.name} while it still has {', '.join(bits)}.", "error")
+        return redirect(url_for("main.accounts"))
+    name = account.name
+    session.delete(account)
+    _commit_and_sync(session)
+    flash(f"{name} deleted.", "ok")
     return redirect(url_for("main.accounts"))
 
 
@@ -631,6 +799,8 @@ def add_transfer(account_id: int):
         flash(f"{kind.title()} of £{amount} recorded on {account.name}.", "ok")
     except (ValueError, InvalidOperation) as exc:
         flash(str(exc), "error")
+    if request.form.get("next") == "detail":
+        return redirect(url_for("main.account_detail", account_id=account_id))
     return redirect(url_for("main.accounts"))
 
 
@@ -738,7 +908,9 @@ def edit_bet(bet_id: int):
         numbers = _calculation_from_form()
         offer = _resolve_offer(session, bookie_id)
         bet.offer_id = offer.id if offer else None
-        bet.date_placed = parse_uk(request.form.get("date_placed"))
+        new_date = parse_uk(request.form.get("date_placed"))
+        bet.placed_at = combine_date(bet.placed_at, new_date)
+        bet.date_placed = new_date
         bet.event = (request.form.get("event") or "").strip()
         bet.market = (request.form.get("market") or "").strip()
         bet.notes = (request.form.get("notes") or "").strip()
@@ -760,9 +932,11 @@ def duplicate_bet(bet_id: int):
     if bet is None:
         flash("Bet not found.", "error")
         return redirect(url_for("main.bets"))
+    placed_at = local_now()
     copy = Bet(
         offer_id=bet.offer_id,
-        date_placed=date.today(),
+        date_placed=placed_at.date(),
+        placed_at=placed_at,
         event=bet.event,
         market=bet.market,
         notes=bet.notes,
@@ -807,6 +981,7 @@ def edit_offer(offer_id: int):
         offer.notes = (request.form.get("notes") or "").strip()
         offer.deposit_amount = _parse_decimal("deposit_amount")
         offer.free_funds = _parse_decimal("free_funds")
+        sync_offer_deposit(session, offer)
         _commit_and_sync(session)
         flash("Offer updated.", "ok")
     except (ValueError, InvalidOperation) as exc:
@@ -832,6 +1007,13 @@ def edit_transfer(transfer_id: int):
         transfer.amount = amount
         transfer.date = parse_uk(request.form.get("date"))
         transfer.notes = (request.form.get("notes") or "").strip()
+        if transfer.offer_id:
+            offer = session.get(Offer, transfer.offer_id)
+            if offer and kind == TransferKind.DEPOSIT:
+                offer.deposit_amount = amount
+            elif offer:
+                offer.deposit_amount = Decimal("0.00")
+                transfer.offer_id = None
         _commit_and_sync(session)
         flash("Transfer updated.", "ok")
     except (ValueError, InvalidOperation) as exc:
@@ -844,6 +1026,10 @@ def delete_transfer(transfer_id: int):
     session = get_session()
     transfer = session.get(Transfer, transfer_id)
     if transfer:
+        if transfer.offer_id and transfer.kind == TransferKind.DEPOSIT:
+            offer = session.get(Offer, transfer.offer_id)
+            if offer:
+                offer.deposit_amount = Decimal("0.00")
         session.delete(transfer)
         _commit_and_sync(session)
         flash("Transfer deleted.", "ok")
@@ -857,7 +1043,7 @@ def sync_page():
         "sync.html",
         sharing=bool(pin),
         pin=pin,
-        link_code=make_link_code(pin) if pin else "",
+        link_code=make_link_code(pin, _app_port()) if pin else "",
         lan_ip=None,
     )
 
@@ -955,3 +1141,55 @@ def sync_restore():
         session.rollback()
         flash(f"Could not restore that backup: {exc}", "error")
     return redirect(url_for("main.sync_page"))
+
+
+@bp.get("/settings")
+def settings_page():
+    from app.settings import load
+
+    session = get_session()
+    return render_template(
+        "settings.html",
+        settings=load(),
+        exchanges=_exchanges(session),
+    )
+
+
+@bp.post("/settings")
+def settings_save():
+    from app.settings import parse_port, save
+
+    try:
+        port = parse_port(request.form.get("port"))
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("main.settings_page"))
+    exchange_raw = (request.form.get("default_exchange_id") or "").strip()
+    save(
+        {
+            "open_browser": request.form.get("open_browser") == "on",
+            "update_on_start": request.form.get("update_on_start") == "on",
+            "update_popup": request.form.get("update_popup") == "on",
+            "allow_lan": request.form.get("allow_lan") == "on",
+            "excel_sync": request.form.get("excel_sync") == "on",
+            "port": port,
+            "default_exchange_id": int(exchange_raw) if exchange_raw.isdigit() else None,
+        }
+    )
+    flash("Settings saved. Port and Wi‑Fi access apply the next time you Start.", "ok")
+    return redirect(url_for("main.settings_page"))
+
+
+@bp.get("/api/update-status")
+def update_status():
+    from app.live_update import status
+
+    return jsonify(status())
+
+
+@bp.post("/api/update-apply")
+def update_apply():
+    from app.live_update import apply_and_relaunch
+
+    payload = request.get_json(silent=True) or {}
+    return jsonify(apply_and_relaunch(requested=payload.get("latest")))
