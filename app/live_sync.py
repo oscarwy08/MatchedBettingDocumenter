@@ -5,7 +5,9 @@ from __future__ import annotations
 import json
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from sqlalchemy.orm import Session
@@ -22,8 +24,9 @@ from app.sync import (
 )
 
 POLL_EVERY_SEC = 30
-REQUEST_TIMEOUT = 8
-LAN_TIMEOUT = 2.5
+REQUEST_TIMEOUT = 3.0
+LAN_TIMEOUT = 1.2
+FRESHNESS_TIMEOUT = 1.2
 
 _lock = threading.Lock()
 _wakeup = threading.Event()
@@ -55,23 +58,48 @@ def peer_hosts(peer: dict) -> list[str]:
     return hosts
 
 
+def _fetch_one(host: str, path: str, token: str | None, timeout: float) -> dict:
+    url = f"http://{host}{path}"
+    if token:
+        joiner = "&" if "?" in path else "?"
+        url = f"{url}{joiner}token={quote(token, safe='')}"
+    req = Request(url, headers=_headers(token))
+    with urlopen(req, timeout=timeout) as resp:
+        payload = json.load(resp)
+    if not isinstance(payload, dict):
+        raise ValueError("The other computer sent something that is not a log.")
+    return payload
+
+
 def fetch_json(hosts: list[str], path: str, token: str | None = None, timeout: float = REQUEST_TIMEOUT) -> dict:
-    last_error: Exception | None = None
-    for index, host in enumerate(hosts):
-        wait = LAN_TIMEOUT if index == 0 and len(hosts) > 1 else timeout
-        req = Request(f"http://{host}{path}", headers=_headers(token))
+    unique = []
+    for host in hosts:
+        if host and host not in unique:
+            unique.append(host)
+    if not unique:
+        raise URLError("No address to try.")
+    errors: list[str] = []
+    if len(unique) == 1:
         try:
-            with urlopen(req, timeout=wait) as resp:
-                payload = json.load(resp)
-            if not isinstance(payload, dict):
-                raise ValueError("The other computer sent something that is not a log.")
-            return payload
+            return _fetch_one(unique[0], path, token, timeout)
         except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
-            last_error = exc
-            continue
-    if last_error:
-        raise last_error
-    raise URLError("No address to try.")
+            raise URLError(f"{unique[0]}: {exc}") from exc
+    pool = ThreadPoolExecutor(max_workers=len(unique))
+    try:
+        futures = {pool.submit(_fetch_one, host, path, token, timeout): host for host in unique}
+        try:
+            done = as_completed(futures, timeout=timeout + 0.4)
+            for future in done:
+                host = futures[future]
+                try:
+                    return future.result()
+                except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
+                    errors.append(f"{host}: {exc}")
+        except TimeoutError:
+            errors.append("timed out")
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    raise URLError("; ".join(errors) if errors else "No address to try.")
 
 
 def post_json(hosts: list[str], path: str, body: dict, token: str | None = None) -> dict:
@@ -116,56 +144,67 @@ def freshness(session: Session | None = None) -> dict:
         close = True
         own = True
     try:
-        local = dump_snapshot(session)
-        state = load_state()
-        last = state.get("last_agreed") or ""
-        peers = state.get("peers") or []
-        if not peers or not setting("auto_sync"):
-            return {
-                "action": "ok",
-                "needs_confirm": False,
-                "local": local["counts"],
-                "fingerprint": local["fingerprint"],
-            }
-        best = None
-        for peer in peers:
-            try:
-                remote = fetch_json(peer_hosts(peer), "/api/sync/status", peer.get("token"))
-            except Exception:  # noqa: BLE001
-                continue
-            action = compare_fingerprints(local["fingerprint"], remote.get("fingerprint") or "", last)
-            info = {
-                "action": action,
-                "peer": peer,
-                "remote": remote,
-                "local": local["counts"],
-                "shrink": would_shrink(local["counts"], remote.get("counts") or {}),
-            }
-            if action in ("pull", "conflict"):
-                best = info
-                break
-            best = info
-        if best is None:
-            return {
-                "action": "offline",
-                "needs_confirm": False,
-                "local": local["counts"],
-                "fingerprint": local["fingerprint"],
-            }
-        needs = best["action"] in ("pull", "conflict") or best.get("shrink")
-        return {
-            "action": best["action"],
-            "needs_confirm": bool(needs),
-            "peer_name": (best["peer"] or {}).get("nickname") or "the other computer",
-            "peer_id": (best["peer"] or {}).get("id"),
-            "local": local["counts"],
-            "remote": (best["remote"] or {}).get("counts"),
-            "shrink": best.get("shrink"),
-            "fingerprint": local["fingerprint"],
-        }
+        return _freshness(session)
+    except Exception:  # noqa: BLE001
+        return {"action": "ok", "needs_confirm": False, "local": {}, "fingerprint": ""}
     finally:
         if close and own:
             session.close()
+
+
+def _freshness(session: Session) -> dict:
+    local = dump_snapshot(session)
+    state = load_state()
+    last = state.get("last_agreed") or ""
+    peers = state.get("peers") or []
+    if not peers or not setting("auto_sync"):
+        return {
+            "action": "ok",
+            "needs_confirm": False,
+            "local": local["counts"],
+            "fingerprint": local["fingerprint"],
+        }
+    best = None
+    for peer in peers:
+        try:
+            remote = fetch_json(
+                peer_hosts(peer),
+                "/api/sync/status",
+                peer.get("token"),
+                timeout=FRESHNESS_TIMEOUT,
+            )
+        except Exception:  # noqa: BLE001
+            continue
+        action = compare_fingerprints(local["fingerprint"], remote.get("fingerprint") or "", last)
+        info = {
+            "action": action,
+            "peer": peer,
+            "remote": remote,
+            "local": local["counts"],
+            "shrink": would_shrink(local["counts"], remote.get("counts") or {}),
+        }
+        if action in ("pull", "conflict"):
+            best = info
+            break
+        best = info
+    if best is None:
+        return {
+            "action": "offline",
+            "needs_confirm": False,
+            "local": local["counts"],
+            "fingerprint": local["fingerprint"],
+        }
+    needs = best["action"] in ("pull", "conflict") or best.get("shrink")
+    return {
+        "action": best["action"],
+        "needs_confirm": bool(needs),
+        "peer_name": (best["peer"] or {}).get("nickname") or "the other computer",
+        "peer_id": (best["peer"] or {}).get("id"),
+        "local": local["counts"],
+        "remote": (best["remote"] or {}).get("counts"),
+        "shrink": best.get("shrink"),
+        "fingerprint": local["fingerprint"],
+    }
 
 
 def pull_peer(session: Session, peer: dict, *, force: bool = False) -> dict:

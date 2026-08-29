@@ -83,12 +83,21 @@ def dump_snapshot(session: Session) -> dict:
     return payload
 
 
+def _count_field(value) -> int:
+    if isinstance(value, list):
+        return len(value)
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def snapshot_counts(payload: dict) -> dict:
     return {
-        "accounts": len(payload.get("accounts") or []),
-        "offers": len(payload.get("offers") or []),
-        "bets": len(payload.get("bets") or []),
-        "transfers": len(payload.get("transfers") or []),
+        "accounts": _count_field(payload.get("accounts")),
+        "offers": _count_field(payload.get("offers")),
+        "bets": _count_field(payload.get("bets")),
+        "transfers": _count_field(payload.get("transfers")),
     }
 
 
@@ -108,11 +117,9 @@ def fingerprint_session(session: Session) -> str:
 
 
 def would_shrink(local: dict, remote: dict) -> bool:
-    local_c = snapshot_counts(local) if "accounts" in local else local
-    remote_c = snapshot_counts(remote) if "accounts" in remote else remote
-    return int(remote_c.get("bets") or 0) < int(local_c.get("bets") or 0) or int(
-        remote_c.get("offers") or 0
-    ) < int(local_c.get("offers") or 0)
+    local_c = snapshot_counts(local)
+    remote_c = snapshot_counts(remote)
+    return local_c["bets"] > remote_c["bets"] or local_c["offers"] > remote_c["offers"]
 
 
 def _parse_dt(value: str | None) -> datetime | None:

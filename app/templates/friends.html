@@ -81,6 +81,9 @@
         <span class="pill">Last available {{ last_available }}</span>
       {% endif %}
     </div>
+    {% if fetch_error %}
+      <p class="flash flash-error">{{ fetch_error }}</p>
+    {% endif %}
     {% if view %}
       <section class="stat-grid">
         <article class="stat-card">
@@ -152,7 +155,7 @@
         </table>
       {% endif %}
     {% else %}
-      <p class="empty">No view yet. Their app needs to be running once so this computer can store a last-available snapshot.</p>
+      <p class="empty">No view stored yet. Open their Friends page again when both apps are running, or check the message above.</p>
     {% endif %}
   </section>
   {% endif %}

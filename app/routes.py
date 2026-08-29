@@ -1457,6 +1457,7 @@ def friends_page():
         view=None,
         live=False,
         last_available=None,
+        fetch_error=None,
         nickname=default_nickname(),
     )
 
@@ -1474,11 +1475,13 @@ def friend_detail(friend_id: str):
     view = None
     live = False
     last_available = None
+    fetch_error = None
     try:
         view = fetch_live(friend)
         store_cache(friend_id, view)
         live = True
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        fetch_error = str(exc)
         cached = load_cache(friend_id)
         if cached:
             view = cached.get("payload")
@@ -1494,6 +1497,7 @@ def friend_detail(friend_id: str):
         view=view,
         live=live,
         last_available=last_available,
+        fetch_error=fetch_error,
         selected=friend,
         nickname=default_nickname(),
     )
@@ -1563,8 +1567,8 @@ def friends_add():
             store_cache(saved["id"], view)
             if view.get("nickname"):
                 upsert_friend({**saved, "nickname": view["nickname"]})
-        except (HTTPError, URLError, ValueError, OSError):
-            flash("Friend saved. Their dashboard will show when their app is reachable, or as last available.", "ok")
+        except Exception as exc:  # noqa: BLE001
+            flash(str(exc), "error")
             return redirect(url_for("main.friend_detail", friend_id=saved["id"]))
         flash("Friend added.", "ok")
         return redirect(url_for("main.friend_detail", friend_id=saved["id"]))

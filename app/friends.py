@@ -167,18 +167,29 @@ def view_dto(session: Session, *, nickname: str) -> dict:
     bets = list(stats.get("pending_bets") or [])
     # Prefer a mix: pending first already sorted; add settled by date.
     from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
 
     from app.models import Bet, BetStatus
 
     settled = list(
-        session.scalars(select(Bet).where(Bet.status != BetStatus.PENDING).order_by(Bet.date_placed.desc()).limit(RECENT_BETS))
+        session.scalars(
+            select(Bet)
+            .options(selectinload(Bet.bookie))
+            .where(Bet.status != BetStatus.PENDING)
+            .order_by(Bet.date_placed.desc())
+            .limit(RECENT_BETS)
+        )
     )
     seen = set()
     for bet in list(bets) + settled:
         if bet.id in seen:
             continue
         seen.add(bet.id)
-        bookie = getattr(bet, "bookie", None)
+        try:
+            bookie = bet.bookie
+            bookie_name = bookie.name if bookie is not None else ""
+        except Exception:  # noqa: BLE001
+            bookie_name = ""
         profit = bet.actual_profit if bet.status != BetStatus.PENDING else bet.expected_profit
         recent.append(
             {
@@ -186,7 +197,7 @@ def view_dto(session: Session, *, nickname: str) -> dict:
                 if hasattr(bet.placed_at or bet.date_placed, "isoformat")
                 else str(bet.date_placed),
                 "event": bet.event or "—",
-                "bookie": bookie.name if bookie is not None else "",
+                "bookie": bookie_name,
                 "status": bet.status,
                 "profit": _money(profit),
                 "pending": bet.status == BetStatus.PENDING,
@@ -275,7 +286,9 @@ def store_cache(friend_id: str, payload: dict) -> dict:
 
 
 def fetch_live(friend: dict) -> dict:
-    from app.live_sync import fetch_json, peer_hosts
+    from urllib.error import HTTPError, URLError
+
+    from app.live_sync import REQUEST_TIMEOUT, fetch_json, peer_hosts
 
     hosts = peer_hosts(
         {
@@ -285,8 +298,22 @@ def fetch_live(friend: dict) -> dict:
             "port": friend.get("port") or 5050,
         }
     )
+    if not hosts:
+        raise ValueError("That friend has no address to try.")
     token = VIEW_PREFIX + friend["secret"]
-    remote = fetch_json(hosts, "/api/friend/view", token)
+    try:
+        remote = fetch_json(hosts, "/api/friend/view", token, timeout=REQUEST_TIMEOUT)
+    except HTTPError as exc:
+        if exc.code == 403:
+            raise ValueError("The other app rejected the code. Is their viewer invite still on?") from exc
+        if exc.code == 429:
+            raise ValueError("The other app asked to slow down. Try again in a minute.") from exc
+        raise ValueError(f"The other app returned {exc.code}.") from exc
+    except URLError as exc:
+        raise ValueError(
+            f"Could not reach them ({exc.reason if getattr(exc, 'reason', None) else exc}). "
+            "Both apps need to be running. Same Wi‑Fi uses the local address; another house needs the internet mapping."
+        ) from exc
     cipher = remote.get("ciphertext") or remote.get("payload")
     if not isinstance(cipher, str):
         raise ValueError("The other app did not send a friend view.")

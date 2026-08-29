@@ -52,6 +52,9 @@ def test_would_shrink():
     assert would_shrink(remote, local) is False
     assert would_shrink({"bets": 5, "offers": 2}, {"bets": 5, "offers": 2}) is False
     assert would_shrink({"bets": 5, "offers": 2}, {"bets": 4, "offers": 2}) is True
+    # Status API sends integer counts, not row lists — this 500'd freshness and log-a-bet.
+    assert would_shrink({"accounts": 34, "offers": 0, "bets": 2, "transfers": 0}, {"accounts": 34, "offers": 0, "bets": 3, "transfers": 0}) is False
+    assert would_shrink({"accounts": 34, "offers": 2, "bets": 9, "transfers": 1}, {"accounts": 34, "offers": 1, "bets": 3, "transfers": 1}) is True
 
 
 def test_pairing_persist(tmp_path, monkeypatch):
