@@ -108,6 +108,13 @@ if __name__ == "__main__":
     print(f"This computer:  {url}")
     if host == "0.0.0.0":
         print(f"Other devices on Wi-Fi can use this PC IP on port {port} (see Devices).")
+        try:
+            from app.win_firewall import allow_port
+
+            if allow_port(port):
+                print("Windows Firewall: allowed this app on the private network.")
+        except Exception:
+            pass
         # Map the port only when a friend invite or paired computer needs inbound internet.
         # The HTML UI is still blocked from the public internet (tokened APIs only).
         if has_active_invite() or has_paired_peers():

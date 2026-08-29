@@ -107,8 +107,8 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Devices are equals on one account (Wi‑Fi / UPnP). "
-        "Friends can use an outbound internet mailbox when they are not on the same Wi‑Fi. "
+        "Windows PC: unlink stays unlinked, the laptop sends the log when this PC cannot dial it, "
+        "and Start tries to allow the app through Windows Firewall. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

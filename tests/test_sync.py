@@ -13,6 +13,7 @@ from app.sync import (
     authorize_linked,
     compare_fingerprints,
     ensure_pair_secret,
+    forget_peer,
     remember_linked_device,
     ensure_state,
     make_link_code,
@@ -215,6 +216,17 @@ def test_remember_linked_device_is_two_way(tmp_path, monkeypatch):
     remember_linked_device(device_id="laptop-1", token="laptop-token", nickname="Laptop")
     assert ensure_state()["peers"][0]["lan_host"] == "192.168.1.20"
     assert remember_linked_device(device_id=me["device_id"], token=me["device_token"]) is None
+
+
+def test_unlink_stays_unlinked(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    ensure_state()
+    remember_linked_device(device_id="laptop-1", token="laptop-token", nickname="Laptop", lan_host="10.0.0.2")
+    peer_id = ensure_state()["peers"][0]["id"]
+    forget_peer(peer_id)
+    assert ensure_state()["peers"] == []
+    assert remember_linked_device(device_id="laptop-1", token="laptop-token", nickname="Laptop") is None
+    assert ensure_state()["peers"] == []
 
 
 def test_authorize_linked_accepts_peer_token(tmp_path, monkeypatch):

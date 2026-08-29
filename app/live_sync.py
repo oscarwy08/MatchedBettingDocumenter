@@ -15,10 +15,12 @@ from sqlalchemy.orm import Session
 from app.settings import get as setting
 from app.snapshot import apply_snapshot, dump_snapshot, snapshot_counts, would_shrink
 from app.sync import (
+    clear_want_push_for,
     compare_fingerprints,
     load_state,
     set_conflict,
     set_last_agreed,
+    set_want_push,
     upsert_peer,
 )
 
@@ -266,7 +268,15 @@ def _freshness(session: Session) -> dict:
 
 
 def pull_peer(session: Session, peer: dict, *, force: bool = False) -> dict:
-    remote = fetch_json(peer_hosts(peer), "/api/sync/snapshot", peer.get("token"))
+    try:
+        remote = fetch_json(peer_hosts(peer), "/api/sync/snapshot", peer.get("token"))
+    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+        if peer.get("id"):
+            set_want_push(str(peer["id"]), True)
+        raise ValueError(
+            "This Windows PC cannot call the other computer (incoming connections are often blocked). "
+            "Asked them to send the log instead — leave both apps open, then refresh Devices in a few seconds."
+        ) from exc
     snap = remote.get("snapshot") if isinstance(remote.get("snapshot"), dict) else remote
     if "accounts" not in snap:
         raise ValueError("The other computer did not send a log.")
@@ -305,6 +315,8 @@ def apply_push(session: Session, body: dict, *, force: bool = False) -> dict:
     local = dump_snapshot(session)
     incoming_fp = snap.get("fingerprint") or ""
     if incoming_fp and incoming_fp == local["fingerprint"]:
+        if body.get("device_id"):
+            clear_want_push_for(str(body["device_id"]))
         return {"same": True, **local["counts"]}
     last = load_state().get("last_agreed") or ""
     we_unchanged = bool(last and last == local["fingerprint"])
@@ -326,6 +338,7 @@ def apply_push(session: Session, body: dict, *, force: bool = False) -> dict:
     counts = apply_snapshot(session, snap, backup_why="before-sync")
     set_last_agreed(snap.get("fingerprint") or dump_snapshot(session)["fingerprint"])
     if body.get("device_id"):
+        clear_want_push_for(str(body["device_id"]))
         existing = None
         for peer in load_state().get("peers") or []:
             if peer.get("device_id") == body.get("device_id"):
@@ -334,6 +347,32 @@ def apply_push(session: Session, body: dict, *, force: bool = False) -> dict:
         if existing:
             _refresh_peer_address(existing, body)
     return {"same": False, **counts}
+
+
+def _push_body(session: Session) -> dict:
+    from app.nat import lan_ip
+    from app.settings import get as setting_get
+
+    me = load_state()
+    return {
+        "snapshot": dump_snapshot(session),
+        "device_id": me["device_id"],
+        "nickname": me.get("nickname") or "",
+        "lan_ip": lan_ip(),
+        "lan_ips": [],
+        "port": int(setting_get("port")),
+    }
+
+
+def push_one(session: Session, peer: dict) -> bool:
+    hosts = peer_hosts(peer)
+    if not hosts:
+        return False
+    try:
+        post_json(hosts, "/api/sync/push", _push_body(session), load_state().get("device_token"))
+        return True
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def push_to_peers(session: Session | None = None) -> None:
@@ -347,27 +386,8 @@ def push_to_peers(session: Session | None = None) -> None:
         session = _session()
     try:
         migrate_last_agreed(session)
-        snap = dump_snapshot(session)
-        me = load_state()
-        from app.nat import lan_ip
-        from app.settings import get as setting_get
-
-        body = {
-            "snapshot": snap,
-            "device_id": me["device_id"],
-            "nickname": me.get("nickname") or "",
-            "lan_ip": lan_ip(),
-            "lan_ips": [],
-            "port": int(setting_get("port")),
-        }
         for peer in peers:
-            hosts = peer_hosts(peer)
-            if not hosts:
-                continue
-            try:
-                post_json(hosts, "/api/sync/push", body, me.get("device_token"))
-            except Exception:  # noqa: BLE001
-                continue
+            push_one(session, peer)
     finally:
         if own and session is not None:
             session.close()
@@ -396,12 +416,17 @@ def _poll_once() -> None:
             _last_error = None
             _refresh_peer_address(peer, remote)
             upsert_peer({**peer, "online": True, "last_seen": time.strftime("%Y-%m-%dT%H:%M:%S")})
+            me_id = load_state().get("device_id")
+            if me_id and me_id in (remote.get("want_push_from") or []):
+                push_one(session, peer)
             action = compare_fingerprints(local["fingerprint"], remote.get("fingerprint") or "", last)
             if action == "same":
                 if last != local["fingerprint"]:
                     set_last_agreed(local["fingerprint"])
                 continue
             if action == "wait":
+                # We changed; they cannot always dial us (Windows). Send the log.
+                push_one(session, peer)
                 continue
             if action == "conflict":
                 set_conflict(

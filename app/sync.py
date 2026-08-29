@@ -34,6 +34,7 @@ def empty_state() -> dict:
         "device_token": secrets.token_urlsafe(24),
         "pair_secret": secrets.token_urlsafe(24),
         "peers": [],
+        "unlinked": [],
         "last_agreed": "",
         "conflict": None,
     }
@@ -61,6 +62,8 @@ def load_state() -> dict:
         state["pair_secret"] = str(raw["pair_secret"])
     if isinstance(raw.get("peers"), list):
         state["peers"] = [item for item in raw["peers"] if isinstance(item, dict)]
+    if isinstance(raw.get("unlinked"), list):
+        state["unlinked"] = [str(item) for item in raw["unlinked"] if item]
     if raw.get("last_agreed"):
         state["last_agreed"] = str(raw["last_agreed"])
     if isinstance(raw.get("conflict"), dict):
@@ -208,6 +211,8 @@ def remember_linked_device(
     me = ensure_state()
     if device_id == me.get("device_id") or token == me.get("device_token"):
         return None
+    if is_unlinked(device_id, token):
+        return None
     peer = {
         "device_id": device_id,
         "token": token,
@@ -249,11 +254,58 @@ def upsert_peer(peer: dict) -> dict:
     return save_state(state)
 
 
+def is_unlinked(*keys: str) -> bool:
+    blocked = set(load_state().get("unlinked") or [])
+    return any(key and key in blocked for key in keys)
+
+
+def allow_relink(*keys: str) -> dict:
+    state = load_state()
+    drop = {key for key in keys if key}
+    state["unlinked"] = [item for item in (state.get("unlinked") or []) if item not in drop]
+    return save_state(state)
+
+
 def forget_peer(peer_id: str) -> dict:
     state = load_state()
-    state["peers"] = [peer for peer in state.get("peers") or [] if peer.get("id") != peer_id]
+    blocked = list(state.get("unlinked") or [])
+    kept = []
+    for peer in state.get("peers") or []:
+        if peer.get("id") == peer_id:
+            for key in (peer.get("device_id"), peer.get("token")):
+                if key and key not in blocked:
+                    blocked.append(str(key))
+            continue
+        kept.append(peer)
+    state["peers"] = kept
+    state["unlinked"] = blocked
     if not state["peers"]:
         state["conflict"] = None
+    return save_state(state)
+
+
+def set_want_push(peer_id: str, value: bool = True) -> dict:
+    state = load_state()
+    for peer in state.get("peers") or []:
+        if peer.get("id") == peer_id:
+            peer["want_push"] = bool(value)
+            break
+    return save_state(state)
+
+
+def want_push_from() -> list[str]:
+    return [
+        str(peer["device_id"])
+        for peer in load_state().get("peers") or []
+        if peer.get("want_push") and peer.get("device_id")
+    ]
+
+
+def clear_want_push_for(device_id: str) -> dict:
+    state = load_state()
+    for peer in state.get("peers") or []:
+        if peer.get("device_id") == device_id:
+            peer["want_push"] = False
     return save_state(state)
 
 
@@ -310,6 +362,7 @@ def status_payload(session, *, include_token: bool = False) -> dict:
         "lan_ip": lan_ip(),
         "lan_ips": [ip for ip in local_ipv4s() if ip and not ip.startswith("127.")],
         "pair_secret": state.get("pair_secret") or "",
+        "want_push_from": want_push_from(),
     }
     if include_token:
         out["token"] = state["device_token"]

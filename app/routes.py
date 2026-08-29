@@ -1234,6 +1234,10 @@ def sync_hello():
     payload = request.get_json(silent=True) or {}
     if not payload.get("token") or not payload.get("device_id"):
         abort(400)
+    if current_pin() and token == current_pin():
+        from app.sync import allow_relink
+
+        allow_relink(str(payload["device_id"]), str(payload["token"]))
     remember_linked_device(
         device_id=str(payload["device_id"]),
         token=str(payload["token"]),
@@ -1367,7 +1371,11 @@ def sync_join():
     except HTTPError:
         flash("That code was rejected. Is sharing still on over there?", "error")
     except URLError:
-        flash("Could not reach the other computer. Are both apps running?", "error")
+        flash(
+            "This computer cannot dial that address. On Windows the other machine often blocks incoming "
+            "connections — start sharing on this PC and paste the code on the laptop instead. They stay equals.",
+            "error",
+        )
     except Exception as exc:  # noqa: BLE001
         session.rollback()
         flash(f"Could not apply the snapshot: {exc}", "error")
@@ -1381,7 +1389,7 @@ def snapshot_counts_safe(payload: dict) -> int:
 @bp.post("/sync/forget/<peer_id>")
 def sync_forget(peer_id: str):
     forget_peer(peer_id)
-    flash("That computer was forgotten.", "ok")
+    flash("Unlinked. They will not reappear until you share a code again.", "ok")
     return redirect(url_for("main.sync_page"))
 
 
