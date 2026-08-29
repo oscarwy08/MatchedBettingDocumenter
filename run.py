@@ -87,7 +87,14 @@ def _wait_for_port(host: str, port: int) -> None:
 if __name__ == "__main__":
     # No debugger — sharing PINs live in this process.
     # LAN bind and port are optional (Settings); Devices pairing needs LAN on.
-    host = "0.0.0.0" if setting("allow_lan") else "127.0.0.1"
+    from app.friends import has_active_invite
+    from app.live_sync import start_background
+    from app.nat import refresh as nat_refresh
+    from app.sync import ensure_state, has_paired_peers
+
+    ensure_state()
+    want_lan = setting("allow_lan") or has_active_invite() or has_paired_peers()
+    host = "0.0.0.0" if want_lan else "127.0.0.1"
     port = int(setting("port"))
     _close_inherited_listen_fds(port)
     try:
@@ -97,7 +104,15 @@ if __name__ == "__main__":
         raise SystemExit(1)
     url = f"http://127.0.0.1:{port}"
     print(f"This computer:  {url}")
-    if setting("allow_lan"):
+    if host == "0.0.0.0":
         print(f"Other devices on Wi-Fi can use this PC IP on port {port} (see Devices).")
+        # Map the port only when a friend invite or paired computer needs inbound internet.
+        # The HTML UI is still blocked from the public internet (tokened APIs only).
+        if has_active_invite() or has_paired_peers():
+            try:
+                nat_refresh(port)
+            except Exception:
+                pass
     _maybe_open_browser(url)
+    start_background()
     app.run(host=host, port=port, debug=False, use_reloader=False)

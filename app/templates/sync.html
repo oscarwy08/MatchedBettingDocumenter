@@ -3,9 +3,32 @@
 {% block eyebrow %}Link{% endblock %}
 {% block heading %}Devices &amp; backups{% endblock %}
 {% block content %}
+  <p class="reach-line reach-{{ reach.kind }}">{{ reach.label }}{% if reach.lan_ip %} · this Wi‑Fi {{ reach.lan_ip }}:{{ app_port }}{% endif %}{% if reach.mapped and reach.wan_ip %} · internet {{ reach.wan_ip }}:{{ app_port }}{% endif %}</p>
+
+  {% if conflict %}
+  <section class="panel conflict-panel">
+    <div class="panel-head"><h2>Both copies changed</h2></div>
+    <p>This computer has {{ conflict.local.bets if conflict.local else "?" }} bets. {{ conflict.peer_name or "The other computer" }} has {{ conflict.remote.bets if conflict.remote else "?" }} bets. Nothing was applied automatically.</p>
+    {% if conflict.shrink %}
+    <p class="hint">Pulling would shrink this log. Confirm if you mean to.</p>
+    {% endif %}
+    <div class="page-actions">
+      {% if conflict.peer_id %}
+      <form method="post" action="{{ url_for('main.sync_pull_peer', peer_id=conflict.peer_id) }}">
+        {% if conflict.shrink %}<input type="hidden" name="force" value="1">{% endif %}
+        <button class="btn btn-primary" type="submit">Use their log</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('main.sync_keep') }}">
+        <button class="btn" type="submit">Keep this computer’s log</button>
+      </form>
+    </div>
+  </section>
+  {% endif %}
+
   <section class="panel">
     <div class="panel-head"><h2>Link another computer</h2></div>
-    <p class="hint">Same Wi‑Fi. On the computer that already has the latest bets, start sharing and copy the code. On the other computer, paste it and confirm — this <strong>replaces</strong> the log on the receiving machine.</p>
+    <p class="hint">On the computer that already has the latest bets, start sharing and copy the code. The other computer pastes it once — after that they stay paired. A snapshot is saved here before anything is replaced.</p>
     {% if sharing %}
       <p>Share this code:</p>
       <p class="link-code" id="link-code">{{ link_code }}</p>
@@ -24,11 +47,14 @@
 
   <section class="panel">
     <div class="panel-head"><h2>Join with a code</h2></div>
-    <form method="post" action="{{ url_for('main.sync_join') }}" class="form-grid"
-          onsubmit="return confirm('This will replace all bets, offers and balances on THIS computer with the other computer’s log. Continue?');">
+    <form method="post" action="{{ url_for('main.sync_join') }}" class="form-grid" id="join-form">
       <label class="span-2">
         Code from the other computer
         <input name="code" required placeholder="482193@192.168.1.10:{{ app_port }}" autocomplete="off">
+      </label>
+      <label class="span-2 setting-row">
+        <input type="checkbox" name="confirm_shrink" value="1">
+        <span>Allow replacing a larger log with a smaller one</span>
       </label>
       <div class="form-actions span-2">
         <button class="btn btn-primary" type="submit">Pull latest log</button>
@@ -37,14 +63,88 @@
   </section>
 
   <section class="panel">
+    <div class="panel-head"><h2>Paired computers</h2></div>
+    {% if peers %}
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Address</th>
+            <th>Last seen</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for peer in peers %}
+            <tr>
+              <td>{{ peer.nickname or "Computer" }}</td>
+              <td class="mono">{{ peer.lan_host or peer.host }}{% if peer.wan_host %} · {{ peer.wan_host }}{% endif %}</td>
+              <td>{% if peer.online %}Online{% elif peer.last_seen %}{{ peer.last_seen }}{% else %}—{% endif %}</td>
+              <td class="page-actions">
+                <form method="post" action="{{ url_for('main.sync_pull_peer', peer_id=peer.id) }}">
+                  <button class="btn" type="submit">Pull now</button>
+                </form>
+                <form method="post" action="{{ url_for('main.sync_forget', peer_id=peer.id) }}" onsubmit="return confirm('Forget this computer?');">
+                  <button class="btn" type="submit">Forget</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No paired computers yet. Join with a code once and they reconnect on Start.</p>
+    {% endif %}
+    {% if not auto_sync %}
+      <p class="hint">Auto-sync is off in <a href="{{ url_for('main.settings_page') }}">Settings</a>.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Snapshots</h2></div>
+    <p class="hint">A snapshot is written before every replace so you can undo a bad sync. Manual snapshots stay until you restore over them.</p>
+    <form method="post" action="{{ url_for('main.sync_snapshot_save') }}">
+      <button class="btn btn-primary" type="submit">Save snapshot now</button>
+    </form>
+    {% if backups %}
+      <table class="snapshot-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Why</th>
+            <th>Bets</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in backups %}
+            <tr>
+              <td>{{ item.time }}</td>
+              <td>{{ item.why }}</td>
+              <td>{{ item.counts.bets if item.counts else "—" }} bets · {{ item.counts.offers if item.counts else "—" }} offers</td>
+              <td>
+                <form method="post" action="{{ url_for('main.sync_snapshot_restore', backup_id=item.id) }}"
+                      onsubmit="return confirm('Restore this snapshot? Your current log is snapshotted first.');">
+                  <button class="btn" type="submit">Restore this</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No snapshots yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
     <div class="panel-head"><h2>App updates</h2></div>
     <p>This copy is <strong>{{ app_version }}</strong>. The auto updater and the in-app popup are separate toggles in <a href="{{ url_for('main.settings_page') }}">Settings</a>. Your <code>data/</code> folder is left alone.</p>
-    <p class="hint">If you publish releases, use <code>./release.sh</code> (or <code>release.bat</code>) from the source folder after <code>gh auth login</code>.</p>
   </section>
 
   <section class="panel">
     <div class="panel-head"><h2>Manual backup</h2></div>
-    <p class="hint">If the computers are not on the same network, download a backup here and restore it on the other machine. Updating the app never deletes <code>data/</code>.</p>
+    <p class="hint">Download a file you can keep elsewhere. Updating the app never deletes <code>data/</code>.</p>
     <p><a class="btn btn-primary" href="{{ url_for('main.sync_backup') }}">Download backup.json</a></p>
     <form method="post" action="{{ url_for('main.sync_restore') }}" enctype="multipart/form-data" class="form-grid"
           onsubmit="return confirm('Restore will replace all bets on this computer. Continue?');">

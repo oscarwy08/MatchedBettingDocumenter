@@ -19,6 +19,7 @@ def test_save_and_reload(tmp_path, monkeypatch):
     assert saved["update_popup"] is True
     assert saved["allow_lan"] is False
     assert saved["excel_sync"] is True
+    assert saved["auto_sync"] is True
     assert saved["port"] == 5050
     assert saved["default_exchange_id"] is None
     assert load()["open_browser"] is False

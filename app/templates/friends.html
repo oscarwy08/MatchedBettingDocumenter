@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Friends{% endblock %}
+{% block eyebrow %}View{% endblock %}
+{% block heading %}Friends{% endblock %}
+{% block content %}
+  <p class="reach-line reach-{{ reach.kind }}">{{ reach.label }}{% if reach.lan_ip %} · this Wi‑Fi {{ reach.lan_ip }}:{{ app_port }}{% endif %}{% if reach.mapped and reach.wan_ip %} · internet {{ reach.wan_ip }}:{{ app_port }}{% endif %}</p>
+  <p class="hint">Friends see a read-only dashboard. Their token cannot replace your log. If they are offline you still see the last available view this app already stored.</p>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Invite a viewer</h2></div>
+    <form method="post" action="{{ url_for('main.friends_invite') }}" class="form-grid">
+      <label>
+        Label (optional)
+        <input name="nickname" placeholder="Sam’s phone" autocomplete="off">
+      </label>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Create invite</button>
+      </div>
+    </form>
+    {% if invites %}
+      {% for invite in invites %}
+        <div class="invite-block">
+          <p>{{ invite.nickname }} · created {{ invite.created_at }}</p>
+          <p class="link-code friend-code" data-code>{{ invite.code }}</p>
+          <div class="page-actions">
+            <button type="button" class="btn copy-friend">Copy code</button>
+            <form method="post" action="{{ url_for('main.friends_revoke', invite_id=invite.id) }}">
+              <button class="btn" type="submit">Revoke</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+      <form method="post" action="{{ url_for('main.friends_stop') }}">
+        <button class="btn" type="submit">Stop all viewer sharing</button>
+      </form>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Add a friend</h2></div>
+    <form method="post" action="{{ url_for('main.friends_add') }}" class="form-grid">
+      <label class="span-2">
+        Their viewer code
+        <input name="code" required placeholder="view.secret@192.168.1.10:{{ app_port }}" autocomplete="off">
+      </label>
+      <label>
+        Name
+        <input name="nickname" placeholder="Alex" autocomplete="off">
+      </label>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">Add friend</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Your friends</h2></div>
+    {% if friends %}
+      <ul class="friend-list">
+        {% for item in friends %}
+          <li>
+            <a href="{{ url_for('main.friend_detail', friend_id=item.id) }}">{{ item.nickname or "Friend" }}</a>
+            <form method="post" action="{{ url_for('main.friends_forget', friend_id=item.id) }}" class="inline-form">
+              <button class="btn" type="submit">Remove</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">No friends yet.</p>
+    {% endif %}
+  </section>
+
+  {% if selected %}
+  <section class="panel friend-dash">
+    <div class="panel-head">
+      <h2>{{ selected.nickname or "Friend" }}</h2>
+      {% if live %}
+        <span class="pill on">Live</span>
+      {% elif last_available %}
+        <span class="pill">Last available {{ last_available }}</span>
+      {% endif %}
+    </div>
+    {% if view %}
+      <section class="stat-grid">
+        <article class="stat-card">
+          <p>Settled net profit</p>
+          <strong class="{{ view.stats.net_profit | pnl }}">{{ view.stats.net_profit | gbp }}</strong>
+        </article>
+        <article class="stat-card">
+          <p>Pending expected</p>
+          <strong class="{{ view.stats.pending_expected | pnl }}">{{ view.stats.pending_expected | gbp }}</strong>
+        </article>
+        <article class="stat-card">
+          <p>Bankroll</p>
+          <strong>{{ view.stats.bankroll | gbp }}</strong>
+        </article>
+        <article class="stat-card">
+          <p>Open lay liability</p>
+          <strong>{{ view.stats.open_liability | gbp }}</strong>
+        </article>
+        <article class="stat-card">
+          <p>Profit this month</p>
+          <strong class="{{ view.stats.month_profit | pnl }}">{{ view.stats.month_profit | gbp }}</strong>
+        </article>
+        <article class="stat-card">
+          <p>Bets</p>
+          <strong>{{ view.stats.pending_count }} pending · {{ view.stats.settled_count }} settled</strong>
+        </article>
+      </section>
+      {% if view.recent_bets %}
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Bookie</th>
+              <th>Event</th>
+              <th class="num">P&amp;L</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for bet in view.recent_bets %}
+              <tr>
+                <td>{{ bet.date }}</td>
+                <td>{{ bet.bookie }}</td>
+                <td>{{ bet.event }}</td>
+                <td class="{{ bet.profit | pnl }} num">{{ bet.profit | gbp }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+      {% if view.profit_by_bookie %}
+        <h3>Profit by bookie</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Bookie</th>
+              <th class="num">Deposited</th>
+              <th class="num">Net</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in view.profit_by_bookie %}
+              <tr>
+                <td>{{ row.name }}</td>
+                <td class="num">{{ row.deposited | gbp }}</td>
+                <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    {% else %}
+      <p class="empty">No view yet. Their app needs to be running once so this computer can store a last-available snapshot.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll(".copy-friend").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const block = btn.closest(".invite-block");
+      const el = block && block.querySelector("[data-code]");
+      if (!el) return;
+      const text = el.textContent.trim();
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "Copied";
+      } catch {
+        btn.textContent = "Select the code, then copy";
+      }
+    });
+  });
+</script>
+{% endblock %}

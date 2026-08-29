@@ -6,8 +6,19 @@ from sqlalchemy import select
 from app.db import init_db
 from app.models import Account, Bet, BetStatus, BetType
 from app.seed import seed_accounts
-from app.snapshot import apply_snapshot, dump_snapshot
-from app.sync import make_link_code, parse_link_code
+from app.snapshot import apply_snapshot, dump_snapshot, fingerprint_payload, would_shrink
+from app.sync import (
+    authorize_device,
+    compare_fingerprints,
+    ensure_state,
+    make_link_code,
+    parse_link_code,
+    parse_link_targets,
+    save_state,
+    start_share,
+    stop_share,
+    upsert_peer,
+)
 
 
 def test_parse_link_code():
@@ -18,7 +29,66 @@ def test_parse_link_code():
     assert host == "10.0.0.5:5050"
 
 
-def test_snapshot_round_trip(tmp_path):
+def test_parse_link_targets_lan_and_wan():
+    pin, hosts = parse_link_targets("482193@192.168.1.10:5050+203.0.113.4:5050")
+    assert pin == "482193"
+    assert hosts == ["192.168.1.10:5050", "203.0.113.4:5050"]
+
+
+def test_compare_matrix():
+    last = "aaa"
+    assert compare_fingerprints("aaa", "aaa", last) == "same"
+    assert compare_fingerprints("aaa", "bbb", last) == "pull"
+    assert compare_fingerprints("ccc", "aaa", last) == "wait"
+    assert compare_fingerprints("ccc", "bbb", last) == "conflict"
+    assert compare_fingerprints("x", "y", "") == "conflict"
+    assert compare_fingerprints("same", "same", "other") == "same"
+
+
+def test_would_shrink():
+    local = {"accounts": [1], "offers": [1, 2], "bets": [1, 2, 3], "transfers": []}
+    remote = {"accounts": [1], "offers": [1], "bets": [1], "transfers": []}
+    assert would_shrink(local, remote) is True
+    assert would_shrink(remote, local) is False
+    assert would_shrink({"bets": 5, "offers": 2}, {"bets": 5, "offers": 2}) is False
+    assert would_shrink({"bets": 5, "offers": 2}, {"bets": 4, "offers": 2}) is True
+
+
+def test_pairing_persist(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    state = ensure_state()
+    token = state["device_token"]
+    assert token
+    upsert_peer(
+        {
+            "device_id": "other",
+            "nickname": "Laptop",
+            "token": "peer-token",
+            "host": "192.168.1.9:5050",
+            "lan_host": "192.168.1.9",
+            "port": 5050,
+        }
+    )
+    again = ensure_state()
+    assert again["device_id"] == state["device_id"]
+    assert again["peers"][0]["nickname"] == "Laptop"
+    save_state(again)
+    assert (tmp_path / "data" / "sync.json").is_file()
+
+
+def test_authorize_pin_and_reject_friend(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    ensure_state()
+    pin = start_share()
+    assert authorize_device(pin)
+    assert authorize_device(ensure_state()["device_token"])
+    assert not authorize_device("view.not-a-real-invite")
+    stop_share()
+    assert not authorize_device(pin)
+
+
+def test_snapshot_round_trip(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
     Session = init_db(tmp_path / "a.db")
     session = Session()
     seed_accounts(session)
@@ -48,6 +118,7 @@ def test_snapshot_round_trip(tmp_path):
     )
     session.commit()
     payload = dump_snapshot(session)
+    assert payload["fingerprint"] == fingerprint_payload(payload)
     session.close()
 
     Session2 = init_db(tmp_path / "b.db")

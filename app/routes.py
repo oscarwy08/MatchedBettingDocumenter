@@ -54,8 +54,22 @@ from app.services import (
     suggested_settlement,
     sync_offer_deposit,
 )
-from app.snapshot import apply_snapshot, dump_snapshot
-from app.sync import current_pin, make_link_code, parse_link_code, start_share, stop_share
+from app.snapshot import apply_snapshot, dump_snapshot, would_shrink
+from app.sync import (
+    authorize_device,
+    current_pin,
+    ensure_state,
+    forget_peer,
+    load_state,
+    make_link_code,
+    parse_link_code,
+    parse_link_targets,
+    peer_by_id,
+    set_last_agreed,
+    start_share,
+    stop_share,
+    upsert_peer,
+)
 from app.version import VERSION
 
 bp = Blueprint("main", __name__)
@@ -81,14 +95,75 @@ BET_TYPE_CHOICES = [
 
 def _commit_and_sync(session: Session) -> None:
     session.commit()
+    from app.live_sync import notify_after_save
     from app.settings import get as setting
 
+    notify_after_save()
     if not setting("excel_sync"):
         return
     try:
         sync_workbook(session)
     except Exception as exc:  # noqa: BLE001
         flash(f"Saved, but Excel sync failed: {exc}", "error")
+
+
+def _bearer_token() -> str:
+    auth = request.headers.get("Authorization") or ""
+    if auth.lower().startswith("bearer "):
+        return auth.split(" ", 1)[1].strip()
+    return (request.args.get("token") or "").strip()
+
+
+def _stale_message(state: dict) -> str:
+    name = state.get("peer_name") or "the other computer"
+    action = state.get("action")
+    if state.get("shrink"):
+        local = state.get("local") or {}
+        remote = state.get("remote") or {}
+        return (
+            f"Replace {local.get('bets', 0)} bets with {remote.get('bets', 0)} from {name}? "
+            "Fetch the latest log first, or save this copy anyway."
+        )
+    if action == "conflict":
+        return f"This computer and {name} both changed. Fetch the latest log first, or save this copy anyway."
+    return f"{name} has a newer log. Fetch it first, or save this copy anyway."
+
+
+@bp.before_request
+def _block_remote_ui():
+    from app.access import enforce_local_ui
+
+    return enforce_local_ui()
+
+
+@bp.before_request
+def _block_stale_writes():
+    if request.method != "POST":
+        return None
+    path = request.path
+    if (
+        path.startswith("/sync")
+        or path.startswith("/friends")
+        or path.startswith("/settings")
+        or path.startswith("/api/")
+    ):
+        return None
+    if request.form.get("sync_force") == "1" or request.headers.get("X-Sync-Force") == "1":
+        return None
+    from app.settings import get as setting
+
+    if not setting("auto_sync"):
+        return None
+    from app.live_sync import freshness
+
+    state = freshness()
+    if not state.get("needs_confirm"):
+        return None
+    wants_json = "application/json" in (request.headers.get("Accept") or "") or bool(request.is_json)
+    if wants_json:
+        return jsonify({"ok": False, "stale": True, **state}), 409
+    flash(_stale_message(state), "error")
+    return redirect(request.referrer or url_for("main.dashboard"))
 
 
 def _app_port() -> int:
@@ -1038,20 +1113,36 @@ def delete_transfer(transfer_id: int):
 
 @bp.get("/sync")
 def sync_page():
+    from app.backups import list_backups
+    from app.nat import reachability
+    from app.settings import get as setting
+
     pin = current_pin()
+    port = _app_port()
     return render_template(
         "sync.html",
         sharing=bool(pin),
         pin=pin,
-        link_code=make_link_code(pin, _app_port()) if pin else "",
+        link_code=make_link_code(pin, port) if pin else "",
         lan_ip=None,
+        reach=reachability(port),
+        peers=load_state().get("peers") or [],
+        conflict=load_state().get("conflict"),
+        backups=list_backups(),
+        auto_sync=setting("auto_sync"),
     )
 
 
 @bp.post("/sync/share/start")
 def sync_share_start():
+    from app.nat import refresh as nat_refresh
+
     start_share()
-    flash("Sharing is on. Enter this code on the other computer. Same Wi‑Fi, both apps running.", "ok")
+    try:
+        nat_refresh(_app_port())
+    except Exception:  # noqa: BLE001
+        pass
+    flash("Sharing is on. Paste this code on the other computer. Both apps need to be running.", "ok")
     return redirect(url_for("main.sync_page"))
 
 
@@ -1062,31 +1153,146 @@ def sync_share_stop():
     return redirect(url_for("main.sync_page"))
 
 
+def _sync_status_body(session, token: str):
+    if not authorize_device(token):
+        abort(403)
+    from app.nat import reachability
+    from app.sync import status_payload
+
+    pin_ok = current_pin() is not None and token == current_pin()
+    body = status_payload(session, include_token=pin_ok)
+    body["port"] = _app_port()
+    reach = reachability(_app_port())
+    body["lan_ip"] = reach.get("lan_ip")
+    body["wan_ip"] = reach.get("wan_ip") if reach.get("mapped") else None
+    return body
+
+
+@bp.get("/api/sync/status")
+def sync_status_api():
+    token = _bearer_token()
+    return jsonify(_sync_status_body(get_session(), token))
+
+
+@bp.get("/api/sync/snapshot")
+def sync_snapshot_api():
+    token = _bearer_token()
+    if not authorize_device(token):
+        abort(403)
+    session = get_session()
+    snap = dump_snapshot(session)
+    body = _sync_status_body(session, token)
+    body["snapshot"] = snap
+    return jsonify(body)
+
+
 @bp.get("/api/sync/<pin>")
 def sync_pull(pin: str):
-    if current_pin() is None or pin != current_pin():
+    if not authorize_device(pin):
         abort(403)
     session = get_session()
     return jsonify(dump_snapshot(session))
 
 
+@bp.post("/api/sync/hello")
+def sync_hello():
+    token = _bearer_token()
+    if not authorize_device(token):
+        abort(403)
+    payload = request.get_json(silent=True) or {}
+    if not payload.get("token") or not payload.get("device_id"):
+        abort(400)
+    import secrets as _secrets
+
+    upsert_peer(
+        {
+            "id": _secrets.token_hex(6),
+            "device_id": str(payload["device_id"]),
+            "nickname": (payload.get("nickname") or "Paired computer").strip(),
+            "token": str(payload["token"]),
+            "host": payload.get("host") or payload.get("lan_host") or "",
+            "lan_host": payload.get("lan_host") or "",
+            "wan_host": payload.get("wan_host") or "",
+            "port": int(payload.get("port") or _app_port()),
+            "our_token": ensure_state()["device_token"],
+        }
+    )
+    return jsonify({"ok": True, "device_id": ensure_state()["device_id"]})
+
+
+@bp.get("/api/sync/freshness")
+def sync_freshness_api():
+    from app.live_sync import freshness
+
+    return jsonify(freshness(get_session()))
+
+
 @bp.post("/sync/join")
 def sync_join():
-    import json
     from urllib.error import HTTPError, URLError
-    from urllib.request import Request, urlopen
+
+    from app.live_sync import fetch_json, post_json
+    from app.nat import reachability
 
     session = get_session()
     try:
-        pin, host = parse_link_code(request.form.get("code") or "")
-        req = Request(
-            f"http://{host}/api/sync/{pin}",
-            headers={"Accept": "application/json"},
-        )
-        with urlopen(req, timeout=12) as resp:
-            payload = json.load(resp)
-        counts = apply_snapshot(session, payload)
+        pin, hosts = parse_link_targets(request.form.get("code") or "")
+        if pin.startswith("view."):
+            flash("That is a friend viewer code. Paste it on the Friends page.", "error")
+            return redirect(url_for("main.sync_page"))
+        if not pin.isdigit() or len(pin) != 6:
+            raise ValueError("The PIN at the start of the code should be 6 digits.")
+        remote = fetch_json(hosts, "/api/sync/snapshot", pin)
+        payload = remote.get("snapshot") if isinstance(remote.get("snapshot"), dict) else remote
+        if "accounts" not in payload:
+            payload = fetch_json(hosts, f"/api/sync/{pin}", pin)
+        local = dump_snapshot(session)
+        if would_shrink(local, payload) and request.form.get("confirm_shrink") != "1":
+            flash(
+                f"Replace {local['counts']['bets']} bets with {snapshot_counts_safe(payload)} "
+                f"from the other computer? Tick confirm if you mean to.",
+                "error",
+            )
+            return redirect(url_for("main.sync_page"))
+        counts = apply_snapshot(session, payload, backup_why="before-sync")
         _commit_and_sync(session)
+        token = remote.get("token") or pin
+        port = int(remote.get("port") or hosts[0].rsplit(":", 1)[-1])
+        lan = remote.get("lan_ip") or hosts[0].split(":")[0]
+        wan = remote.get("wan_ip") or ""
+        if "+" in (request.form.get("code") or "") and len(hosts) > 1:
+            wan = wan or hosts[1].split(":")[0]
+        upsert_peer(
+            {
+                "device_id": remote.get("device_id") or hosts[0],
+                "nickname": remote.get("nickname") or hosts[0],
+                "token": token,
+                "host": hosts[0],
+                "lan_host": lan,
+                "wan_host": wan,
+                "port": port,
+            }
+        )
+        set_last_agreed(payload.get("fingerprint") or dump_snapshot(session)["fingerprint"])
+        me = ensure_state()
+        reach = reachability(_app_port())
+        try:
+            post_json(
+                hosts,
+                "/api/sync/hello",
+                {
+                    "device_id": me["device_id"],
+                    "nickname": me["nickname"],
+                    "token": me["device_token"],
+                    "lan_host": reach.get("lan_ip"),
+                    "wan_host": reach.get("wan_ip") if reach.get("mapped") else None,
+                    "port": _app_port(),
+                    "host": f"{reach.get('lan_ip')}:{_app_port()}",
+                },
+                pin,
+            )
+        except Exception:  # noqa: BLE001
+            pass
         flash(
             f"Copied {counts['bets']} bets, {counts['offers']} offers, "
             f"{counts['accounts']} accounts from the other computer.",
@@ -1094,14 +1300,103 @@ def sync_join():
         )
     except ValueError as exc:
         flash(str(exc), "error")
-    except HTTPError as exc:
+    except HTTPError:
         flash("That code was rejected. Is sharing still on over there?", "error")
     except URLError:
-        flash("Could not reach the other computer. Same Wi‑Fi? Firewall allowing port 5050?", "error")
+        flash("Could not reach the other computer. Are both apps running?", "error")
     except Exception as exc:  # noqa: BLE001
         session.rollback()
         flash(f"Could not apply the snapshot: {exc}", "error")
     return redirect(url_for("main.sync_page"))
+
+
+def snapshot_counts_safe(payload: dict) -> int:
+    return len(payload.get("bets") or [])
+
+
+@bp.post("/sync/forget/<peer_id>")
+def sync_forget(peer_id: str):
+    forget_peer(peer_id)
+    flash("That computer was forgotten.", "ok")
+    return redirect(url_for("main.sync_page"))
+
+
+@bp.post("/sync/pull/<peer_id>")
+def sync_pull_peer(peer_id: str):
+    from app.live_sync import pull_peer
+
+    session = get_session()
+    peer = peer_by_id(peer_id)
+    if not peer:
+        flash("That computer is not paired.", "error")
+        return redirect(url_for("main.sync_page"))
+    try:
+        counts = pull_peer(session, peer, force=request.form.get("force") == "1")
+        _commit_and_sync(session)
+        flash(f"Pulled {counts['bets']} bets from {peer.get('nickname') or 'the other computer'}.", "ok")
+    except ValueError as exc:
+        flash(str(exc), "error")
+    except Exception as exc:  # noqa: BLE001
+        session.rollback()
+        flash(f"Could not pull: {exc}", "error")
+    return redirect(url_for("main.sync_page"))
+
+
+@bp.post("/sync/keep")
+def sync_keep():
+    session = get_session()
+    set_last_agreed(dump_snapshot(session)["fingerprint"])
+    flash("This computer’s log will be the one others pull.", "ok")
+    return redirect(url_for("main.sync_page"))
+
+
+@bp.post("/sync/snapshot/save")
+def sync_snapshot_save():
+    from app.backups import save_current
+
+    save_current(get_session(), why="manual")
+    flash("Snapshot saved. You can restore it from the list below.", "ok")
+    return redirect(url_for("main.sync_page"))
+
+
+@bp.post("/sync/snapshot/<backup_id>/restore")
+def sync_snapshot_restore(backup_id: str):
+    from app.backups import restore
+
+    session = get_session()
+    try:
+        counts = restore(session, backup_id)
+        _commit_and_sync(session)
+        flash(
+            f"Restored {counts['bets']} bets, {counts['offers']} offers, {counts['accounts']} accounts.",
+            "ok",
+        )
+    except Exception as exc:  # noqa: BLE001
+        session.rollback()
+        flash(f"Could not restore that snapshot: {exc}", "error")
+    return redirect(url_for("main.sync_page"))
+
+
+@bp.post("/api/sync/pull")
+def sync_pull_now():
+    from app.live_sync import pull_peer
+
+    session = get_session()
+    payload = request.get_json(silent=True) or {}
+    peer_id = payload.get("peer_id")
+    peer = peer_by_id(peer_id) if peer_id else None
+    if peer is None:
+        peers = load_state().get("peers") or []
+        peer = peers[0] if peers else None
+    if not peer:
+        return jsonify({"ok": False, "error": "No paired computer."}), 400
+    try:
+        counts = pull_peer(session, peer, force=bool(payload.get("force")))
+        _commit_and_sync(session)
+        return jsonify({"ok": True, "counts": counts})
+    except Exception as exc:  # noqa: BLE001
+        session.rollback()
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @bp.get("/sync/backup")
@@ -1131,7 +1426,7 @@ def sync_restore():
         return redirect(url_for("main.sync_page"))
     try:
         payload = json.load(upload.stream)
-        counts = apply_snapshot(session, payload)
+        counts = apply_snapshot(session, payload, backup_why="before-restore")
         _commit_and_sync(session)
         flash(
             f"Restored {counts['bets']} bets, {counts['offers']} offers, {counts['accounts']} accounts.",
@@ -1141,6 +1436,171 @@ def sync_restore():
         session.rollback()
         flash(f"Could not restore that backup: {exc}", "error")
     return redirect(url_for("main.sync_page"))
+
+
+@bp.get("/friends")
+def friends_page():
+    from app.friends import invite_code, load_state as load_friends
+    from app.nat import reachability
+    from app.sync import default_nickname
+
+    port = _app_port()
+    state = load_friends()
+    invites = []
+    for invite in state.get("invites") or []:
+        invites.append({**invite, "code": invite_code(invite, port)})
+    return render_template(
+        "friends.html",
+        invites=invites,
+        friends=state.get("friends") or [],
+        reach=reachability(port),
+        view=None,
+        live=False,
+        last_available=None,
+        nickname=default_nickname(),
+    )
+
+
+@bp.get("/friends/<friend_id>")
+def friend_detail(friend_id: str):
+    from app.friends import fetch_live, friend_by_id, invite_code, load_cache, load_state as load_friends, store_cache
+    from app.nat import reachability
+    from app.sync import default_nickname
+
+    friend = friend_by_id(friend_id)
+    if not friend:
+        flash("That friend is not on your list.", "error")
+        return redirect(url_for("main.friends_page"))
+    view = None
+    live = False
+    last_available = None
+    try:
+        view = fetch_live(friend)
+        store_cache(friend_id, view)
+        live = True
+    except Exception:  # noqa: BLE001
+        cached = load_cache(friend_id)
+        if cached:
+            view = cached.get("payload")
+            last_available = cached.get("fetched_at")
+    port = _app_port()
+    state = load_friends()
+    invites = [{**invite, "code": invite_code(invite, port)} for invite in state.get("invites") or []]
+    return render_template(
+        "friends.html",
+        invites=invites,
+        friends=state.get("friends") or [],
+        reach=reachability(port),
+        view=view,
+        live=live,
+        last_available=last_available,
+        selected=friend,
+        nickname=default_nickname(),
+    )
+
+
+@bp.post("/friends/invite")
+def friends_invite():
+    from app.friends import create_invite
+    from app.nat import refresh as nat_refresh
+
+    create_invite((request.form.get("nickname") or "").strip())
+    try:
+        nat_refresh(_app_port())
+    except Exception:  # noqa: BLE001
+        pass
+    flash("Viewer invite created. Send them the code — they see your dashboard only.", "ok")
+    return redirect(url_for("main.friends_page"))
+
+
+@bp.post("/friends/invite/<invite_id>/revoke")
+def friends_revoke(invite_id: str):
+    from app.friends import revoke_invite
+
+    revoke_invite(invite_id)
+    flash("That viewer invite is no longer valid.", "ok")
+    return redirect(url_for("main.friends_page"))
+
+
+@bp.post("/friends/invite/stop")
+def friends_stop():
+    from app.friends import stop_all_invites
+
+    stop_all_invites()
+    flash("All viewer invites stopped.", "ok")
+    return redirect(url_for("main.friends_page"))
+
+
+@bp.post("/friends/add")
+def friends_add():
+    from urllib.error import HTTPError, URLError
+
+    from app.friends import fetch_live, parse_friend_code, store_cache, upsert_friend
+
+    try:
+        secret, hosts = parse_friend_code(request.form.get("code") or "")
+        lan = hosts[0].split(":")[0]
+        port = int(hosts[0].rsplit(":", 1)[-1])
+        wan = hosts[1].split(":")[0] if len(hosts) > 1 else ""
+        friend = {
+            "secret": secret,
+            "nickname": (request.form.get("nickname") or hosts[0]).strip() or hosts[0],
+            "host": hosts[0],
+            "lan_host": lan,
+            "wan_host": wan,
+            "port": port,
+        }
+        from app.friends import load_state as load_friends
+
+        upsert_friend(friend)
+        # Re-read id after upsert
+        saved = next(
+            (item for item in load_friends()["friends"] if item.get("secret") == secret),
+            friend,
+        )
+        try:
+            view = fetch_live(saved)
+            store_cache(saved["id"], view)
+            if view.get("nickname"):
+                upsert_friend({**saved, "nickname": view["nickname"]})
+        except (HTTPError, URLError, ValueError, OSError):
+            flash("Friend saved. Their dashboard will show when their app is reachable, or as last available.", "ok")
+            return redirect(url_for("main.friend_detail", friend_id=saved["id"]))
+        flash("Friend added.", "ok")
+        return redirect(url_for("main.friend_detail", friend_id=saved["id"]))
+    except ValueError as exc:
+        flash(str(exc), "error")
+    return redirect(url_for("main.friends_page"))
+
+
+@bp.post("/friends/<friend_id>/forget")
+def friends_forget(friend_id: str):
+    from app.friends import forget_friend
+
+    forget_friend(friend_id)
+    flash("Friend removed.", "ok")
+    return redirect(url_for("main.friends_page"))
+
+
+@bp.get("/api/friend/view")
+def friend_view_api():
+    from app.friends import allow_rate, encrypt_view, invite_by_secret, view_dto
+    from app.sync import default_nickname
+
+    token = _bearer_token()
+    if not token.startswith("view."):
+        abort(403)
+    secret = token[5:]
+    invite = invite_by_secret(secret)
+    if invite is None:
+        abort(403)
+    from app.access import client_ip
+
+    if not allow_rate(client_ip() or "local"):
+        abort(429)
+    session = get_session()
+    dto = view_dto(session, nickname=default_nickname())
+    return jsonify({"ciphertext": encrypt_view(secret, dto)})
 
 
 @bp.get("/settings")
@@ -1172,6 +1632,7 @@ def settings_save():
             "update_popup": request.form.get("update_popup") == "on",
             "allow_lan": request.form.get("allow_lan") == "on",
             "excel_sync": request.form.get("excel_sync") == "on",
+            "auto_sync": request.form.get("auto_sync") == "on",
             "port": port,
             "default_exchange_id": int(exchange_raw) if exchange_raw.isdigit() else None,
         }

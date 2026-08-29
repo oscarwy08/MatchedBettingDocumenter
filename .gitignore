@@ -8,6 +8,10 @@ data/*.xlsx
 data/update_repo
 data/github_token
 data/settings.json
+data/sync.json
+data/friends.json
+data/friends/
+data/backups/
 .pytest_cache/
 *.egg-info/
 dist/

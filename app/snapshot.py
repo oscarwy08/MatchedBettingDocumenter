@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -65,7 +67,7 @@ TRANSFER_FIELDS = ["id", "account_id", "kind", "amount", "date", "notes", "offer
 
 
 def dump_snapshot(session: Session) -> dict:
-    return {
+    payload = {
         "format": SNAPSHOT_FORMAT,
         "app_version": VERSION,
         "exported_at": datetime.now().isoformat(timespec="seconds"),
@@ -76,6 +78,41 @@ def dump_snapshot(session: Session) -> dict:
             _row(item, TRANSFER_FIELDS) for item in session.scalars(select(Transfer).order_by(Transfer.id))
         ],
     }
+    payload["counts"] = snapshot_counts(payload)
+    payload["fingerprint"] = fingerprint_payload(payload)
+    return payload
+
+
+def snapshot_counts(payload: dict) -> dict:
+    return {
+        "accounts": len(payload.get("accounts") or []),
+        "offers": len(payload.get("offers") or []),
+        "bets": len(payload.get("bets") or []),
+        "transfers": len(payload.get("transfers") or []),
+    }
+
+
+def fingerprint_payload(payload: dict) -> str:
+    body = {
+        "accounts": payload.get("accounts") or [],
+        "offers": payload.get("offers") or [],
+        "bets": payload.get("bets") or [],
+        "transfers": payload.get("transfers") or [],
+    }
+    raw = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def fingerprint_session(session: Session) -> str:
+    return fingerprint_payload(dump_snapshot(session))
+
+
+def would_shrink(local: dict, remote: dict) -> bool:
+    local_c = snapshot_counts(local) if "accounts" in local else local
+    remote_c = snapshot_counts(remote) if "accounts" in remote else remote
+    return int(remote_c.get("bets") or 0) < int(local_c.get("bets") or 0) or int(
+        remote_c.get("offers") or 0
+    ) < int(local_c.get("offers") or 0)
 
 
 def _parse_dt(value: str | None) -> datetime | None:
@@ -102,9 +139,13 @@ def _dec(value) -> Decimal | None:
     return Decimal(str(value))
 
 
-def apply_snapshot(session: Session, payload: dict) -> dict:
+def apply_snapshot(session: Session, payload: dict, *, backup_why: str | None = "before-sync") -> dict:
     if not isinstance(payload, dict) or "accounts" not in payload:
         raise ValueError("That file is not a Documenter backup.")
+    if backup_why:
+        from app.backups import save_current
+
+        save_current(session, why=backup_why)
     session.execute(delete(Bet))
     session.execute(delete(Transfer))
     session.execute(delete(Offer))

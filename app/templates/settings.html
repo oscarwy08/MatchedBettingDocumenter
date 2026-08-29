@@ -19,7 +19,7 @@
         <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
         <span>
           <strong>Allow other devices on this Wi‑Fi</strong>
-          <small>Lets phones and other computers reach this copy on the port below. Needed for Devices pairing. Applies the next time you Start.</small>
+          <small>Lets phones and other computers reach this copy on the port below. Needed for Devices pairing and Friends. Applies the next time you Start.</small>
         </span>
       </label>
       <label class="setting-field">
@@ -42,6 +42,18 @@
           {% endfor %}
         </select>
         <small>Used on the calculator when you have not just logged a bet. Commission follows the exchange.</small>
+      </label>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Paired computers</h2></div>
+      <label class="setting-row">
+        <input class="switch-input" type="checkbox" name="auto_sync" {% if settings.auto_sync %}checked{% endif %}>
+        <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+        <span>
+          <strong>Keep paired computers in sync</strong>
+          <small>While both apps are running, pull automatically when only the other computer changed. You are asked before overwrite if both sides edited, or if their log is smaller.</small>
+        </span>
       </label>
     </section>
 

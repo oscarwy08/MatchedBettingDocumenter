@@ -12,6 +12,7 @@ BOOL_KEYS = {
     "update_popup",
     "allow_lan",
     "excel_sync",
+    "auto_sync",
 }
 
 DEFAULTS = {
@@ -20,6 +21,7 @@ DEFAULTS = {
     "update_popup": True,
     "allow_lan": True,
     "excel_sync": True,
+    "auto_sync": True,
     "port": 5050,
     "default_exchange_id": None,
 }

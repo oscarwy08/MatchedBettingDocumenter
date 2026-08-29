@@ -726,3 +726,40 @@ a.account-card:hover {
   }
   .canvas { padding: 1rem; }
 }
+
+.reach-line {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.reach-internet { color: var(--ink); }
+.reach-failed { color: var(--muted); }
+.conflict-panel { border-color: var(--line); }
+.mono { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; }
+.snapshot-table { margin-top: 0.8rem; }
+.friend-code { font-size: 0.95rem; word-break: break-all; }
+.invite-block { margin: 0.85rem 0; }
+.friend-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.45rem; }
+.friend-list li { display: flex; gap: 0.6rem; align-items: center; justify-content: space-between; }
+.friend-dash h3 { margin: 1.1rem 0 0.4rem; font-size: 1rem; }
+.sync-stale {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  background: rgba(20, 19, 15, 0.35);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+.sync-stale[hidden] { display: none !important; }
+.sync-stale-card {
+  width: min(26rem, 100%);
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  padding: 1rem 1.05rem 1.05rem;
+  box-shadow: 0 16px 40px rgba(20, 19, 15, 0.28);
+}
+.sync-stale-copy { color: var(--muted); font-size: 0.92rem; }
+html[data-theme="dark"] .sync-stale { background: rgba(0, 0, 0, 0.5); }
