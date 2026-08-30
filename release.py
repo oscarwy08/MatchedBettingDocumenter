@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Log normal bets, accas and builders. Reload offers track frequency, stake, reward and next due. "
+        "Offer and bet type now show only the fields you need, in plain English. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

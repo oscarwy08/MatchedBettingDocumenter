@@ -162,13 +162,32 @@ def _app_port() -> int:
 
 
 def _apply_reload_fields(offer: Offer, *, prefix: str = "") -> None:
+    kind = (request.form.get("offer_type") if prefix == "offer_" else request.form.get("type")) or offer.type
+    if kind != OfferType.RELOAD:
+        offer.reload_frequency = ""
+        offer.reload_stake = Decimal("0")
+        offer.reload_reward = Decimal("0")
+        offer.next_reload_on = None
+        return
     freq = (request.form.get(f"{prefix}reload_frequency") or "").strip()
     allowed = {item[0] for item in RELOAD_FREQUENCY_CHOICES}
-    offer.reload_frequency = freq if freq in allowed else ""
+    offer.reload_frequency = freq if freq in allowed else "weekly"
     offer.reload_stake = _parse_decimal(f"{prefix}reload_stake")
     offer.reload_reward = _parse_decimal(f"{prefix}reload_reward")
     raw = (request.form.get(f"{prefix}next_reload_on") or "").strip()
     offer.next_reload_on = parse_uk(raw) if raw else None
+
+
+def _resolve_exchange_id(session: Session, numbers: dict) -> int:
+    exchange_id = int(request.form.get("exchange_id") or 0)
+    if exchange_id:
+        return exchange_id
+    lay = numbers.get("lay_odds") or Decimal("0")
+    if Decimal(str(lay)) <= 1:
+        smarkets = session.scalars(select(Account).where(Account.name == "Smarkets")).first()
+        if smarkets is not None:
+            return int(smarkets.id)
+    return 0
 
 
 def _parse_decimal(name: str, default: str = "0") -> Decimal:
@@ -471,10 +490,12 @@ def log_bet():
     session = get_session()
     try:
         bookie_id = int(request.form.get("bookie_id") or 0)
-        exchange_id = int(request.form.get("exchange_id") or 0)
-        if not bookie_id or not exchange_id:
-            raise ValueError("Choose both a bookie and an exchange.")
         numbers = _calculation_from_form()
+        exchange_id = _resolve_exchange_id(session, numbers)
+        if not bookie_id:
+            raise ValueError("Choose a bookie.")
+        if not exchange_id:
+            raise ValueError("Choose an exchange, or log this as an unmatched bet.")
         offer = _resolve_offer(session, bookie_id)
         placed_at = local_now()
         bet = Bet(
@@ -1023,10 +1044,12 @@ def edit_bet(bet_id: int):
         return redirect(url_for("main.bets"))
     try:
         bookie_id = int(request.form.get("bookie_id") or 0)
-        exchange_id = int(request.form.get("exchange_id") or 0)
-        if not bookie_id or not exchange_id:
-            raise ValueError("Choose both a bookie and an exchange.")
         numbers = _calculation_from_form()
+        exchange_id = _resolve_exchange_id(session, numbers)
+        if not bookie_id:
+            raise ValueError("Choose a bookie.")
+        if not exchange_id:
+            raise ValueError("Choose an exchange, or log this as an unmatched bet.")
         offer = _resolve_offer(session, bookie_id)
         bet.offer_id = offer.id if offer else None
         new_date = parse_uk(request.form.get("date_placed"))

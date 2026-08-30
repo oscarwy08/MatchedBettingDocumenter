@@ -1,7 +1,11 @@
 const fields = ["bet_type", "back_stake", "back_odds", "lay_odds", "commission_percent", "cashback", "lay_stake_override"];
 
+const UNMATCHED = new Set(["normal", "acca", "bet_builder"]);
+const WITH_SELECTIONS = new Set(["acca", "bet_builder"]);
+
 let lastLay = "";
 let lastLiability = "";
+let lastMatchedLay = "2.10";
 
 function pound(value) {
   const amount = Number(value);
@@ -22,18 +26,75 @@ function paint(id, value) {
 }
 
 function currentType() {
-  return document.getElementById("bet_type").value;
+  const el = document.getElementById("bet_type");
+  return el ? el.value : "qualifying";
+}
+
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
 }
 
 function syncVisibility() {
   const type = currentType();
+  const unmatched = UNMATCHED.has(type);
+  const lay = document.getElementById("lay_odds");
   const cashback = document.getElementById("cashback-field");
   const manual = document.getElementById("manual-expected");
-  const lay = document.getElementById("lay_odds");
+  const layField = document.getElementById("lay-odds-field");
+  const exchangeField = document.getElementById("exchange-field");
+  const advanced = document.getElementById("matched-advanced");
+  const results = document.getElementById("results-panel");
+  const unmatchedHint = document.getElementById("unmatched-hint");
+  const selections = document.getElementById("selections-field");
+
   if (cashback) cashback.classList.toggle("is-hidden", type !== "money_back");
   if (manual) manual.classList.toggle("is-hidden", type !== "other");
-  if (lay && (type === "normal" || type === "acca" || type === "bet_builder") && !lay.value) {
-    lay.placeholder = "Leave blank if unmatched";
+  if (layField) layField.classList.toggle("is-hidden", unmatched || type === "other");
+  if (exchangeField) exchangeField.classList.toggle("is-hidden", unmatched);
+  if (advanced) advanced.classList.toggle("is-hidden", unmatched);
+  if (results) results.classList.toggle("is-unmatched", unmatched);
+  if (unmatchedHint) unmatchedHint.classList.toggle("is-hidden", !unmatched);
+  if (selections) {
+    selections.classList.toggle("is-hidden", !WITH_SELECTIONS.has(type) && type !== "normal");
+  }
+
+  if (type === "free_bet_snr" || type === "free_bet_sr") {
+    setText("stake-label", "Free bet stake");
+    setText("odds-label", "Back odds");
+  } else if (unmatched) {
+    setText("stake-label", "Stake");
+    setText("odds-label", type === "acca" ? "Combined odds" : type === "bet_builder" ? "Builder odds" : "Odds");
+  } else {
+    setText("stake-label", "Back stake");
+    setText("odds-label", "Back odds");
+  }
+
+  if (type === "acca") {
+    setText("selections-label", "Legs");
+    const market = document.getElementById("market");
+    if (market) market.placeholder = "Team A, Team B, Team C…";
+  } else if (type === "bet_builder") {
+    setText("selections-label", "Builder selections");
+    const market = document.getElementById("market");
+    if (market) market.placeholder = "Anytime scorer, over 2.5, BTTS…";
+  } else {
+    setText("selections-label", "Market");
+    const market = document.getElementById("market");
+    if (market) market.placeholder = "Match odds / Liverpool";
+  }
+
+  setText("back-win-label", unmatched ? "If it wins" : "If back wins");
+  setText("lay-win-label", unmatched ? "If it loses" : "If lay wins");
+  setText("expected-label", unmatched ? "Pending (unmatched)" : "Expected profit");
+
+  if (lay) {
+    if (unmatched) {
+      if (lay.value && Number(lay.value) > 1) lastMatchedLay = lay.value;
+      lay.value = "";
+    } else if (type !== "other" && !lay.value) {
+      lay.value = lastMatchedLay || "2.10";
+    }
   }
 }
 
@@ -48,6 +109,7 @@ function payload() {
 
 async function refresh() {
   const error = document.getElementById("calc-error");
+  if (!error) return;
   if (currentType() === "other") {
     error.classList.add("is-hidden");
     return;
@@ -67,8 +129,10 @@ async function refresh() {
     error.classList.add("is-hidden");
     lastLay = data.lay_stake;
     lastLiability = data.liability;
-    document.getElementById("out-lay").textContent = pound(data.lay_stake);
-    document.getElementById("out-liability").textContent = pound(data.liability);
+    const outLay = document.getElementById("out-lay");
+    const outLiab = document.getElementById("out-liability");
+    if (outLay) outLay.textContent = pound(data.lay_stake);
+    if (outLiab) outLiab.textContent = pound(data.liability);
     paint("out-expected", data.expected_profit);
     paint("back-bookie", data.if_back_wins.bookie);
     paint("back-exchange", data.if_back_wins.exchange);

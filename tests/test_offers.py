@@ -162,8 +162,11 @@ def test_create_reload_via_form(tmp_path, monkeypatch):
     assert b"Bet builder" in calc.data
     assert b"Normal / unmatched" in calc.data
     assert b"offer_reload_frequency" in calc.data
+    assert b"data-offer-field" in calc.data
     offers_page = client.get("/offers")
-    assert b"Repeats" in offers_page.data
+    assert b"How often" in offers_page.data
+    assert b"js-offer-type" in offers_page.data
+    assert b"You deposited" in offers_page.data
     import app.db as db
 
     session = db.SessionLocal()
@@ -198,4 +201,24 @@ def test_create_reload_via_form(tmp_path, monkeypatch):
     session = db.SessionLocal()
     offer = session.get(Offer, offer_id)
     assert offer.next_reload_on == date.today() + timedelta(days=7)
+    session.close()
+    welcome = client.post(
+        "/offers",
+        data={
+            "name": "Form welcome",
+            "bookie_id": str(sky_id),
+            "type": "welcome",
+            "deposit_amount": "10",
+            "free_funds": "20",
+            "reload_frequency": "weekly",
+            "reload_stake": "20",
+            "reload_reward": "5",
+        },
+        follow_redirects=True,
+    )
+    assert welcome.status_code == 200
+    session = db.SessionLocal()
+    offer = session.scalars(select(Offer).where(Offer.name == "Form welcome")).one()
+    assert offer.reload_frequency == ""
+    assert offer.deposit_amount == Decimal("10.00")
     session.close()

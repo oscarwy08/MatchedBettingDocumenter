@@ -5,13 +5,17 @@
 {% block content %}
   <section class="panel">
     <div class="panel-head"><h2>New offer</h2></div>
-    <form method="post" class="form-grid">
+    <form method="post" class="form-grid js-offer-form">
       <label>
-        Name
-        <input name="name" required placeholder="Sky Bet Bet £5 Get £20">
+        <span class="field-name">Type</span>
+        <select name="type" class="js-offer-type">
+          {% for value, label in offer_types %}
+            <option value="{{ value }}">{{ label }}</option>
+          {% endfor %}
+        </select>
       </label>
       <label>
-        Bookie
+        <span class="field-name">Bookie</span>
         <select name="bookie_id" required>
           <option value="">Select bookie</option>
           {% for bookie in bookies %}
@@ -19,27 +23,14 @@
           {% endfor %}
         </select>
       </label>
-      <label>
-        Type
-        <select name="type">
-          {% for value, label in offer_types %}
-            <option value="{{ value }}">{{ label }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label>
-        Bookie deposit
-        <input name="deposit_amount" type="number" step="0.01" min="0" placeholder="0.00">
-        <span class="hint">Creates one transfer. Don’t also add the same deposit on Accounts.</span>
-      </label>
-      <label>
-        Total free funds
-        <input name="free_funds" type="number" step="0.01" min="0" placeholder="30.00">
-      </label>
-      {% include "_reload_fields.html" %}
       <label class="span-2">
-        Notes
-        <input name="notes" type="text">
+        <span class="field-name">Name</span>
+        <input name="name" required placeholder="Sky Bet Bet £5 Get £20">
+      </label>
+      {% include "_offer_type_fields.html" %}
+      <label class="span-2">
+        <span class="field-name">Notes</span>
+        <input name="notes" type="text" placeholder="Optional — min odds, SNR, expiry…">
       </label>
       <div class="form-actions span-2">
         <button class="btn btn-primary" type="submit">Create offer</button>
@@ -94,4 +85,7 @@
       <p class="empty">No offers yet. Create one here or while logging a qualifier.</p>
     {% endif %}
   </section>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='forms.js') }}?v=1"></script>
 {% endblock %}

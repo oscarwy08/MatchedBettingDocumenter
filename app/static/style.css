@@ -358,6 +358,15 @@ th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: u
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem 1rem;
 }
+.field-name { color: var(--ink); font-weight: 600; }
+.offer-type-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+.results-panel.is-unmatched .matched-only { display: none; }
+.results-panel.is-unmatched .result-dl { grid-template-columns: 1fr; }
 .stack { display: flex; flex-direction: column; gap: 0.7rem; }
 label { display: flex; flex-direction: column; gap: 0.28rem; font-size: 0.86rem; color: var(--muted); }
 input, select {

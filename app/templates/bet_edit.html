@@ -7,30 +7,29 @@
     <section class="panel">
       <div class="panel-head"><h2>Bet inputs</h2></div>
       <div class="form-grid">
-        <label>
-          Bet type
+        <label class="span-2">
+          <span class="field-name">Type</span>
           <select name="bet_type" id="bet_type">
             {% for value, label in bet_types %}
               <option value="{{ value }}" {% if bet.bet_type == value %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </label>
-        <label>
-          Back stake / free bet
+        <label id="stake-field">
+          <span class="field-name" id="stake-label">Back stake</span>
           <input name="back_stake" id="back_stake" type="number" step="0.01" min="0" value="{{ bet.back_stake }}" required>
         </label>
-        <label>
-          Back odds
+        <label id="odds-field">
+          <span class="field-name" id="odds-label">Back odds</span>
           <input name="back_odds" id="back_odds" type="number" step="0.01" min="1.01" value="{{ bet.back_odds }}" required>
         </label>
-        <label>
-          Lay odds
+        <label id="lay-odds-field">
+          <span class="field-name">Lay odds</span>
           <input name="lay_odds" id="lay_odds" type="number" step="0.01" min="1.01"
-                 value="{{ bet.lay_odds if bet.lay_odds and bet.lay_odds > 1 else '' }}"
-                 placeholder="Leave blank if unmatched">
+                 value="{{ bet.lay_odds if bet.lay_odds and bet.lay_odds > 1 else '' }}">
         </label>
-        <label>
-          Exchange
+        <label id="exchange-field">
+          <span class="field-name">Exchange</span>
           <select name="exchange_id" id="exchange_id">
             {% for exchange in exchanges %}
               <option value="{{ exchange.id }}" data-commission="{{ exchange.commission_percent }}"
@@ -41,16 +40,16 @@
           </select>
         </label>
         <label id="cashback-field" class="is-hidden">
-          Cashback if back loses
+          <span class="field-name">Cashback if it loses</span>
           <input name="cashback" id="cashback" type="number" step="0.01" min="0" value="{{ bet.cashback }}">
         </label>
         <label id="manual-expected" class="is-hidden">
-          Manual expected profit
+          <span class="field-name">Expected profit</span>
           <input name="expected_profit_manual" type="number" step="0.01" value="{{ bet.expected_profit }}">
         </label>
       </div>
-      <details class="more-block">
-        <summary>Advanced</summary>
+      <details class="more-block" id="matched-advanced">
+        <summary>Commission and lay override</summary>
         <div class="form-grid">
           <label>
             Lay commission %
@@ -66,15 +65,16 @@
       </details>
     </section>
 
-    <section class="panel results-panel">
+    <section class="panel results-panel" id="results-panel">
       <div class="panel-head"><h2>Result</h2></div>
+      <p id="unmatched-hint" class="hint is-hidden">No lay — this is just the bookie bet. Expected profit stays £0 until you settle.</p>
       <p id="calc-error" class="flash flash-error is-hidden"></p>
       <dl class="result-dl">
-        <div><dt>Lay stake</dt><dd id="out-lay">–</dd></div>
-        <div><dt>Liability</dt><dd id="out-liability">–</dd></div>
-        <div><dt>Expected profit</dt><dd id="out-expected">–</dd></div>
+        <div class="matched-only"><dt>Lay stake</dt><dd id="out-lay">–</dd></div>
+        <div class="matched-only"><dt>Liability</dt><dd id="out-liability">–</dd></div>
+        <div><dt id="expected-label">Expected profit</dt><dd id="out-expected">–</dd></div>
       </dl>
-      <div class="page-actions" style="margin-bottom: 0.8rem;">
+      <div class="page-actions matched-only" style="margin-bottom: 0.8rem;">
         <button type="button" class="btn" id="copy-lay">Copy lay stake</button>
         <button type="button" class="btn" id="copy-liability">Copy liability</button>
       </div>
@@ -83,22 +83,22 @@
           <tr>
             <th></th>
             <th class="num">Bookie</th>
-            <th class="num">Exchange</th>
-            <th class="num">Total</th>
+            <th class="num matched-only">Exchange</th>
+            <th class="num matched-only">Total</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <th>If back wins</th>
+            <th id="back-win-label">If back wins</th>
             <td class="num" id="back-bookie">–</td>
-            <td class="num" id="back-exchange">–</td>
-            <td class="num" id="back-total">–</td>
+            <td class="num matched-only" id="back-exchange">–</td>
+            <td class="num matched-only" id="back-total">–</td>
           </tr>
           <tr>
-            <th>If lay wins</th>
+            <th id="lay-win-label">If lay wins</th>
             <td class="num" id="lay-bookie">–</td>
-            <td class="num" id="lay-exchange">–</td>
-            <td class="num" id="lay-total">–</td>
+            <td class="num matched-only" id="lay-exchange">–</td>
+            <td class="num matched-only" id="lay-total">–</td>
           </tr>
         </tbody>
       </table>
@@ -125,8 +125,12 @@
                  pattern="\d{2}/\d{2}/\d{4}" value="{{ bet.date_placed | ukdate }}" required>
         </label>
         <label class="span-2">
-          Event
+          <span class="field-name">Event</span>
           <input name="event" type="text" placeholder="Liverpool vs Chelsea" value="{{ bet.event }}">
+        </label>
+        <label class="span-2" id="selections-field">
+          <span class="field-name" id="selections-label">Market</span>
+          <input name="market" id="market" type="text" placeholder="Match odds / Liverpool" value="{{ bet.market }}">
         </label>
         <label class="span-2">
           Offer
@@ -142,31 +146,26 @@
           </select>
         </label>
       </div>
-      <div id="new-offer-fields" class="form-grid new-offer">
+      <div id="new-offer-fields" class="form-grid new-offer js-offer-form">
         <label>
-          Offer name
-          <input name="new_offer_name" id="new_offer_name" type="text" placeholder="Sky Bet Bet £5 Get £20">
-        </label>
-        <label>
-          Type
-          <select name="offer_type">
+          <span class="field-name">Type</span>
+          <select name="offer_type" class="js-offer-type">
             {% for value, label in offer_types %}
               <option value="{{ value }}">{{ label }}</option>
             {% endfor %}
           </select>
         </label>
         <label>
-          Free funds
-          <input name="offer_free_funds" type="number" step="0.01" min="0" placeholder="30.00">
+          <span class="field-name">Offer name</span>
+          <input name="new_offer_name" id="new_offer_name" type="text" placeholder="Sky Bet Bet £5 Get £20">
         </label>
+        {% with prefix="offer_", deposit_name="offer_deposit", free_name="offer_free_funds" %}
+          {% include "_offer_type_fields.html" %}
+        {% endwith %}
       </div>
       <details class="more-block" {% if bet.market or bet.notes %}open{% endif %}>
         <summary>Market, notes, deposit</summary>
         <div class="form-grid">
-          <label>
-            Market
-            <input name="market" type="text" placeholder="Match odds / Liverpool" value="{{ bet.market }}">
-          </label>
           <label>
             Deposit with new offer
             <input name="offer_deposit" type="number" step="0.01" min="0" placeholder="0.00">
@@ -186,5 +185,6 @@
   </form>
 {% endblock %}
 {% block scripts %}
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=7"></script>
+  <script src="{{ url_for('static', filename='forms.js') }}?v=1"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=9"></script>
 {% endblock %}

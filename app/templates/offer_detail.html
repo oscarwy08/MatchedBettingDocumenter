@@ -105,31 +105,32 @@
 
   <section class="panel">
     <div class="panel-head"><h2>Edit offer</h2></div>
-    <form method="post" action="{{ url_for('main.edit_offer', offer_id=offer.id) }}" class="form-grid">
-      <label>Name <input name="name" required value="{{ offer.name }}"></label>
+    <form method="post" action="{{ url_for('main.edit_offer', offer_id=offer.id) }}" class="form-grid js-offer-form">
       <label>
-        Bookie
+        <span class="field-name">Type</span>
+        <select name="type" class="js-offer-type">
+          {% for value, label in offer_types %}
+            <option value="{{ value }}" {% if offer.type == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="field-name">Bookie</span>
         <select name="bookie_id" required>
           {% for bookie in bookies %}
             <option value="{{ bookie.id }}" {% if offer.bookie_id == bookie.id %}selected{% endif %}>{{ bookie.name }}</option>
           {% endfor %}
         </select>
       </label>
-      <label>
-        Type
-        <select name="type">
-          {% for value, label in offer_types %}
-            <option value="{{ value }}" {% if offer.type == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
+      <label class="span-2">
+        <span class="field-name">Name</span>
+        <input name="name" required value="{{ offer.name }}">
       </label>
-      <label>Bookie deposit
-        <input name="deposit_amount" type="number" step="0.01" min="0" value="{{ offer.deposit_amount }}">
-        <span class="hint">Saved as a transfer. Counts once in bankroll.</span>
+      {% include "_offer_type_fields.html" %}
+      <label class="span-2">
+        <span class="field-name">Notes</span>
+        <input name="notes" type="text" value="{{ offer.notes }}">
       </label>
-      <label>Total free funds <input name="free_funds" type="number" step="0.01" min="0" value="{{ offer.free_funds }}"></label>
-      {% include "_reload_fields.html" %}
-      <label class="span-2">Notes <input name="notes" type="text" value="{{ offer.notes }}"></label>
       <div class="form-actions span-2">
         <button class="btn btn-primary" type="submit">Save offer</button>
       </div>
@@ -139,4 +140,7 @@
   <form method="post" action="{{ url_for('main.delete_offer', offer_id=offer.id) }}" onsubmit="return confirm('Delete this offer? Bets stay in the log, unlinked. The deposit stays in transfers.');">
     <button class="btn btn-danger" type="submit">Delete offer</button>
   </form>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='forms.js') }}?v=1"></script>
 {% endblock %}
