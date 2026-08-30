@@ -315,6 +315,39 @@ h2 {
 table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 th, td { padding: 0.55rem 0.45rem; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+th { white-space: nowrap; }
+.th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-align: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.num .th-sort { justify-content: flex-end; }
+.th-arrows {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  opacity: 0.4;
+  line-height: 0.45;
+  font-size: 0.55rem;
+}
+.th-arrows::before { content: "▲"; }
+.th-arrows::after { content: "▼"; }
+th[data-sort-dir] .th-arrows { opacity: 1; color: var(--gold-deep); }
+th[data-sort-dir="asc"] .th-arrows::after { opacity: 0.25; }
+th[data-sort-dir="desc"] .th-arrows::before { opacity: 0.25; }
+.th-sort:hover { color: var(--ink); }
 .num {
   font-variant-numeric: tabular-nums;
   text-align: right;

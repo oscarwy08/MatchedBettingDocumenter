@@ -107,9 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Friends can open Today, Offers, Bets, Accounts and Visualiser. "
-        "Scan a LAN QR from the sidebar to open on your phone. "
-        "Today has a month calendar and a reminder to check sites for new offers. "
+        "Bet tables show a Starts datetime. Click any table header to sort. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
