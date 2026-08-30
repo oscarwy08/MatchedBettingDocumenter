@@ -6,7 +6,8 @@ from sqlalchemy import select
 
 from app.db import init_db
 from app.health import mug_health, today_board
-from app.models import Account, AccountTask, Bet, BetStatus, BetType, Offer, OfferType
+from app.health import complete_schedule_event, site_scan
+from app.models import Account, AccountTask, Bet, BetStatus, BetType, Offer, OfferType, ScheduleEvent
 from app.seed import seed_accounts
 from app.snapshot import apply_snapshot, dump_snapshot
 
@@ -156,6 +157,14 @@ def test_snapshot_round_trip_health_fields_and_task(tmp_path: Path):
             note="Check Saturday booster",
         )
     )
+    session.add(
+        ScheduleEvent(
+            title="Sky Saturday acca",
+            due_on=date(2026, 8, 30),
+            bookie_id=sky.id,
+            repeat="weekly",
+        )
+    )
     session.commit()
     payload = dump_snapshot(session)
     session.close()
@@ -172,6 +181,9 @@ def test_snapshot_round_trip_health_fields_and_task(tmp_path: Path):
     assert task.note == "Check Saturday booster"
     assert task.due_on == date(2026, 8, 30)
     assert task.done is False
+    event = other.scalars(select(ScheduleEvent)).one()
+    assert event.title == "Sky Saturday acca"
+    assert event.repeat == "weekly"
     other.close()
 
 
@@ -189,6 +201,9 @@ def test_today_page_and_tick(tmp_path, monkeypatch):
     assert b"Routine checks" in page.data
     assert b"Due today" in page.data
     assert b'class="week-day' in page.data
+    assert b"month-grid" in page.data
+    assert b"Check sites for new offers" in page.data
+    assert b"Open on phone" in page.data
     yesterday = (date.today() - timedelta(days=1)).strftime("%d/%m/%Y")
     other = client.get(f"/today?on={yesterday}")
     assert other.status_code == 200
@@ -214,3 +229,39 @@ def test_today_page_and_tick(tmp_path, monkeypatch):
     bookie = session.get(Account, bookie_id)
     assert bookie.last_checked_on == date.today()
     session.close()
+    scanned = client.post("/today/sites-checked", data={"on": date.today().strftime("%d/%m/%Y")}, follow_redirects=True)
+    assert scanned.status_code == 200
+    added = client.post(
+        "/today/events",
+        data={
+            "title": "Paddy Power new customer",
+            "due_on": date.today().strftime("%d/%m/%Y"),
+            "repeat": "weekly",
+            "on": date.today().strftime("%d/%m/%Y"),
+        },
+        follow_redirects=True,
+    )
+    assert added.status_code == 200
+    assert b"Paddy Power new customer" in added.data
+    session = db.SessionLocal()
+    event = session.scalars(select(ScheduleEvent)).one()
+    event_id = event.id
+    complete_schedule_event(event, date.today())
+    session.commit()
+    assert event.done is False
+    assert event.due_on == date.today() + timedelta(days=7)
+    session.close()
+    gone = client.post(f"/today/events/{event_id}/delete", follow_redirects=True)
+    assert gone.status_code == 200
+
+
+def test_site_scan_due_after_gap():
+    today = date(2026, 8, 30)
+    due = site_scan(today, {"scan_sites_every_days": 7, "last_sites_checked_on": ""})
+    assert due["due"] is True
+    assert due["checked_today"] is False
+    done = site_scan(today, {"scan_sites_every_days": 7, "last_sites_checked_on": "2026-08-30"})
+    assert done["due"] is False
+    assert done["checked_today"] is True
+    later = site_scan(today, {"scan_sites_every_days": 7, "last_sites_checked_on": "2026-08-20"})
+    assert later["due"] is True

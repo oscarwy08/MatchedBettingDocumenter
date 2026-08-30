@@ -104,6 +104,8 @@ if __name__ == "__main__":
     except OSError:
         print(f"Port {port} is already in use. Close the other Start window, then run Start again.")
         raise SystemExit(1)
+    app.config["BIND_HOST"] = host
+    app.config["BIND_PORT"] = port
     url = f"http://127.0.0.1:{port}"
     print(f"This computer:  {url}")
     if host == "0.0.0.0":

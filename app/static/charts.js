@@ -331,20 +331,27 @@
     });
   }
 
+  function paintSeeded(root) {
+    const plot = root.querySelector("[data-chart-plot]");
+    const seed = root.querySelector("[data-chart-seed], script[type='application/json']");
+    let payload = { labels: [], values: [], kind: "bar" };
+    try {
+      payload = JSON.parse(seed ? seed.textContent : "{}");
+    } catch {
+      /* keep empty */
+    }
+    applyHeadline(root, payload);
+    render(plot, payload);
+  }
+
   function seeded() {
     document.querySelectorAll("[data-seeded-chart]").forEach((root) => {
-      const plot = root.querySelector("[data-chart-plot]");
-      const seed = root.querySelector("[data-chart-seed], script[type='application/json']");
-      let payload = { labels: [], values: [], kind: "bar" };
-      try {
-        payload = JSON.parse(seed ? seed.textContent : "{}");
-      } catch {
-        /* keep empty */
+      if (root.dataset.chartBound) {
+        paintSeeded(root);
+        return;
       }
-      const draw = () => {
-        applyHeadline(root, payload);
-        render(plot, payload);
-      };
+      root.dataset.chartBound = "1";
+      const draw = () => paintSeeded(root);
       draw();
       window.addEventListener("resize", draw);
       document.addEventListener("mbd-theme", draw);

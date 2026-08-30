@@ -86,7 +86,9 @@ def create_app() -> Flask:
         from app.settings import get as setting
         from app.version import VERSION
 
-        return {"app_version": VERSION, "app_port": setting("port")}
+        from app.phone import phone_context
+
+        return {"app_version": VERSION, "app_port": setting("port"), **phone_context()}
 
     boot = Session()
     try:

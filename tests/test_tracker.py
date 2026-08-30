@@ -123,7 +123,7 @@ def test_welcome_offer_balances_and_workbook(tmp_path: Path):
     from openpyxl import load_workbook
 
     wb = load_workbook(path)
-    assert wb.sheetnames == ["Dashboard", "Offers", "Bets", "Accounts", "Transfers", "Tasks"]
+    assert wb.sheetnames == ["Dashboard", "Offers", "Bets", "Accounts", "Transfers", "Tasks", "Calendar"]
     assert wb["Offers"]["A2"].value == "Betfred Bet £10 Get £50"
     assert wb["Bets"]["A1"].value == "Date"
     assert wb["Bets"]["B1"].value == "Placed"
@@ -140,6 +140,7 @@ def test_welcome_offer_balances_and_workbook(tmp_path: Path):
         "Accounts",
         "Transfers",
         "Tasks",
+        "Calendar",
     ]
     offer_sheet = next(sheet for sheet in preview if sheet["name"] == "Offers")
     assert any("Betfred Bet £10 Get £50" in cell["value"] for row in offer_sheet["rows"] for cell in row)

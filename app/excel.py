@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app import EXCEL_PATH
 from app.dates import format_uk_time
-from app.models import Account, AccountTask, AccountType, Bet, Offer, Transfer
+from app.models import Account, AccountTask, AccountType, Bet, Offer, ScheduleEvent, Transfer
 from app.services import account_snapshot, dashboard_stats, offer_snapshot
 
 HEADER_FILL = PatternFill("solid", fgColor="1A2332")
@@ -115,8 +115,19 @@ def sync_workbook(session: Session, path: Path | None = None) -> Path:
     transfers_ws = wb.create_sheet("Transfers")
     _write_transfers(transfers_ws, transfers)
 
+    events = list(
+        session.scalars(
+            select(ScheduleEvent)
+            .options(selectinload(ScheduleEvent.bookie))
+            .order_by(ScheduleEvent.due_on, ScheduleEvent.id)
+        )
+    )
+
     tasks_ws = wb.create_sheet("Tasks")
     _write_tasks(tasks_ws, tasks)
+
+    calendar_ws = wb.create_sheet("Calendar")
+    _write_calendar(calendar_ws, events)
 
     wb.save(target)
     return target
@@ -330,6 +341,19 @@ def _write_tasks(ws, tasks: list[AccountTask]) -> None:
         ws.cell(i, 3, task.note)
         ws.cell(i, 4, "Yes" if task.done else "")
     _stripe(ws, 2, 4)
+    _autosize(ws)
+
+
+def _write_calendar(ws, events: list[ScheduleEvent]) -> None:
+    _headers(ws, ["Due", "Title", "Bookie", "Repeats", "Notes", "Done"])
+    for i, event in enumerate(events, start=2):
+        ws.cell(i, 1, event.due_on.isoformat())
+        ws.cell(i, 2, event.title)
+        ws.cell(i, 3, event.bookie.name if event.bookie else "")
+        ws.cell(i, 4, event.repeat or "Once")
+        ws.cell(i, 5, event.notes)
+        ws.cell(i, 6, "Yes" if event.done else "")
+    _stripe(ws, 2, 6)
     _autosize(ws)
 
 

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.dates import format_uk
-from app.models import Account, AccountTask, AccountType, Bet, BetType, Offer, OfferType
+from app.models import Account, AccountTask, AccountType, Bet, BetType, Offer, OfferType, ScheduleEvent
 from app.settings import load as load_settings
 
 PROMO_TYPES = {
@@ -145,6 +145,88 @@ def _sort_key(row: dict, today: date, check_every: int, priority_days: int) -> t
     )
 
 
+def site_scan(today: date, settings: dict | None = None) -> dict:
+    cfg = _settings(settings)
+    every = int(cfg.get("scan_sites_every_days") or 7)
+    last = None
+    raw = str(cfg.get("last_sites_checked_on") or "").strip()
+    if raw:
+        try:
+            last = date.fromisoformat(raw[:10])
+        except ValueError:
+            last = None
+    if last is None:
+        due_on = today
+        due = True
+    else:
+        due_on = last + timedelta(days=every)
+        due = today >= due_on
+    return {
+        "every": every,
+        "last_on": last,
+        "due_on": due_on,
+        "due": due and last != today,
+        "checked_today": last == today,
+    }
+
+
+def _month_first(when: date, months: int) -> date:
+    month = when.month - 1 + months
+    year = when.year + month // 12
+    month = month % 12 + 1
+    return date(year, month, 1)
+
+
+def month_calendar(viewed: date, marks: dict[date, list]) -> dict:
+    first = viewed.replace(day=1)
+    start = first - timedelta(days=first.weekday())
+    weeks = []
+    day = start
+    for _ in range(6):
+        week = []
+        for _ in range(7):
+            week.append(
+                {
+                    "date": day,
+                    "day": day.day,
+                    "href": format_uk(day),
+                    "in_month": day.month == viewed.month,
+                    "today": day == viewed,
+                    "is_real_today": day == date.today(),
+                    "future": day > date.today(),
+                    "marks": marks.get(day, []),
+                }
+            )
+            day += timedelta(days=1)
+        weeks.append(week)
+        if day.month != viewed.month and day.weekday() == 0:
+            break
+    return {
+        "label": viewed.strftime("%B %Y"),
+        "prev": format_uk(_month_first(first, -1)),
+        "next": format_uk(_month_first(first, 1)),
+        "weeks": weeks,
+        "weekdays": ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"),
+    }
+
+
+def complete_schedule_event(event: ScheduleEvent, when: date) -> None:
+    from calendar import monthrange
+
+    if event.repeat == "weekly":
+        event.due_on = when + timedelta(days=7)
+        event.done = False
+        return
+    if event.repeat == "monthly":
+        month = when.month
+        year = when.year + (1 if month == 12 else 0)
+        month = 1 if month == 12 else month + 1
+        event.due_on = date(year, month, min(when.day, monthrange(year, month)[1]))
+        event.done = False
+        return
+    event.done = True
+
+
 def today_board(
     session: Session,
     *,
@@ -174,6 +256,14 @@ def today_board(
             .order_by(AccountTask.due_on, AccountTask.id)
         )
     )
+    events = list(
+        session.scalars(
+            select(ScheduleEvent)
+            .options(selectinload(ScheduleEvent.bookie))
+            .order_by(ScheduleEvent.due_on, ScheduleEvent.id)
+        )
+    )
+    scan = site_scan(today, cfg)
 
     bets_by_bookie: dict[int, list[Bet]] = defaultdict(list)
     for bet in bets:
@@ -245,8 +335,22 @@ def today_board(
                     "account": task.account,
                     "offer": None,
                     "task": task,
+                    "event": None,
                     "name": task.note or "Check this bookie",
                     "detail": task.due_on,
+                }
+            )
+    for event in events:
+        if not event.done and event.due_on <= today:
+            specials.append(
+                {
+                    "kind": "personal",
+                    "account": event.bookie,
+                    "offer": None,
+                    "task": None,
+                    "event": event,
+                    "name": event.title,
+                    "detail": event.due_on,
                 }
             )
     specials.sort(key=lambda item: (item["account"].name.lower() if item["account"] else "", item["name"]))
@@ -268,6 +372,19 @@ def today_board(
         )
 
     checked_count = len(ticked)
+    marks: dict[date, list] = defaultdict(list)
+    for offer in offers:
+        if offer.next_reload_on:
+            marks[offer.next_reload_on].append({"kind": "reload", "title": offer.name})
+    for task in tasks:
+        if not task.done:
+            marks[task.due_on].append({"kind": "task", "title": task.note or "Check"})
+    for event in events:
+        if not event.done:
+            marks[event.due_on].append({"kind": "personal", "title": event.title})
+    if scan["due_on"]:
+        marks[scan["due_on"]].append({"kind": "scan", "title": "Check sites"})
+    day_events = [event for event in events if event.due_on == today]
     return {
         "today": today,
         "target": target,
@@ -275,7 +392,10 @@ def today_board(
         "routine": routine,
         "specials": specials,
         "week": week,
-        "clean": not pending[:slots] and not specials,
+        "calendar": month_calendar(today, marks),
+        "scan": scan,
+        "day_events": day_events,
+        "clean": not pending[:slots] and not specials and not scan["due"],
         "health_by_id": health_by_id,
         "checked_dates": checked_dates,
     }

@@ -107,8 +107,10 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Graphs use the date on each bet. Today is a daily check list with mug-health "
-        "rings, only for bookies you actually use. data/ is never overwritten.",
+        "Friends can open Today, Offers, Bets, Accounts and Visualiser. "
+        "Scan a LAN QR from the sidebar to open on your phone. "
+        "Today has a month calendar and a reminder to check sites for new offers. "
+        "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
     print(f"Published {tag}. Installed copies will pick it up the next time they start.")

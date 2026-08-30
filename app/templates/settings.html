@@ -79,6 +79,11 @@
         <input name="priority_check_days" type="number" min="1" max="99" step="1" required value="{{ settings.priority_check_days }}">
         <small>Harder-to-protect accounts use this shorter gap instead of the one above.</small>
       </label>
+      <label class="setting-field">
+        Check sites for new offers every
+        <input name="scan_sites_every_days" type="number" min="1" max="99" step="1" required value="{{ settings.scan_sites_every_days }}">
+        <small>Puts a reminder on Today when it is time to look at bookie sites for fresh offers.</small>
+      </label>
     </section>
 
     <section class="panel">

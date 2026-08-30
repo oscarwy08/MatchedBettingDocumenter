@@ -42,9 +42,9 @@ html[data-theme="dark"] {
 
 * { box-sizing: border-box; }
 a { text-decoration: none; }
-.canvas a:not(.btn):not(.pill):not(.week-day) { color: var(--link); }
-.canvas a:not(.btn):not(.pill):not(.week-day):visited { color: var(--link); }
-.canvas a:not(.btn):not(.pill):not(.week-day):hover { color: var(--link-hover); }
+.canvas a:not(.btn):not(.pill):not(.week-day):not(.month-day) { color: var(--link); }
+.canvas a:not(.btn):not(.pill):not(.week-day):not(.month-day):visited { color: var(--link); }
+.canvas a:not(.btn):not(.pill):not(.week-day):not(.month-day):hover { color: var(--link-hover); }
 html, body {
   margin: 0;
   height: 100%;
@@ -107,8 +107,13 @@ body {
 }
 .rail nav a.on,
 .rail nav a:hover { background: #2a261c; color: #fff; }
-.theme-toggle {
+.rail-foot {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.theme-toggle {
   display: flex;
   align-items: center;
   gap: 0.7rem;
@@ -401,6 +406,9 @@ input, select {
 .pill.on { background: var(--gold); }
 .pill:hover { color: var(--ink); text-decoration: none; }
 .filters { display: flex; gap: 0.4rem; margin-bottom: 0.9rem; flex-wrap: wrap; align-items: center; }
+.friend-tabs { margin: -0.35rem 0 1.15rem; }
+.tick.is-static { cursor: default; }
+.tick.is-static:hover { border-color: var(--gold); }
 .page-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 .inline-form { display: inline; margin: 0; }
 .link-code {
@@ -467,6 +475,37 @@ input, select {
 html[data-theme="dark"] .update-pop {
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
 }
+
+.phone-pop {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(20, 19, 15, 0.46);
+}
+.phone-pop[hidden] { display: none !important; }
+.phone-pop-card {
+  width: min(22rem, 100%);
+  padding: 1.1rem 1.15rem 1.15rem;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  box-shadow: var(--shadow);
+}
+.phone-qr-wrap {
+  display: grid;
+  place-items: center;
+  margin: 0.7rem 0 0.8rem;
+  padding: 0.7rem;
+  background: #fffdf8;
+  border-radius: 0.55rem;
+}
+.phone-qr { display: block; width: 11.5rem; height: 11.5rem; }
+.phone-pop .friend-code { word-break: break-all; user-select: all; }
+.phone-pop .friend-code a { color: inherit; }
 
 .flashes { display: grid; gap: 0.5rem; margin-bottom: 1rem; }
 .flash { padding: 0.7rem 0.85rem; border-radius: 0.5rem; }
@@ -736,6 +775,15 @@ a.unused-health .health-ring text { font-size: 11px; }
     width: 100%;
   }
   .rail nav a { padding: 0.35rem 0.55rem; font-size: 0.9rem; }
+  .brand { order: 1; }
+  .rail-foot {
+    order: 2;
+    margin-top: 0;
+    margin-left: auto;
+  }
+  .rail nav { order: 3; }
+  .phone-toggle,
+  #phone-open { display: none !important; }
   .theme-toggle {
     width: auto;
     margin-top: 0;
@@ -888,6 +936,49 @@ a.week-day:hover {
 .week-day.is-today { background: var(--gold); color: var(--ink); }
 .week-day.is-today span { color: inherit; opacity: 0.75; }
 .week-day.is-future { opacity: 0.45; }
+
+.calendar-panel .panel-head { align-items: center; gap: 0.75rem; }
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.month-dow {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 0 0.2rem;
+}
+.month-day {
+  min-height: 3.5rem;
+  padding: 0.35rem 0.35rem 0.4rem;
+  border-radius: 0.45rem;
+  background: var(--wash);
+  color: inherit;
+  text-decoration: none;
+  font-weight: 400;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.month-day:visited { color: inherit; }
+.month-day:hover { color: inherit; text-decoration: none; box-shadow: inset 0 0 0 1px var(--gold); }
+.month-day.is-out { opacity: 0.42; }
+.month-day.is-today { background: var(--gold); color: var(--ink); }
+.month-day.is-future { opacity: 0.55; }
+.month-dots { display: flex; flex-wrap: wrap; gap: 0.16rem; }
+.month-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--gold);
+}
+.month-dot-reload { background: var(--gold); }
+.month-dot-task { background: var(--link); }
+.month-dot-personal { background: var(--profit); }
+.month-dot-scan { background: var(--muted); }
 
 .today-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
 .today-row {

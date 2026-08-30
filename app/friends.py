@@ -229,6 +229,241 @@ def _when(value) -> str:
     return format_uk_time(value)
 
 
+def _day(value) -> str:
+    from app.dates import format_uk
+
+    if value is None or value == "":
+        return ""
+    if hasattr(value, "strftime") and not hasattr(value, "hour"):
+        return format_uk(value)
+    text = str(value)
+    return text.split(" ", 1)[0] if text else ""
+
+
+def _health_row(health: dict | None) -> dict | None:
+    if not health:
+        return None
+    return {
+        "level": health.get("level") or "green",
+        "label": health.get("label") or "Healthy",
+        "percent": int(health.get("percent") or 0),
+        "qualifiers": int(health.get("qualifiers") or 0),
+        "mugs": int(health.get("mugs") or 0),
+        "promo_since": int(health.get("promo_since") or 0),
+        "last_mug_on": _day(health.get("last_mug_on")),
+        "checked_today": bool(health.get("checked_today")),
+        "last_checked_on": _day(health.get("last_checked_on")),
+    }
+
+
+def _spark_row(spark: dict | None) -> dict:
+    from app.charts import empty_spark
+
+    row = spark or empty_spark()
+    return {
+        "points": row.get("points") or "",
+        "area": row.get("area") or "",
+        "down": bool(row.get("down")),
+    }
+
+
+def _offer_row(offer) -> dict:
+    from app.services import offer_snapshot
+
+    row = offer_snapshot(offer)
+    bookie_name = ""
+    try:
+        bookie_name = offer.bookie.name if offer.bookie is not None else ""
+    except Exception:  # noqa: BLE001
+        bookie_name = ""
+    nxt = offer.next_reload_on
+    return {
+        "id": offer.id,
+        "name": offer.name or "—",
+        "bookie": bookie_name,
+        "bookie_id": offer.bookie_id,
+        "type": offer.type or "",
+        "notes": offer.notes or "",
+        "status": row["status"],
+        "deposited": _money(row["deposited"]),
+        "net_profit": _money(row["net_profit"]),
+        "bookie_profit": _money(row["bookie_profit"]),
+        "exchange_profit": _money(row["exchange_profit"]),
+        "expected_pending": _money(row["expected_pending"]),
+        "free_funds": _money(row["free_funds"]),
+        "free_funds_used": _money(row["free_funds_used"]),
+        "pending_count": int(row["pending_count"]),
+        "leg_count": int(row["leg_count"]),
+        "reload_frequency": offer.reload_frequency or "",
+        "reload_stake": _money(row["reload_stake"]),
+        "reload_reward": _money(row["reload_reward"]),
+        "next_reload_on": _when(nxt) if nxt else "",
+        "reload_due": bool(row["reload_due"]),
+    }
+
+
+def _transfer_row(transfer) -> dict:
+    account_name = ""
+    offer_name = ""
+    try:
+        account_name = transfer.account.name if transfer.account is not None else ""
+    except Exception:  # noqa: BLE001
+        account_name = ""
+    try:
+        offer_name = transfer.offer.name if transfer.offer is not None else ""
+    except Exception:  # noqa: BLE001
+        offer_name = ""
+    return {
+        "id": transfer.id,
+        "account_id": transfer.account_id,
+        "account": account_name,
+        "kind": transfer.kind or "",
+        "amount": _money(transfer.amount),
+        "date": _day(transfer.date),
+        "notes": transfer.notes or "",
+        "offer_id": transfer.offer_id,
+        "offer": offer_name,
+    }
+
+
+def _task_row(task) -> dict:
+    return {
+        "id": task.id,
+        "account_id": task.account_id,
+        "due_on": _day(task.due_on),
+        "note": task.note or "",
+        "done": bool(task.done),
+    }
+
+
+def _accounts_payload(session) -> list[dict]:
+    from collections import defaultdict
+
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from app.charts import account_sparklines, apply_sparklines
+    from app.health import attach_health, today_board
+    from app.models import Account, AccountTask
+    from app.services import account_snapshot, account_usage
+
+    accounts = list(session.scalars(select(Account).order_by(Account.name)))
+    snaps = [account_snapshot(session, account) for account in accounts]
+    apply_sparklines(snaps, account_sparklines(session))
+    attach_health(snaps, today_board(session)["health_by_id"])
+    tasks_by: dict[int, list] = defaultdict(list)
+    for task in session.scalars(
+        select(AccountTask).options(selectinload(AccountTask.account)).order_by(AccountTask.due_on, AccountTask.id)
+    ):
+        tasks_by[task.account_id].append(task)
+    rows = []
+    for snap in snaps:
+        account = snap["account"]
+        usage = account_usage(session, account.id)
+        rows.append(
+            {
+                "id": account.id,
+                "name": account.name,
+                "type": account.type,
+                "is_bookie": bool(account.is_bookie),
+                "commission_percent": str(account.commission_percent or 0),
+                "priority": bool(account.priority),
+                "restriction": account.restriction or "",
+                "notes": account.notes or "",
+                "check_weekday": account.check_weekday,
+                "last_checked_on": _day(account.last_checked_on),
+                "opening": _money(snap["opening"]),
+                "deposited": _money(snap["deposited"]),
+                "withdrawn": _money(snap["withdrawn"]),
+                "bookie_profit": _money(snap["bookie_profit"]),
+                "exchange_profit": _money(snap["exchange_profit"]),
+                "net_profit": _money(snap["net_profit"]),
+                "balance": _money(snap["balance"]),
+                "bets": int(usage.get("bets") or 0),
+                "offers": int(usage.get("offers") or 0),
+                "health": _health_row(snap.get("health")),
+                "spark": _spark_row(snap.get("spark")),
+                "tasks": [_task_row(task) for task in tasks_by.get(account.id, [])],
+            }
+        )
+    return rows
+
+
+def _today_payload(board: dict) -> dict:
+    routine = []
+    for row in board.get("routine") or []:
+        account = row.get("account")
+        routine.append(
+            {
+                "account_id": getattr(account, "id", None),
+                "name": getattr(account, "name", "") or "",
+                "health": _health_row(row.get("health")),
+                "checked_today": bool(row.get("checked_today")),
+                "priority": bool(getattr(account, "priority", False)),
+                "restriction": getattr(account, "restriction", "") or "",
+                "notes": getattr(account, "notes", "") or "",
+                "reload_due": bool(row.get("reload_due")),
+                "tasks_due": bool(row.get("tasks_due")),
+            }
+        )
+    specials = []
+    for item in board.get("specials") or []:
+        account = item.get("account")
+        offer = item.get("offer")
+        specials.append(
+            {
+                "kind": item.get("kind") or "",
+                "account_id": getattr(account, "id", None),
+                "account": getattr(account, "name", "") or "",
+                "name": item.get("name") or "",
+                "detail": _day(item.get("detail")),
+                "offer_id": getattr(offer, "id", None),
+            }
+        )
+    week = []
+    for day in board.get("week") or []:
+        week.append(
+            {
+                "label": day.get("label") or "",
+                "count": int(day.get("count") or 0),
+                "today": bool(day.get("today")),
+                "future": bool(day.get("future")),
+                "href": day.get("href") or "",
+            }
+        )
+    return {
+        "today": _day(board.get("today")),
+        "target": int(board.get("target") or 0),
+        "checked_count": int(board.get("checked_count") or 0),
+        "clean": bool(board.get("clean")),
+        "routine": routine,
+        "specials": specials,
+        "week": week,
+    }
+
+
+def _charts_payload(session) -> dict:
+    from app.charts import profit_series, visualiser_payload
+
+    views = (
+        "profit_time",
+        "by_bookie",
+        "by_exchange",
+        "by_offer_type",
+        "by_bet_type",
+        "by_offer",
+        "cashflow",
+        "balances",
+    )
+    charts = {}
+    for view in views:
+        if view == "profit_time":
+            charts[view] = profit_series(session, range_key="1W")
+        else:
+            charts[view] = visualiser_payload(session, view=view, range_key="1W")
+    return charts
+
+
 def _bet_row(bet) -> dict:
     from app.models import BetStatus
 
@@ -260,7 +495,9 @@ def _bet_row(bet) -> dict:
         "bet_type": bet.bet_type or "",
         "status": bet.status or "",
         "bookie": bookie,
+        "bookie_id": bet.bookie_id,
         "exchange": exchange,
+        "exchange_id": bet.exchange_id,
         "offer": offer,
         "offer_id": bet.offer_id,
         "back_stake": _money(bet.back_stake),
@@ -288,8 +525,9 @@ def view_dto(session: Session, *, nickname: str) -> dict:
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
-    from app.models import Bet
-    from app.services import dashboard_stats, offer_snapshot
+    from app.health import today_board
+    from app.models import Bet, Offer, Transfer
+    from app.services import dashboard_stats
 
     stats = dashboard_stats(session)
     bets = [
@@ -305,6 +543,7 @@ def view_dto(session: Session, *, nickname: str) -> dict:
         account = snap["account"]
         bookies.append(
             {
+                "id": account.id,
                 "name": account.name,
                 "net_profit": _money(snap["net_profit"]),
                 "deposited": _money(snap["deposited"]),
@@ -313,35 +552,23 @@ def view_dto(session: Session, *, nickname: str) -> dict:
                 "balance": _money(snap["balance"]),
             }
         )
-    offers = []
-    for offer in stats.get("in_progress_offers") or []:
-        row = offer_snapshot(offer)
-        bookie_name = ""
-        try:
-            bookie_name = offer.bookie.name if offer.bookie is not None else ""
-        except Exception:  # noqa: BLE001
-            bookie_name = ""
-        nxt = offer.next_reload_on
-        offers.append(
-            {
-                "id": offer.id,
-                "name": offer.name or "—",
-                "bookie": bookie_name,
-                "type": offer.type or "",
-                "notes": offer.notes or "",
-                "status": row["status"],
-                "net_profit": _money(row["net_profit"]),
-                "free_funds": _money(row["free_funds"]),
-                "free_funds_used": _money(row["free_funds_used"]),
-                "pending_count": int(row["pending_count"]),
-                "leg_count": int(row["leg_count"]),
-                "reload_frequency": offer.reload_frequency or "",
-                "reload_stake": _money(row["reload_stake"]),
-                "reload_reward": _money(row["reload_reward"]),
-                "next_reload_on": _when(nxt) if nxt else "",
-                "reload_due": bool(row["reload_due"]),
-            }
+    offers = [
+        _offer_row(offer)
+        for offer in session.scalars(
+            select(Offer)
+            .options(selectinload(Offer.bets), selectinload(Offer.bookie))
+            .order_by(Offer.created_at.desc())
         )
+    ]
+    transfers = [
+        _transfer_row(transfer)
+        for transfer in session.scalars(
+            select(Transfer)
+            .options(selectinload(Transfer.account), selectinload(Transfer.offer))
+            .order_by(Transfer.date.desc(), Transfer.id.desc())
+            .limit(80)
+        )
+    ]
     return {
         "nickname": nickname,
         "stats": {
@@ -357,6 +584,10 @@ def view_dto(session: Session, *, nickname: str) -> dict:
         "offers": offers,
         "bets": bets,
         "recent_bets": bets[:RECENT_BETS],
+        "accounts": _accounts_payload(session),
+        "transfers": transfers,
+        "today": _today_payload(today_board(session)),
+        "charts": _charts_payload(session),
     }
 
 
@@ -396,6 +627,28 @@ def offer_from_view(view: dict | None, offer_id: str) -> dict | None:
         if isinstance(offer, dict) and str(offer.get("id")) == str(offer_id):
             return offer
     return None
+
+
+def account_from_view(view: dict | None, account_id: str) -> dict | None:
+    if not isinstance(view, dict):
+        return None
+    for account in view.get("accounts") or []:
+        if isinstance(account, dict) and str(account.get("id")) == str(account_id):
+            return account
+    return None
+
+
+def _nonzero(value) -> bool:
+    from decimal import InvalidOperation
+
+    try:
+        return Decimal(str(value or 0)) != 0
+    except InvalidOperation:
+        return False
+
+
+def account_is_active(account: dict) -> bool:
+    return any(_nonzero(account.get(key)) for key in ("deposited", "withdrawn", "net_profit", "balance"))
 
 
 def encrypt_view(secret: str, payload: dict) -> str:

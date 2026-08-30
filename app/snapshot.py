@@ -10,7 +10,7 @@ from decimal import Decimal
 from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
-from app.models import Account, AccountTask, Bet, Offer, Transfer
+from app.models import Account, AccountTask, Bet, Offer, ScheduleEvent, Transfer
 from app.version import VERSION
 
 SNAPSHOT_FORMAT = 2
@@ -43,6 +43,7 @@ ACCOUNT_FIELDS = [
     "created_at",
 ]
 TASK_FIELDS = ["id", "account_id", "due_on", "note", "done", "created_at"]
+EVENT_FIELDS = ["id", "title", "due_on", "bookie_id", "notes", "repeat", "done", "created_at"]
 OFFER_FIELDS = [
     "id",
     "name",
@@ -105,6 +106,9 @@ def dump_snapshot(session: Session) -> dict:
         "account_tasks": [
             _row(item, TASK_FIELDS) for item in session.scalars(select(AccountTask).order_by(AccountTask.id))
         ],
+        "schedule_events": [
+            _row(item, EVENT_FIELDS) for item in session.scalars(select(ScheduleEvent).order_by(ScheduleEvent.id))
+        ],
     }
     from app.friends import export_account
 
@@ -130,6 +134,7 @@ def snapshot_counts(payload: dict) -> dict:
         "bets": _count_field(payload.get("bets")),
         "transfers": _count_field(payload.get("transfers")),
         "account_tasks": _count_field(payload.get("account_tasks")),
+        "schedule_events": _count_field(payload.get("schedule_events")),
     }
 
 
@@ -163,6 +168,7 @@ def fingerprint_payload(payload: dict) -> str:
         "bets": payload.get("bets") or [],
         "transfers": payload.get("transfers") or [],
         "account_tasks": payload.get("account_tasks") or [],
+        "schedule_events": payload.get("schedule_events") or [],
         "friends": _friends_body(payload),
     }
     raw = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
@@ -214,6 +220,7 @@ def apply_snapshot(session: Session, payload: dict, *, backup_why: str | None = 
     session.execute(delete(Transfer))
     session.execute(delete(Offer))
     session.execute(delete(AccountTask))
+    session.execute(delete(ScheduleEvent))
     session.execute(delete(Account))
     session.flush()
 
@@ -313,6 +320,20 @@ def apply_snapshot(session: Session, payload: dict, *, backup_why: str | None = 
                 created_at=_parse_dt(row.get("created_at")) or datetime.now(),
             )
         )
+    for row in payload.get("schedule_events", []):
+        bookie_id = row.get("bookie_id")
+        session.add(
+            ScheduleEvent(
+                id=int(row["id"]),
+                title=row.get("title") or "Personal offer",
+                due_on=_parse_d(row.get("due_on")) or date.today(),
+                bookie_id=int(bookie_id) if bookie_id else None,
+                notes=row.get("notes") or "",
+                repeat=row.get("repeat") or "",
+                done=_bool(row.get("done")),
+                created_at=_parse_dt(row.get("created_at")) or datetime.now(),
+            )
+        )
     session.flush()
     _reset_sqlite_sequences(session, payload)
     if "friends" in payload:
@@ -342,6 +363,7 @@ def _reset_sqlite_sequences(session: Session, payload: dict) -> None:
         "bets": payload.get("bets", []),
         "transfers": payload.get("transfers", []),
         "account_tasks": payload.get("account_tasks", []),
+        "schedule_events": payload.get("schedule_events", []),
     }
     for table, rows in tables.items():
         max_id = max((int(row["id"]) for row in rows), default=0)

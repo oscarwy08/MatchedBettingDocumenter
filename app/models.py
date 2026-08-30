@@ -251,3 +251,24 @@ class AccountTask(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     account: Mapped[Account] = relationship(back_populates="tasks")
+
+
+class ScheduleRepeat(StrEnum):
+    NONE = ""
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"
+
+
+class ScheduleEvent(Base):
+    __tablename__ = "schedule_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    due_on: Mapped[date] = mapped_column(Date)
+    bookie_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    repeat: Mapped[str] = mapped_column(String(20), default="")
+    done: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+    bookie: Mapped[Account | None] = relationship()

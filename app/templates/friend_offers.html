@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_friend_top.html" import friend_nav, friend_banner, friend_account_link, friend_offer_link %}
+{% block title %}Offers · {{ selected.nickname or "Friend" }}{% endblock %}
+{% block eyebrow %}Friend{% endblock %}
+{% block heading %}{{ selected.nickname or "Friend" }}{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ url_for('main.friends_page') }}">Back to friends</a>
+{% endblock %}
+{% block content %}
+  {{ friend_nav(selected, friend_tab) }}
+  {{ friend_banner(live, last_available, fetch_error) }}
+  <section class="panel">
+    <div class="panel-head"><h2>All offers</h2></div>
+    {% if offers %}
+      <table>
+        <thead>
+          <tr>
+            <th>Offer</th>
+            <th>Bookie</th>
+            <th>Type</th>
+            <th>Reload</th>
+            <th class="num">Deposited</th>
+            <th class="num">Free funds</th>
+            <th class="num">Bookie P&amp;L</th>
+            <th class="num">Exchange P&amp;L</th>
+            <th class="num">Net</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in offers %}
+            <tr>
+              <td>{{ friend_offer_link(selected, row.id, row.name) }}</td>
+              <td>{{ friend_account_link(selected, row.bookie_id, row.bookie) }}</td>
+              <td>{{ row.type | labelize }}</td>
+              <td>
+                {% if row.reload_frequency %}
+                  {{ row.reload_frequency | labelize }}
+                  {% if row.reload_stake and row.reload_stake != "0.00" %} · {{ row.reload_stake | gbp }}{% endif %}
+                  {% if row.reload_reward and row.reload_reward != "0.00" %} → {{ row.reload_reward | gbp }}{% endif %}
+                  {% if row.next_reload_on %} · next {{ row.next_reload_on }}{% endif %}
+                  {% if row.reload_due %}<span class="pill on">Due</span>{% endif %}
+                {% else %}–{% endif %}
+              </td>
+              <td class="num">{{ row.deposited | gbp }}</td>
+              <td class="num">{% if row.free_funds and row.free_funds != "0.00" %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}–{% endif %}</td>
+              <td class="{{ row.bookie_profit | pnl }} num">{{ row.bookie_profit | gbp }}</td>
+              <td class="{{ row.exchange_profit | pnl }} num">{{ row.exchange_profit | gbp }}</td>
+              <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>
+              <td><span class="pill">{{ row.status }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No offers in their latest view.</p>
+    {% endif %}
+  </section>
+{% endblock %}

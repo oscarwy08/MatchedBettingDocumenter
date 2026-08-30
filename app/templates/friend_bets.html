@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_friend_top.html" import friend_nav, friend_banner, friend_account_link, friend_offer_link %}
+{% block title %}Bets · {{ selected.nickname or "Friend" }}{% endblock %}
+{% block eyebrow %}Friend{% endblock %}
+{% block heading %}{{ selected.nickname or "Friend" }}{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ url_for('main.friends_page') }}">Back to friends</a>
+{% endblock %}
+{% block content %}
+  {{ friend_nav(selected, friend_tab) }}
+  {{ friend_banner(live, last_available, fetch_error) }}
+  <div class="filters">
+    <a class="pill {{ 'on' if status == 'all' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, status='all', q=q) }}">All</a>
+    <a class="pill {{ 'on' if status == 'pending' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, status='pending', q=q) }}">Pending</a>
+    <a class="pill {{ 'on' if status == 'settled' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, status='settled', q=q) }}">Settled</a>
+    <form method="get" class="search-inline">
+      <input type="hidden" name="status" value="{{ status }}">
+      <input type="search" name="q" value="{{ q }}" placeholder="Search event, bookie, offer…">
+      <button class="btn" type="submit">Search</button>
+    </form>
+  </div>
+  <section class="panel">
+    <div class="panel-head"><h2>All bets</h2></div>
+    {% if bets %}
+      <table>
+        <thead>
+          <tr>
+            <th>Placed</th>
+            <th>Offer</th>
+            <th>Bookie</th>
+            <th>Type</th>
+            <th>Selections</th>
+            <th>Event</th>
+            <th class="num">Expected</th>
+            <th class="num">Actual</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bet in bets %}
+            <tr>
+              <td>{{ bet.placed or bet.date }}</td>
+              <td>{{ friend_offer_link(selected, bet.offer_id, bet.offer) }}</td>
+              <td>{{ friend_account_link(selected, bet.bookie_id, bet.bookie) }}</td>
+              <td>{{ bet.bet_type | labelize }}</td>
+              <td>{{ bet.market or "—" }}</td>
+              <td><a href="{{ url_for('main.friend_bet', friend_id=selected.id, bet_id=bet.id) }}">{{ bet.event or "Untitled" }}</a></td>
+              <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
+              <td class="{{ bet.actual_profit | pnl }} num">{{ bet.actual_profit | gbp }}</td>
+              <td><span class="pill">{{ bet.status | labelize }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No bets in this filter.</p>
+    {% endif %}
+  </section>
+{% endblock %}

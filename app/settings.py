@@ -28,6 +28,8 @@ DEFAULTS = {
     "check_every_days": 7,
     "daily_check_target": 10,
     "priority_check_days": 3,
+    "scan_sites_every_days": 7,
+    "last_sites_checked_on": "",
 }
 
 INT_KEYS = {
@@ -35,7 +37,10 @@ INT_KEYS = {
     "check_every_days",
     "daily_check_target",
     "priority_check_days",
+    "scan_sites_every_days",
 }
+
+DATE_KEYS = {"last_sites_checked_on"}
 
 
 def settings_path() -> Path:
@@ -108,6 +113,18 @@ def _coerce(key: str, value, default):
             return int(value)
         except (TypeError, ValueError):
             return None
+    if key in DATE_KEYS:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        if len(text) >= 10 and text[4] == "-" and text[7] == "-":
+            return text[:10]
+        try:
+            from app.dates import parse_uk
+
+            return parse_uk(text).isoformat()
+        except (ValueError, TypeError):
+            return default
     if key in INT_KEYS:
         try:
             number = int(str(value).strip())

@@ -32,6 +32,57 @@
     {% endfor %}
   </nav>
 
+  {% if calendar %}
+    <section class="panel calendar-panel">
+      <div class="panel-head">
+        <a class="btn" href="{{ url_for('main.today_page', on=calendar.prev) }}">Previous</a>
+        <h2>{{ calendar.label }}</h2>
+        <a class="btn" href="{{ url_for('main.today_page', on=calendar.next) }}">Next</a>
+      </div>
+      <div class="month-grid" aria-label="{{ calendar.label }}">
+        {% for label in calendar.weekdays %}
+          <span class="month-dow">{{ label }}</span>
+        {% endfor %}
+        {% for week in calendar.weeks %}
+          {% for day in week %}
+            <a class="month-day{% if day.today %} is-today{% endif %}{% if not day.in_month %} is-out{% endif %}{% if day.future %} is-future{% endif %}{% if day.marks %} has-marks{% endif %}"
+               href="{{ url_for('main.today_page', on=day.href) }}">
+              <strong>{{ day.day }}</strong>
+              {% if day.marks %}
+                <span class="month-dots">
+                  {% for mark in day.marks[:4] %}
+                    <i class="month-dot month-dot-{{ mark.kind }}" title="{{ mark.title }}"></i>
+                  {% endfor %}
+                </span>
+              {% endif %}
+            </a>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if scan and (scan.due or scan.checked_today) %}
+    <section class="panel">
+      <div class="panel-head"><h2>New offers</h2></div>
+      <ul class="today-list">
+        <li class="today-row{% if scan.checked_today %} is-done{% endif %}">
+          <form method="post" action="{{ url_for('main.mark_sites_checked') }}" class="tick-form">
+            <input type="hidden" name="on" value="{{ today_label }}">
+            <input type="hidden" name="toggle" value="1">
+            <button type="submit" class="tick{% if scan.checked_today %} is-on{% endif %}" aria-pressed="{{ 'true' if scan.checked_today else 'false' }}" title="{% if scan.checked_today %}Uncheck{% else %}Mark checked{% endif %}">
+              {% if scan.checked_today %}✓{% endif %}
+            </button>
+          </form>
+          <div class="today-row-main">
+            <strong>Check sites for new offers</strong>
+            <span class="hint">{% if scan.checked_today %}Done for {{ today_label }}{% else %}Look at bookie sites, then add anything worth taking to the calendar.{% endif %}</span>
+          </div>
+        </li>
+      </ul>
+    </section>
+  {% endif %}
+
   <section class="panel">
     <div class="panel-head">
       <h2>Routine checks</h2>
@@ -99,6 +150,15 @@
                   <input type="hidden" name="on" value="{{ today_label }}">
                   <button class="btn btn-primary" type="submit">Done</button>
                 </form>
+              {% elif item.kind == 'personal' and item.event %}
+                <form method="post" action="{{ url_for('main.mark_schedule_event_done', event_id=item.event.id) }}">
+                  <input type="hidden" name="on" value="{{ today_label }}">
+                  <button class="btn btn-primary" type="submit">{% if item.event.repeat %}Done — next time{% else %}Done{% endif %}</button>
+                </form>
+                <form method="post" action="{{ url_for('main.delete_schedule_event', event_id=item.event.id) }}">
+                  <input type="hidden" name="on" value="{{ today_label }}">
+                  <button class="btn" type="submit">Remove</button>
+                </form>
               {% endif %}
             </div>
           </li>
@@ -109,5 +169,45 @@
     {% else %}
       <p class="empty">No dated specials {% if viewing_other %}on this day{% else %}today{% endif %}. Work through the routine list above.</p>
     {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Add a personal offer</h2></div>
+    <p class="hint">Drop it on {{ today_label }} so you can build the week around it.</p>
+    <form method="post" action="{{ url_for('main.add_schedule_event') }}" class="form-grid">
+      <input type="hidden" name="on" value="{{ today_label }}">
+      <label>
+        Name
+        <input name="title" required placeholder="Sky Bet Saturday acca">
+      </label>
+      <label>
+        Date
+        <input name="due_on" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}" value="{{ today_label }}" required>
+      </label>
+      <label>
+        Bookie
+        <select name="bookie_id">
+          <option value="">Any / none</option>
+          {% for bookie in bookies %}
+            <option value="{{ bookie.id }}">{{ bookie.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Repeats
+        <select name="repeat">
+          <option value="">Once</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+        </select>
+      </label>
+      <label class="span-2">
+        Notes
+        <input name="notes" type="text" placeholder="Optional — min odds, stake, expiry…">
+      </label>
+      <div class="form-actions span-2">
+        <button class="btn btn-primary" type="submit">Add to calendar</button>
+      </div>
+    </form>
   </section>
 {% endblock %}

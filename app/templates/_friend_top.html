@@ -1,0 +1,40 @@
+{% macro friend_nav(selected, tab='dashboard') %}
+<nav class="filters friend-tabs" aria-label="{{ selected.nickname or 'Friend' }} pages">
+  <a class="pill {{ 'on' if tab == 'dashboard' }}" href="{{ url_for('main.friend_detail', friend_id=selected.id) }}">Dashboard</a>
+  <a class="pill {{ 'on' if tab == 'today' }}" href="{{ url_for('main.friend_today', friend_id=selected.id) }}">Today</a>
+  <a class="pill {{ 'on' if tab == 'offers' }}" href="{{ url_for('main.friend_offers', friend_id=selected.id) }}">Offers</a>
+  <a class="pill {{ 'on' if tab == 'bets' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id) }}">Bets</a>
+  <a class="pill {{ 'on' if tab == 'accounts' }}" href="{{ url_for('main.friend_accounts', friend_id=selected.id) }}">Accounts</a>
+  <a class="pill {{ 'on' if tab == 'visualiser' }}" href="{{ url_for('main.friend_visualiser', friend_id=selected.id) }}">Visualiser</a>
+</nav>
+{% endmacro %}
+
+{% macro friend_banner(live, last_available, fetch_error) %}
+  <p class="hint">Read-only copy of their account. You cannot log, edit, or settle from here.</p>
+  {% if live %}
+    <p><span class="pill on">Live</span></p>
+  {% elif last_available %}
+    <p><span class="pill">Last available {{ last_available }}</span></p>
+  {% endif %}
+  {% if fetch_error %}
+    <p class="flash flash-error">{{ fetch_error }}</p>
+  {% endif %}
+{% endmacro %}
+
+{% macro friend_account_link(selected, account_id, name) %}
+  {% if account_id %}
+    <a href="{{ url_for('main.friend_account', friend_id=selected.id, account_id=account_id) }}">{{ name }}</a>
+  {% else %}
+    {{ name }}
+  {% endif %}
+{% endmacro %}
+
+{% macro friend_offer_link(selected, offer_id, name) %}
+  {% if offer_id and name %}
+    <a href="{{ url_for('main.friend_offer', friend_id=selected.id, offer_id=offer_id) }}">{{ name }}</a>
+  {% elif name %}
+    {{ name }}
+  {% else %}
+    —
+  {% endif %}
+{% endmacro %}

@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% from "_friend_top.html" import friend_nav, friend_banner, friend_account_link, friend_offer_link %}
+{% from "_health_ring.html" import health_ring %}
+{% block title %}{{ account.name }} · {{ selected.nickname or "Friend" }}{% endblock %}
+{% block eyebrow %}{{ account.type | labelize }} · {{ selected.nickname or "Friend" }}{% endblock %}
+{% block heading %}{{ account.name }}{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ url_for('main.friend_accounts', friend_id=selected.id) }}">All accounts</a>
+  <a class="btn" href="{{ url_for('main.friends_page') }}">Friends</a>
+{% endblock %}
+{% block content %}
+  {{ friend_nav(selected, friend_tab) }}
+  {{ friend_banner(live, last_available, fetch_error) }}
+  {% if account.is_bookie and account.health %}
+    <section class="stat-grid">
+      <article class="stat-card health-stat">
+        <p>Mug health</p>
+        <div class="health-stat-row">
+          {{ health_ring(account.health, 'lg') }}
+          <strong><span class="health-pill health-{{ account.health.level }}">{{ account.health.label }}</span></strong>
+        </div>
+      </article>
+      <article class="stat-card">
+        <p>Last mug</p>
+        <strong>{{ account.health.last_mug_on or "—" }}</strong>
+      </article>
+      <article class="stat-card">
+        <p>Last check</p>
+        <strong>{{ account.last_checked_on or "—" }}</strong>
+      </article>
+    </section>
+  {% endif %}
+  <section class="stat-grid">
+    <article class="stat-card">
+      <p>Deposited</p>
+      <strong>{{ account.deposited | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Withdrawn</p>
+      <strong>{{ account.withdrawn | gbp }}</strong>
+    </article>
+    {% if account.opening and account.opening != "0.00" %}
+      <article class="stat-card">
+        <p>Opening</p>
+        <strong>{{ account.opening | gbp }}</strong>
+      </article>
+    {% endif %}
+    <article class="stat-card">
+      <p>Bookie P&amp;L</p>
+      <strong class="{{ account.bookie_profit | pnl }}">{{ account.bookie_profit | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Exchange P&amp;L</p>
+      <strong class="{{ account.exchange_profit | pnl }}">{{ account.exchange_profit | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Net profit</p>
+      <strong class="{{ account.net_profit | pnl }}">{{ account.net_profit | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Balance</p>
+      <strong>{{ account.balance | gbp }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Pending expected</p>
+      <strong class="{{ pending_expected | pnl }}">{{ pending_expected | gbp }}</strong>
+    </article>
+  </section>
+
+  {% if offers %}
+    <section class="panel">
+      <div class="panel-head"><h2>Offers</h2></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Offer</th>
+            <th>Type</th>
+            <th class="num">Deposited</th>
+            <th class="num">Free funds</th>
+            <th class="num">Net</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in offers %}
+            <tr>
+              <td>{{ friend_offer_link(selected, row.id, row.name) }}</td>
+              <td>{{ row.type | labelize }}</td>
+              <td class="num">{{ row.deposited | gbp }}</td>
+              <td class="num">{% if row.free_funds and row.free_funds != "0.00" %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}—{% endif %}</td>
+              <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>
+              <td><span class="pill">{{ row.status }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-head"><h2>Bets</h2></div>
+    {% if bets %}
+      <table>
+        <thead>
+          <tr>
+            <th>Placed</th>
+            <th>Offer</th>
+            {% if account.is_bookie %}<th>Exchange</th>{% else %}<th>Bookie</th>{% endif %}
+            <th>Type</th>
+            <th>Event</th>
+            <th class="num">Expected</th>
+            <th class="num">Actual</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bet in bets %}
+            <tr>
+              <td>{{ bet.placed or bet.date }}</td>
+              <td>{{ friend_offer_link(selected, bet.offer_id, bet.offer) }}</td>
+              <td>
+                {% if account.is_bookie %}
+                  {{ friend_account_link(selected, bet.exchange_id, bet.exchange) }}
+                {% else %}
+                  {{ friend_account_link(selected, bet.bookie_id, bet.bookie) }}
+                {% endif %}
+              </td>
+              <td>{{ bet.bet_type | labelize }}</td>
+              <td><a href="{{ url_for('main.friend_bet', friend_id=selected.id, bet_id=bet.id) }}">{{ bet.event or "Untitled" }}</a></td>
+              <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
+              <td class="{{ bet.actual_profit | pnl }} num">{{ bet.actual_profit | gbp }}</td>
+              <td><span class="pill">{{ bet.status | labelize }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No bets on this {{ account.type }} yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Transfers</h2></div>
+    {% if transfers %}
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Kind</th>
+            <th class="num">Amount</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for transfer in transfers %}
+            <tr>
+              <td>{{ transfer.date }}</td>
+              <td>{{ transfer.kind | labelize }}</td>
+              <td class="num">{{ transfer.amount | gbp }}</td>
+              <td>
+                {{ transfer.notes }}
+                {% if transfer.offer %}
+                  · {{ friend_offer_link(selected, transfer.offer_id, transfer.offer) }}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No deposits or withdrawals on this account.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Account</h2></div>
+    <p>{% if account.is_bookie %}Bookie{% else %}Exchange{% endif %}
+      {% if account.commission_percent and account.commission_percent != "0" %}
+        · {{ '%.4g'|format(account.commission_percent|float) }}% commission
+      {% endif %}
+    </p>
+    {% if account.is_bookie %}
+      {% if account.priority %}<p><span class="pill">Priority</span></p>{% endif %}
+      {% if account.restriction %}<p>Restriction: {{ account.restriction | labelize }}</p>{% endif %}
+      {% if account.check_weekday is not none %}
+        <p>Pinned to
+          {% for value, label in weekdays %}
+            {% if account.check_weekday == value %}{{ label }}{% endif %}
+          {% endfor %}
+        </p>
+      {% endif %}
+      {% if account.notes %}<p class="notes">{{ account.notes }}</p>{% endif %}
+    {% endif %}
+  </section>
+
+  {% if account.is_bookie %}
+    <section class="panel">
+      <div class="panel-head"><h2>Dated checks</h2></div>
+      {% if account.tasks %}
+        <table>
+          <thead>
+            <tr>
+              <th>Due</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in account.tasks %}
+              <tr class="{% if task.done %}is-done{% endif %}">
+                <td>{{ task.due_on }}</td>
+                <td>{{ task.note }}{% if task.done %} · done{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No dated reminders on this bookie.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}

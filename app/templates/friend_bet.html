@@ -1,13 +1,15 @@
 {% extends "base.html" %}
+{% from "_friend_top.html" import friend_nav, friend_banner, friend_account_link, friend_offer_link %}
 {% block title %}{{ bet.event or "Matched bet" }}{% endblock %}
 {% block eyebrow %}{{ bet.bookie }}{% if bet.exchange %} · {{ bet.exchange }}{% endif %} · {{ selected.nickname or "Friend" }}{% endblock %}
 {% block heading %}{{ bet.event or "Matched bet" }}{% endblock %}
 {% block actions %}
-  <a class="btn" href="{{ url_for('main.friend_detail', friend_id=selected.id) }}">Back to {{ selected.nickname or "friend" }}</a>
+  <a class="btn" href="{{ url_for('main.friend_bets', friend_id=selected.id) }}">All bets</a>
   <a class="btn" href="{{ url_for('main.friends_page') }}">Friends</a>
 {% endblock %}
 {% block content %}
-  <p class="hint">Read-only. This is their bet, not yours.</p>
+  {{ friend_nav(selected, friend_tab) }}
+  {{ friend_banner(live, last_available, fetch_error) }}
   <section class="stat-grid">
     <article class="stat-card"><p>Type</p><strong>{{ bet.bet_type | labelize }}</strong></article>
     <article class="stat-card"><p>Back</p><strong>{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}</strong></article>
@@ -20,7 +22,8 @@
 
   {% if bet.offer or bet.market or bet.notes %}
     <p class="notes">
-      {% if bet.offer %}Offer: {{ bet.offer }}{% endif %}
+      {% if bet.offer %}Offer: {{ friend_offer_link(selected, bet.offer_id, bet.offer) }}{% endif %}
+      {% if bet.bookie %} · {{ friend_account_link(selected, bet.bookie_id, bet.bookie) }}{% endif %}
       {% if bet.market %} · {{ bet.market }}{% endif %}
       {% if bet.notes %} · {{ bet.notes }}{% endif %}
     </p>

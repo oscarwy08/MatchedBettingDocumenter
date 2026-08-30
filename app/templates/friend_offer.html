@@ -1,17 +1,29 @@
 {% extends "base.html" %}
+{% from "_friend_top.html" import friend_nav, friend_banner, friend_account_link %}
 {% block title %}{{ offer.name or "Offer" }}{% endblock %}
 {% block eyebrow %}{{ offer.bookie }} · {{ offer.type | labelize }} · {{ selected.nickname or "Friend" }}{% endblock %}
 {% block heading %}{{ offer.name or "Offer" }}{% endblock %}
 {% block actions %}
-  <a class="btn" href="{{ url_for('main.friend_detail', friend_id=selected.id) }}">Back to {{ selected.nickname or "friend" }}</a>
+  <a class="btn" href="{{ url_for('main.friend_offers', friend_id=selected.id) }}">All offers</a>
   <a class="btn" href="{{ url_for('main.friends_page') }}">Friends</a>
 {% endblock %}
 {% block content %}
-  <p class="hint">Read-only. This is their offer, not yours.</p>
+  {{ friend_nav(selected, friend_tab) }}
+  {{ friend_banner(live, last_available, fetch_error) }}
   <section class="stat-grid">
     <article class="stat-card"><p>Status</p><strong>{{ offer.status or "—" }}</strong></article>
+    <article class="stat-card"><p>Bookie</p><strong>{{ friend_account_link(selected, offer.bookie_id, offer.bookie) }}</strong></article>
     <article class="stat-card"><p>Net so far</p><strong class="{{ offer.net_profit | pnl }}">{{ offer.net_profit | gbp }}</strong></article>
+    {% if offer.deposited %}
+      <article class="stat-card"><p>Deposited</p><strong>{{ offer.deposited | gbp }}</strong></article>
+    {% endif %}
     <article class="stat-card"><p>Free funds</p><strong>{% if offer.free_funds and offer.free_funds != "0.00" %}{{ offer.free_funds_used | gbp }} / {{ offer.free_funds | gbp }}{% else %}–{% endif %}</strong></article>
+    {% if offer.bookie_profit is defined %}
+      <article class="stat-card"><p>Bookie P&amp;L</p><strong class="{{ offer.bookie_profit | pnl }}">{{ offer.bookie_profit | gbp }}</strong></article>
+    {% endif %}
+    {% if offer.exchange_profit is defined %}
+      <article class="stat-card"><p>Exchange P&amp;L</p><strong class="{{ offer.exchange_profit | pnl }}">{{ offer.exchange_profit | gbp }}</strong></article>
+    {% endif %}
     <article class="stat-card"><p>Legs</p><strong>{{ offer.pending_count }} pending · {{ offer.leg_count }} total</strong></article>
     {% if offer.reload_frequency %}
       <article class="stat-card"><p>Repeats</p><strong>{{ offer.reload_frequency | labelize }}</strong></article>

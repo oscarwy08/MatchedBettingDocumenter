@@ -24,6 +24,8 @@ def test_save_and_reload(tmp_path, monkeypatch):
     assert saved["default_exchange_id"] is None
     assert saved["mug_after_offers"] == 4
     assert saved["daily_check_target"] == 10
+    assert saved["scan_sites_every_days"] == 7
+    assert saved["last_sites_checked_on"] == ""
     assert load()["open_browser"] is False
     assert settings_path().is_file()
 

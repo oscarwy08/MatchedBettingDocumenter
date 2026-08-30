@@ -45,6 +45,7 @@ from app.models import (
     Offer,
     OfferType,
     Restriction,
+    ScheduleEvent,
     Transfer,
     TransferKind,
 )
@@ -313,7 +314,78 @@ def today_page():
         today_label=format_uk(board["today"]),
         real_today=date.today(),
         viewing_other=viewed != date.today(),
+        bookies=_bookies(session),
     )
+
+
+@bp.post("/today/sites-checked")
+def mark_sites_checked():
+    from app.settings import load, save
+
+    viewed = _today_on() or date.today()
+    current = load()
+    last = (current.get("last_sites_checked_on") or "").strip()
+    if request.form.get("toggle") == "1" and last == viewed.isoformat():
+        save({"last_sites_checked_on": ""})
+        flash("Site check unmarked.", "ok")
+    else:
+        save({"last_sites_checked_on": viewed.isoformat()})
+        when = "today" if viewed == date.today() else format_uk(viewed)
+        flash(f"Sites checked {when}.", "ok")
+    return _today_redirect()
+
+
+@bp.post("/today/events")
+def add_schedule_event():
+    session = get_session()
+    try:
+        title = (request.form.get("title") or "").strip()
+        if not title:
+            raise ValueError("Give the personal offer a short name.")
+        bookie_id = _optional_int(request.form.get("bookie_id"))
+        repeat = (request.form.get("repeat") or "").strip()
+        if repeat not in {"", "weekly", "monthly"}:
+            repeat = ""
+        session.add(
+            ScheduleEvent(
+                title=title,
+                due_on=parse_uk(request.form.get("due_on")) if request.form.get("due_on") else (_today_on() or date.today()),
+                bookie_id=bookie_id,
+                notes=(request.form.get("notes") or "").strip(),
+                repeat=repeat,
+            )
+        )
+        _commit_and_sync(session)
+        flash("Added to your calendar.", "ok")
+    except (ValueError, InvalidOperation) as exc:
+        flash(str(exc), "error")
+    return _today_redirect()
+
+
+@bp.post("/today/events/<int:event_id>/done")
+def mark_schedule_event_done(event_id: int):
+    from app.health import complete_schedule_event
+
+    session = get_session()
+    event = session.get(ScheduleEvent, event_id)
+    if event is None:
+        flash("That calendar item is gone.", "error")
+        return _today_redirect()
+    complete_schedule_event(event, _today_on() or date.today())
+    _commit_and_sync(session)
+    flash("Calendar item updated.", "ok")
+    return _today_redirect()
+
+
+@bp.post("/today/events/<int:event_id>/delete")
+def delete_schedule_event(event_id: int):
+    session = get_session()
+    event = session.get(ScheduleEvent, event_id)
+    if event:
+        session.delete(event)
+        _commit_and_sync(session)
+        flash("Removed from the calendar.", "ok")
+    return _today_redirect()
 
 
 def _optional_int(raw: str | None) -> int | None:
@@ -1790,83 +1862,231 @@ def _filter_friend_bets(view: dict | None, status: str, q: str) -> list:
     return bets
 
 
-@bp.get("/friends/<friend_id>")
-def friend_detail(friend_id: str):
+def _friend_ctx(friend_id: str):
     from app.friends import friend_by_id
 
     friend = friend_by_id(friend_id)
     if not friend:
         flash("That friend is not on your list.", "error")
-        return redirect(url_for("main.friends_page"))
+        return None, redirect(url_for("main.friends_page"))
     view, live, last_available, fetch_error = _load_friend_view(friend)
+    return {
+        "selected": friend,
+        "view": view,
+        "live": live,
+        "last_available": last_available,
+        "fetch_error": fetch_error,
+    }, None
+
+
+def _open_friend_offers(view: dict | None) -> list:
+    rows = [row for row in (view or {}).get("offers") or [] if isinstance(row, dict)]
+    return [row for row in rows if row.get("status") in {"In progress", "Reload due"} or row.get("reload_due")]
+
+
+@bp.get("/friends/<friend_id>")
+def friend_detail(friend_id: str):
+    ctx, bounced = _friend_ctx(friend_id)
+    if bounced:
+        return bounced
+    view = ctx["view"]
+    return render_template(
+        "friend_dash.html",
+        **ctx,
+        friend_tab="dashboard",
+        pending_bets=_filter_friend_bets(view, "pending", ""),
+        open_offers=_open_friend_offers(view),
+        profit_chart=((view or {}).get("charts") or {}).get("profit_time"),
+    )
+
+
+@bp.get("/friends/<friend_id>/today")
+def friend_today(friend_id: str):
+    ctx, bounced = _friend_ctx(friend_id)
+    if bounced:
+        return bounced
+    return render_template(
+        "friend_today.html",
+        **ctx,
+        friend_tab="today",
+        board=(ctx["view"] or {}).get("today") or {},
+    )
+
+
+@bp.get("/friends/<friend_id>/offers")
+def friend_offers(friend_id: str):
+    ctx, bounced = _friend_ctx(friend_id)
+    if bounced:
+        return bounced
+    return render_template(
+        "friend_offers.html",
+        **ctx,
+        friend_tab="offers",
+        offers=[row for row in (ctx["view"] or {}).get("offers") or [] if isinstance(row, dict)],
+    )
+
+
+@bp.get("/friends/<friend_id>/bets")
+def friend_bets(friend_id: str):
+    ctx, bounced = _friend_ctx(friend_id)
+    if bounced:
+        return bounced
     status = request.args.get("status") or "all"
     q = (request.args.get("q") or "").strip()
     return render_template(
-        "friend_dash.html",
-        selected=friend,
-        view=view,
-        live=live,
-        last_available=last_available,
-        fetch_error=fetch_error,
+        "friend_bets.html",
+        **ctx,
+        friend_tab="bets",
         status=status,
         q=q,
-        bets=_filter_friend_bets(view, status, q),
-        pending_bets=_filter_friend_bets(view, "pending", ""),
+        bets=_filter_friend_bets(ctx["view"], status, q),
+    )
+
+
+@bp.get("/friends/<friend_id>/accounts")
+def friend_accounts(friend_id: str):
+    from app.friends import account_is_active
+
+    ctx, bounced = _friend_ctx(friend_id)
+    if bounced:
+        return bounced
+    accounts = [row for row in (ctx["view"] or {}).get("accounts") or [] if isinstance(row, dict)]
+    bookies = [row for row in accounts if row.get("is_bookie") or row.get("type") == "bookie"]
+    exchanges = [row for row in accounts if not (row.get("is_bookie") or row.get("type") == "bookie")]
+    active_bookies = [row for row in bookies if account_is_active(row)]
+    unused_bookies = [row for row in bookies if row not in active_bookies]
+    transfers = [row for row in (ctx["view"] or {}).get("transfers") or [] if isinstance(row, dict)]
+
+    def _dec(value):
+        try:
+            return Decimal(str(value or 0))
+        except InvalidOperation:
+            return Decimal("0")
+
+    totals = {
+        "balance": sum((_dec(row.get("balance")) for row in accounts), Decimal("0")),
+        "deposited": sum((_dec(row.get("deposited")) for row in accounts), Decimal("0")),
+        "net_profit": sum((_dec(row.get("net_profit")) for row in active_bookies), Decimal("0")),
+    }
+    return render_template(
+        "friend_accounts.html",
+        **ctx,
+        friend_tab="accounts",
+        bookies=bookies,
+        active_bookies=active_bookies,
+        unused_bookies=unused_bookies,
+        exchanges=exchanges,
+        transfers=transfers,
+        totals=totals,
+        accounts_chart=((ctx["view"] or {}).get("charts") or {}).get("by_bookie"),
+    )
+
+
+@bp.get("/friends/<friend_id>/accounts/<account_id>")
+def friend_account(friend_id: str, account_id: str):
+    from app.friends import account_from_view
+
+    ctx, bounced = _friend_ctx(friend_id)
+    if bounced:
+        return bounced
+    account = account_from_view(ctx["view"], account_id)
+    if not account:
+        flash("That account is not in their latest view.", "error")
+        return redirect(url_for("main.friend_accounts", friend_id=friend_id))
+    bets = [
+        bet
+        for bet in _filter_friend_bets(ctx["view"], "all", "")
+        if str(bet.get("bookie_id") or "") == str(account_id)
+        or str(bet.get("exchange_id") or "") == str(account_id)
+        or (account.get("is_bookie") and bet.get("bookie") == account.get("name"))
+        or ((not account.get("is_bookie")) and bet.get("exchange") == account.get("name"))
+    ]
+    offers = [
+        row
+        for row in (ctx["view"] or {}).get("offers") or []
+        if isinstance(row, dict)
+        and (
+            str(row.get("bookie_id") or "") == str(account_id)
+            or row.get("bookie") == account.get("name")
+        )
+    ]
+    transfers = [
+        row
+        for row in (ctx["view"] or {}).get("transfers") or []
+        if isinstance(row, dict)
+        and (
+            str(row.get("account_id") or "") == str(account_id)
+            or row.get("account") == account.get("name")
+        )
+    ]
+    def _dec(value):
+        try:
+            return Decimal(str(value or 0))
+        except InvalidOperation:
+            return Decimal("0")
+
+    pending_expected = sum(
+        (_dec(bet.get("expected_profit")) for bet in bets if bet.get("pending") or bet.get("status") == "pending"),
+        Decimal("0"),
+    )
+    return render_template(
+        "friend_account.html",
+        **ctx,
+        friend_tab="accounts",
+        account=account,
+        bets=bets,
+        offers=offers,
+        transfers=transfers,
+        pending_expected=pending_expected,
+        weekdays=WEEKDAYS,
+    )
+
+
+@bp.get("/friends/<friend_id>/visualiser")
+def friend_visualiser(friend_id: str):
+    ctx, bounced = _friend_ctx(friend_id)
+    if bounced:
+        return bounced
+    charts = (ctx["view"] or {}).get("charts") or {}
+    return render_template(
+        "friend_visualiser.html",
+        **ctx,
+        friend_tab="visualiser",
+        charts=charts,
     )
 
 
 @bp.get("/friends/<friend_id>/bets/<bet_id>")
 def friend_bet(friend_id: str, bet_id: str):
-    from app.friends import bet_from_view, friend_by_id
+    from app.friends import bet_from_view
 
-    friend = friend_by_id(friend_id)
-    if not friend:
-        flash("That friend is not on your list.", "error")
-        return redirect(url_for("main.friends_page"))
-    view, live, last_available, fetch_error = _load_friend_view(friend)
-    bet = bet_from_view(view, bet_id)
+    ctx, bounced = _friend_ctx(friend_id)
+    if bounced:
+        return bounced
+    bet = bet_from_view(ctx["view"], bet_id)
     if not bet:
         flash("That bet is not in their latest view.", "error")
         return redirect(url_for("main.friend_detail", friend_id=friend_id))
-    return render_template(
-        "friend_bet.html",
-        selected=friend,
-        bet=bet,
-        view=view,
-        live=live,
-        last_available=last_available,
-        fetch_error=fetch_error,
-    )
+    return render_template("friend_bet.html", **ctx, friend_tab="bets", bet=bet)
 
 
 @bp.get("/friends/<friend_id>/offers/<offer_id>")
 def friend_offer(friend_id: str, offer_id: str):
-    from app.friends import friend_by_id, offer_from_view
+    from app.friends import offer_from_view
 
-    friend = friend_by_id(friend_id)
-    if not friend:
-        flash("That friend is not on your list.", "error")
-        return redirect(url_for("main.friends_page"))
-    view, live, last_available, fetch_error = _load_friend_view(friend)
-    offer = offer_from_view(view, offer_id)
+    ctx, bounced = _friend_ctx(friend_id)
+    if bounced:
+        return bounced
+    offer = offer_from_view(ctx["view"], offer_id)
     if not offer:
         flash("That offer is not in their latest view.", "error")
-        return redirect(url_for("main.friend_detail", friend_id=friend_id))
+        return redirect(url_for("main.friend_offers", friend_id=friend_id))
     legs = [
         bet
-        for bet in _filter_friend_bets(view, "all", "")
+        for bet in _filter_friend_bets(ctx["view"], "all", "")
         if str(bet.get("offer_id") or "") == str(offer_id) or bet.get("offer") == offer.get("name")
     ]
-    return render_template(
-        "friend_offer.html",
-        selected=friend,
-        offer=offer,
-        legs=legs,
-        view=view,
-        live=live,
-        last_available=last_available,
-        fetch_error=fetch_error,
-    )
+    return render_template("friend_offer.html", **ctx, friend_tab="offers", offer=offer, legs=legs)
 
 
 @bp.post("/friends/invite")
@@ -2028,6 +2248,7 @@ def settings_save():
             "check_every_days": request.form.get("check_every_days"),
             "daily_check_target": request.form.get("daily_check_target"),
             "priority_check_days": request.form.get("priority_check_days"),
+            "scan_sites_every_days": request.form.get("scan_sites_every_days"),
         }
     )
     flash("Settings saved. Port and Wi‑Fi access apply the next time you Start.", "ok")

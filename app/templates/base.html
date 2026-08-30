@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=30">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=33">
 </head>
 <body>
   <div class="shell">
@@ -39,10 +39,15 @@
         <a href="{{ url_for('main.friends_page') }}" class="{{ 'on' if request.path.startswith('/friends') }}">Friends</a>
         <a href="{{ url_for('main.settings_page') }}" class="{{ 'on' if request.path.startswith('/settings') }}">Settings</a>
       </nav>
-      <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false">
-        <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
-        Dark mode
-      </button>
+      <div class="rail-foot">
+        <button type="button" class="theme-toggle phone-toggle" id="phone-open" aria-haspopup="dialog" aria-controls="phone-pop" aria-expanded="false">
+          Open on phone
+        </button>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false">
+          <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+          Dark mode
+        </button>
+      </div>
     </aside>
     <main class="canvas">
       {% with messages = get_flashed_messages(with_categories=true) %}
@@ -64,6 +69,27 @@
       {% block content %}{% endblock %}
     </main>
   </div>
+  <div id="phone-pop" class="phone-pop" hidden>
+    <div class="phone-pop-card" role="dialog" aria-labelledby="phone-pop-title" aria-modal="true">
+      <p class="update-pop-kicker">This Wi‑Fi</p>
+      <h2 id="phone-pop-title">Open on your phone</h2>
+      {% if phone_ready %}
+        <div class="phone-qr-wrap">{{ phone_qr_svg | safe }}</div>
+        <p class="link-code friend-code"><a href="{{ phone_url }}" data-phone-url>{{ phone_url }}</a></p>
+        <p class="update-pop-copy">Same Wi‑Fi as this computer. Scan the code or copy the link.</p>
+        <div class="update-pop-actions">
+          <button type="button" class="btn btn-primary" data-phone-copy>Copy link</button>
+          <button type="button" class="btn" data-phone-close>Close</button>
+        </div>
+      {% else %}
+        <p class="update-pop-copy">Turn on <strong>Allow other devices on this Wi‑Fi</strong> in Settings, then Start again. The phone and this computer must be on the same network.</p>
+        <div class="update-pop-actions">
+          <a class="btn btn-primary" href="{{ url_for('main.settings_page') }}">Settings</a>
+          <button type="button" class="btn" data-phone-close>Close</button>
+        </div>
+      {% endif %}
+    </div>
+  </div>
   <aside id="update-bar" class="update-pop" hidden role="dialog" aria-labelledby="update-pop-title">
     <p class="update-pop-kicker">Update found</p>
     <h2 id="update-pop-title">Version <strong data-latest></strong> is ready</h2>
@@ -73,6 +99,7 @@
       <button type="button" class="btn" data-later>Later</button>
     </div>
   </aside>
+  <script src="{{ url_for('static', filename='phone.js') }}?v=2"></script>
   <script src="{{ url_for('static', filename='theme.js') }}?v=1"></script>
   <script src="{{ url_for('static', filename='update.js') }}?v=6"></script>
   <script src="{{ url_for('static', filename='sync.js') }}?v=2"></script>

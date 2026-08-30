@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "_friend_top.html" import friend_nav, friend_banner %}
+{% block title %}Visualiser · {{ selected.nickname or "Friend" }}{% endblock %}
+{% block eyebrow %}Friend{% endblock %}
+{% block heading %}{{ selected.nickname or "Friend" }}{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ url_for('main.friends_page') }}">Back to friends</a>
+{% endblock %}
+{% block content %}
+  {{ friend_nav(selected, friend_tab) }}
+  {{ friend_banner(live, last_available, fetch_error) }}
+  {% if charts %}
+    <section class="panel vis-toolbar" data-friend-vis>
+      <div class="filters vis-views" role="group" aria-label="Chart type">
+        {% for key, chart in charts.items() %}
+          <button type="button" class="pill {{ 'on' if loop.first }}" data-view="{{ key }}">{{ chart.title or key | labelize }}</button>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="panel chart-panel vis-chart" data-seeded-chart>
+      <div class="chart-head">
+        <div>
+          <p class="chart-kicker" data-vis-title>{{ (charts.values() | list)[0].title if charts else "Chart" }}</p>
+          <strong class="chart-value" data-chart-total></strong>
+          <p class="chart-sub" data-vis-sub>From their latest view</p>
+        </div>
+      </div>
+      <div class="chart-plot vis-plot" data-chart-plot></div>
+      <script type="application/json" data-chart-seed>{{ (charts.values() | list)[0] | tojson }}</script>
+    </section>
+  {% else %}
+    <p class="empty">Their latest view does not include charts yet. They need a current copy of the app running.</p>
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+  {% if charts %}
+    <script src="{{ url_for('static', filename='charts.js') }}?v=3"></script>
+    <script>
+      const friendCharts = {{ charts | tojson }};
+      MBDCharts.seeded();
+      document.querySelectorAll("[data-friend-vis] [data-view]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll("[data-friend-vis] [data-view]").forEach((other) => other.classList.toggle("on", other === btn));
+          const payload = friendCharts[btn.getAttribute("data-view")] || {};
+          const seed = document.querySelector("[data-chart-seed]");
+          const title = document.querySelector("[data-vis-title]");
+          if (seed) seed.textContent = JSON.stringify(payload);
+          if (title) title.textContent = payload.title || btn.textContent;
+          MBDCharts.seeded();
+        });
+      });
+    </script>
+  {% endif %}
+{% endblock %}

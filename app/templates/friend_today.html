@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_friend_top.html" import friend_nav, friend_banner, friend_account_link, friend_offer_link %}
+{% block title %}Today · {{ selected.nickname or "Friend" }}{% endblock %}
+{% block eyebrow %}Friend{% endblock %}
+{% block heading %}{{ selected.nickname or "Friend" }}{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ url_for('main.friends_page') }}">Back to friends</a>
+{% endblock %}
+{% block content %}
+  {{ friend_nav(selected, friend_tab) }}
+  {{ friend_banner(live, last_available, fetch_error) }}
+  {% if board and (board.routine or board.week or board.target) %}
+    <section class="stat-grid">
+      <article class="stat-card">
+        <p>Checks</p>
+        <strong>{{ board.checked_count }} / {{ board.target }}</strong>
+      </article>
+      <article class="stat-card">
+        <p>Due that day</p>
+        <strong>{{ board.specials | length }}</strong>
+      </article>
+    </section>
+
+    {% if board.week %}
+      <nav class="panel week-strip" aria-label="Checks that week">
+        {% for day in board.week %}
+          <span class="week-day{% if day.today %} is-today{% endif %}{% if day.future %} is-future{% endif %}">
+            <span>{{ day.label }}</span>
+            <strong>{{ day.count }}</strong>
+          </span>
+        {% endfor %}
+      </nav>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Routine checks</h2>
+        <span class="hint">{{ board.today }}</span>
+      </div>
+      {% if board.routine %}
+        <ul class="today-list">
+          {% for row in board.routine %}
+            <li class="today-row{% if row.checked_today %} is-done{% endif %}">
+              <span class="tick is-static{% if row.checked_today %} is-on{% endif %}" aria-hidden="true">{% if row.checked_today %}✓{% endif %}</span>
+              <div class="today-row-main">
+                {{ friend_account_link(selected, row.account_id, row.name) }}
+                {% if row.health %}<span class="health-pill health-{{ row.health.level }}">{{ row.health.label }}</span>{% endif %}
+                {% if row.priority %}<span class="pill">Priority</span>{% endif %}
+                {% if row.restriction %}<span class="pill">{{ row.restriction | labelize }}</span>{% endif %}
+                {% if row.reload_due %}<span class="pill on">Reload due</span>{% endif %}
+                {% if row.tasks_due %}<span class="pill on">Task due</span>{% endif %}
+                {% if row.notes %}<p class="hint">{{ row.notes }}</p>{% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="empty">Nothing queued on their check list.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Due that day</h2></div>
+      {% if board.specials %}
+        <ul class="today-list">
+          {% for item in board.specials %}
+            <li class="today-row">
+              <div class="today-row-main">
+                {% if item.account_id %}
+                  {{ friend_account_link(selected, item.account_id, item.account or item.name) }}
+                {% endif %}
+                {% if item.kind == 'reload' %}
+                  <span>{{ friend_offer_link(selected, item.offer_id, item.name) }}</span>
+                {% else %}
+                  <span>{{ item.name }}</span>
+                {% endif %}
+                {% if item.detail %}<span class="hint">Due {{ item.detail }}</span>{% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% elif board.clean %}
+        <p class="empty">All clear. No reloads or dated checks that day.</p>
+      {% else %}
+        <p class="empty">No dated specials that day.</p>
+      {% endif %}
+    </section>
+  {% else %}
+    <p class="empty">Their latest view does not include Today yet. They need a current copy of the app running.</p>
+  {% endif %}
+{% endblock %}
