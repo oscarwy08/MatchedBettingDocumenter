@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Log and edit a bet with a date picker for Date and Starts. "
+        "Bell and Windows/Linux toasts when a bet starts or a Today item is due. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

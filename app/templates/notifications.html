@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block eyebrow %}Alerts{% endblock %}
+{% block heading %}Notifications{% endblock %}
+{% block actions %}
+  {% if items %}
+    <form method="post" action="{{ url_for('main.notifications_read') }}">
+      <input type="hidden" name="all" value="1">
+      <button class="btn" type="submit">Mark all read</button>
+    </form>
+  {% endif %}
+{% endblock %}
+{% block content %}
+  <section class="panel">
+    {% if items %}
+      <ul class="notify-list">
+        {% for item in items %}
+          <li class="notify-row{% if not item.read_at %} is-unread{% endif %}">
+            <a href="{{ item.href }}" data-notify-id="{{ item.id }}">
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.body }}</span>
+              <span class="hint">{{ item.created_at | uktime }}</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">Nothing yet. Bet starts and Today dues show up here while Start is running.</p>
+    {% endif %}
+  </section>
+{% endblock %}

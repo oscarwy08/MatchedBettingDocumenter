@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=35">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=42">
 </head>
 <body>
   <div class="shell">
@@ -64,7 +64,26 @@
           <p class="eyebrow">{% block eyebrow %}Tracker{% endblock %}</p>
           <h1>{% block heading %}Dashboard{% endblock %}</h1>
         </div>
-        <div class="page-actions">{% block actions %}{% endblock %}</div>
+        <div class="page-head-tools">
+          <div class="notify-wrap">
+            <button type="button" class="notify-bell" id="notify-bell" aria-haspopup="true" aria-controls="notify-drop" aria-expanded="false" aria-label="Notifications">
+              <svg class="notify-glyph" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9a6 6 0 1 1 12 0c0 4 1.2 5.5 1.8 6.2.3.4 0 .8-.6.8H4.8c-.6 0-.9-.4-.6-.8C4.8 14.5 6 13 6 9Z"/>
+                <path d="M10 18.2a2 2 0 0 0 4 0"/>
+              </svg>
+              <span class="notify-count" id="notify-count" hidden>0</span>
+            </button>
+            <div class="notify-drop" id="notify-drop" hidden>
+              <div class="notify-drop-head">
+                <p class="notify-drop-kicker">Notifications</p>
+                <button type="button" class="notify-drop-clear" id="notify-clear" hidden>Clear</button>
+              </div>
+              <div id="notify-drop-list"></div>
+              <a class="notify-drop-all" href="{{ url_for('main.notifications_page') }}">All notifications</a>
+            </div>
+          </div>
+          <div class="page-actions">{% block actions %}{% endblock %}</div>
+        </div>
       </header>
       {% block content %}{% endblock %}
     </main>
@@ -90,6 +109,10 @@
       {% endif %}
     </div>
   </div>
+  <aside id="notify-toast" class="update-pop notify-toast" hidden>
+    <h2 data-title></h2>
+    <p class="update-pop-copy" data-body></p>
+  </aside>
   <aside id="update-bar" class="update-pop" hidden role="dialog" aria-labelledby="update-pop-title">
     <p class="update-pop-kicker">Update found</p>
     <h2 id="update-pop-title">Version <strong data-latest></strong> is ready</h2>
@@ -102,6 +125,7 @@
   <script src="{{ url_for('static', filename='phone.js') }}?v=2"></script>
   <script src="{{ url_for('static', filename='tables.js') }}?v=2"></script>
   <script src="{{ url_for('static', filename='theme.js') }}?v=1"></script>
+  <script src="{{ url_for('static', filename='notify.js') }}?v=5"></script>
   <script src="{{ url_for('static', filename='update.js') }}?v=6"></script>
   <script src="{{ url_for('static', filename='sync.js') }}?v=2"></script>
   {% block scripts %}{% endblock %}

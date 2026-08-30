@@ -119,6 +119,18 @@
       </label>
     </section>
 
+    <section class="panel">
+      <div class="panel-head"><h2>Notifications</h2></div>
+      <label class="setting-row">
+        <input class="switch-input" type="checkbox" name="desktop_notifications" {% if settings.desktop_notifications %}checked{% endif %}>
+        <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+        <span>
+          <strong>Desktop notifications</strong>
+          <small>When Start is running, show a Windows or Linux toast for bet starts and Today dues. The bell and in-app card still work if this is off.</small>
+        </span>
+      </label>
+    </section>
+
     <div class="form-actions">
       <button class="btn btn-primary" type="submit">Save settings</button>
     </div>

@@ -13,6 +13,7 @@ BOOL_KEYS = {
     "allow_lan",
     "excel_sync",
     "auto_sync",
+    "desktop_notifications",
 }
 
 DEFAULTS = {
@@ -22,6 +23,7 @@ DEFAULTS = {
     "allow_lan": True,
     "excel_sync": True,
     "auto_sync": True,
+    "desktop_notifications": True,
     "port": 5050,
     "default_exchange_id": None,
     "mug_after_offers": 4,

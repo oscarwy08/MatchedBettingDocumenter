@@ -273,3 +273,16 @@ class ScheduleEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     bookie: Mapped[Account | None] = relationship()
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(40))
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(String(300), default="")
+    href: Mapped[str] = mapped_column(String(200))
+    source_key: Mapped[str] = mapped_column(String(80), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

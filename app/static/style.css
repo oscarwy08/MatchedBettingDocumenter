@@ -42,9 +42,9 @@ html[data-theme="dark"] {
 
 * { box-sizing: border-box; }
 a { text-decoration: none; }
-.canvas a:not(.btn):not(.pill):not(.week-day):not(.month-day) { color: var(--link); }
-.canvas a:not(.btn):not(.pill):not(.week-day):not(.month-day):visited { color: var(--link); }
-.canvas a:not(.btn):not(.pill):not(.week-day):not(.month-day):hover { color: var(--link-hover); }
+.canvas a:not(.btn):not(.pill):not(.week-day):not(.month-day):not(.notify-drop-item) { color: var(--link); }
+.canvas a:not(.btn):not(.pill):not(.week-day):not(.month-day):not(.notify-drop-item):visited { color: var(--link); }
+.canvas a:not(.btn):not(.pill):not(.week-day):not(.month-day):not(.notify-drop-item):hover { color: var(--link-hover); }
 html, body {
   margin: 0;
   height: 100%;
@@ -183,6 +183,139 @@ body {
   gap: 1rem;
   margin-bottom: 1.4rem;
 }
+.page-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.notify-wrap { position: relative; }
+.notify-bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+}
+.notify-bell:hover,
+.notify-bell[aria-expanded="true"],
+.notify-bell.has-unread {
+  color: var(--ink);
+  background: var(--wash);
+}
+.notify-glyph { display: block; }
+.notify-count {
+  position: absolute;
+  top: -0.28rem;
+  right: -0.28rem;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.22rem;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #1c1913;
+  font-size: 0.62rem;
+  font-weight: 650;
+  line-height: 1rem;
+  text-align: center;
+}
+.notify-drop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.45rem);
+  z-index: 80;
+  width: 22rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.75rem 0.9rem 0.85rem;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  box-shadow: var(--shadow);
+}
+.notify-drop[hidden] { display: none !important; }
+.notify-drop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+.notify-drop-clear {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.notify-drop-clear:hover { color: var(--ink); }
+.notify-drop-clear[hidden] { visibility: hidden; }
+.notify-drop-kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.68rem;
+  color: var(--gold-deep);
+}
+#notify-drop-list { display: flex; flex-direction: column; gap: 0.4rem; }
+#notify-drop-list .empty { padding: 0.7rem 0.2rem; margin: 0; }
+.canvas .notify-drop-item,
+.canvas .notify-row a,
+.notify-drop-item,
+.notify-row a {
+  display: grid;
+  grid-template-columns: 0.45rem minmax(0, 1fr);
+  column-gap: 0.55rem;
+  align-items: start;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--card);
+  color: var(--ink);
+}
+.canvas .notify-drop-item:visited,
+.canvas .notify-row a:visited,
+.canvas .notify-drop-item:hover,
+.canvas .notify-row a:hover {
+  color: var(--ink);
+}
+.notify-drop-item::before,
+.notify-row a::before {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-top: 0.4rem;
+  border-radius: 50%;
+  background: transparent;
+}
+.notify-drop-item.is-unread::before,
+.notify-row.is-unread a::before { background: var(--gold); }
+.notify-drop-item > strong,
+.notify-row a > strong { grid-column: 2; font-size: 0.95rem; font-weight: 650; color: var(--ink); }
+.notify-drop-item > span,
+.notify-row a > span { grid-column: 2; color: var(--muted); font-size: 0.84rem; line-height: 1.35; }
+.notify-drop-item:hover,
+.notify-row a:hover { background: var(--wash); }
+.notify-drop-all {
+  display: block;
+  margin-top: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.86rem;
+}
+.notify-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.notify-toast { z-index: 210; cursor: pointer; }
+.notify-toast .update-pop-copy { margin-bottom: 0; }
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.14em;

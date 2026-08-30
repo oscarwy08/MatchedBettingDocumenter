@@ -389,6 +389,42 @@ def delete_schedule_event(event_id: int):
     return _today_redirect()
 
 
+@bp.get("/notifications")
+def notifications_page():
+    from app.notify import list_notifications, sweep
+
+    session = get_session()
+    sweep(session)
+    return render_template("notifications.html", items=list_notifications(session))
+
+
+@bp.post("/notifications/read")
+def notifications_read():
+    from app.notify import mark_read
+
+    session = get_session()
+    payload = request.get_json(silent=True) or request.form
+    raw_all = payload.get("all")
+    all_items = raw_all is True or str(raw_all or "").lower() in {"1", "true", "on"}
+    raw_id = payload.get("id")
+    note_id = int(raw_id) if str(raw_id or "").isdigit() else None
+    mark_read(session, note_id, all_items=all_items)
+    if request.is_json or request.headers.get("Accept") == "application/json":
+        return jsonify({"ok": True})
+    return redirect(request.referrer or url_for("main.notifications_page"))
+
+
+@bp.get("/api/notifications")
+def notifications_api():
+    from app.notify import as_dict, list_notifications, sweep, unread_count
+
+    session = get_session()
+    sweep(session)
+    items = [as_dict(row) for row in list_notifications(session, limit=20)]
+    latest = items[0]["id"] if items else 0
+    return jsonify({"unread": unread_count(session), "latest_id": latest, "items": items})
+
+
 def _optional_int(raw: str | None) -> int | None:
     text = (raw or "").strip()
     if text.isdigit():
@@ -2247,6 +2283,7 @@ def settings_save():
             "allow_lan": request.form.get("allow_lan") == "on",
             "excel_sync": request.form.get("excel_sync") == "on",
             "auto_sync": request.form.get("auto_sync") == "on",
+            "desktop_notifications": request.form.get("desktop_notifications") == "on",
             "port": port,
             "default_exchange_id": int(exchange_raw) if exchange_raw.isdigit() else None,
             "mug_after_offers": request.form.get("mug_after_offers"),
