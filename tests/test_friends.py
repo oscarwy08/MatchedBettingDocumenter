@@ -112,6 +112,7 @@ def test_friend_opens_own_dashboard_page(tmp_path, monkeypatch):
                 "pending": True,
                 "placed": "01/08/2026 11:30",
                 "date": "01/08/2026 11:30",
+                "starts": "01/08/2026 15:00",
                 "back_stake": "10.00",
                 "back_odds": "2.00",
                 "lay_stake": "9.62",
@@ -244,6 +245,11 @@ def test_friend_opens_own_dashboard_page(tmp_path, monkeypatch):
     assert b"All bets" in bets_page.data
     assert b"/friends/f1/offers/3" in bets_page.data
     assert b"Sky weekly" in bets_page.data
+    assert b"<th>Placed</th>" in dash.data
+    assert b"<th>Starts</th>" in dash.data
+    assert b"<th>Placed</th>" in bets_page.data
+    assert b"<th>Starts</th>" in bets_page.data
+    assert b"01/08/2026 15:00" in bets_page.data
     offers_page = client.get("/friends/f1/offers")
     assert offers_page.status_code == 200
     assert b"Sky weekly" in offers_page.data
@@ -255,6 +261,8 @@ def test_friend_opens_own_dashboard_page(tmp_path, monkeypatch):
     assert account.status_code == 200
     assert b"Mug health" in account.data
     assert b"Friend cup" in account.data
+    assert b"<th>Placed</th>" in account.data
+    assert b"<th>Starts</th>" in account.data
     today = client.get("/friends/f1/today")
     assert today.status_code == 200
     assert b"Routine checks" in today.data
@@ -264,6 +272,8 @@ def test_friend_opens_own_dashboard_page(tmp_path, monkeypatch):
     assert offer.status_code == 200
     assert b"All offers" in offer.data
     assert b"20.00" in offer.data or b"20" in offer.data
+    assert b"<th>Placed</th>" in offer.data
+    assert b"<th>Starts</th>" in offer.data
     bet = client.get("/friends/f1/bets/7")
     assert bet.status_code == 200
     assert b"All bets" in bet.data
@@ -379,6 +389,7 @@ def test_view_dto_is_read_only_dashboard(tmp_path, monkeypatch):
             expected_exchange_lay=Decimal("9.43"),
             status=BetStatus.PENDING,
             placed_at=datetime(2026, 8, 1, 11, 30),
+            starts_at=datetime(2026, 8, 1, 15, 0),
         )
     )
     session.commit()
@@ -391,6 +402,7 @@ def test_view_dto_is_read_only_dashboard(tmp_path, monkeypatch):
     assert dto["offers"][0]["reload_frequency"] == "weekly"
     assert dto["offers"][0]["reload_due"] is True
     assert dto["bets"][0]["event"] == "Friend cup"
+    assert dto["bets"][0]["starts"] == "01/08/2026 15:00"
     assert str(dto["bets"][0]["back_odds"]).startswith("2")
     assert dto["bets"][0]["bookie_id"] == sky.id
     assert dto["bets"][0]["offer_id"] is None

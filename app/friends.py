@@ -488,6 +488,7 @@ def _bet_row(bet) -> dict:
         "id": bet.id,
         "placed": _when(bet.placed_at or bet.date_placed),
         "date": _when(bet.placed_at or bet.date_placed),
+        "starts": _when(bet.starts_at) if bet.starts_at else "",
         "settled": _when(bet.settled_at) if bet.settled_at else "",
         "event": bet.event or "—",
         "market": bet.market or "",

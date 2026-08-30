@@ -30,7 +30,7 @@ from app.charts import (
     profit_series,
     visualiser_payload,
 )
-from app.dates import combine_date, format_uk, local_now, parse_uk
+from app.dates import combine_date, format_uk, local_now, parse_uk, parse_uk_datetime
 from app.db import get_session
 from app.excel import preview_workbook, sync_workbook
 from app.health import WEEKDAYS, account_health, attach_health, today_board
@@ -623,10 +623,12 @@ def log_bet():
         offer = _resolve_offer(session, bookie_id)
         date_placed = parse_uk(request.form.get("date_placed"))
         placed_at = combine_date(local_now(), date_placed)
+        starts_at = parse_uk_datetime(request.form.get("starts_at"))
         bet = Bet(
             offer_id=offer.id if offer else None,
             date_placed=date_placed,
             placed_at=placed_at,
+            starts_at=starts_at,
             event=(request.form.get("event") or "").strip(),
             market=(request.form.get("market") or "").strip(),
             notes=(request.form.get("notes") or "").strip(),
@@ -1265,6 +1267,7 @@ def edit_bet(bet_id: int):
         new_date = parse_uk(request.form.get("date_placed"))
         bet.placed_at = combine_date(bet.placed_at, new_date)
         bet.date_placed = new_date
+        bet.starts_at = parse_uk_datetime(request.form.get("starts_at"))
         bet.event = (request.form.get("event") or "").strip()
         bet.market = (request.form.get("market") or "").strip()
         bet.notes = (request.form.get("notes") or "").strip()
@@ -1291,6 +1294,7 @@ def duplicate_bet(bet_id: int):
         offer_id=bet.offer_id,
         date_placed=placed_at.date(),
         placed_at=placed_at,
+        starts_at=bet.starts_at,
         event=bet.event,
         market=bet.market,
         notes=bet.notes,

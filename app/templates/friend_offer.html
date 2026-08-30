@@ -40,6 +40,7 @@
       <table>
         <thead>
           <tr>
+            <th>Placed</th>
             <th>Starts</th>
             <th>Type</th>
             <th>Event</th>
@@ -52,6 +53,7 @@
           {% for bet in legs %}
             <tr>
               <td>{{ bet.placed or bet.date }}</td>
+              <td>{{ bet.starts or "—" }}</td>
               <td>{{ bet.bet_type | labelize }}</td>
               <td><a href="{{ url_for('main.friend_bet', friend_id=selected.id, bet_id=bet.id) }}">{{ bet.event }}</a></td>
               <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>

@@ -32,6 +32,26 @@ def combine_date(existing: datetime | None, new_date: date) -> datetime:
     return datetime.combine(new_date, local_now().time())
 
 
+def format_uk_datetime(value: date | datetime | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value.strftime("%d/%m/%Y")
+    return value.strftime("%d/%m/%Y %H:%M")
+
+
+def parse_uk_datetime(raw: str | None) -> datetime | None:
+    text = (raw or "").strip()
+    if not text:
+        return None
+    for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d-%m-%Y %H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    return datetime.combine(parse_uk(text), time.min)
+
+
 def parse_uk(raw: str | None, fallback: date | None = None) -> date:
     text = (raw or "").strip()
     if not text:

@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Bet tables show a Starts datetime. Click any table header to sort. "
+        "Bet tables keep Placed and add a separate Starts datetime. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

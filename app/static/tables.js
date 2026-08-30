@@ -25,9 +25,10 @@
   };
 
   document.querySelectorAll("table").forEach((table) => {
+    if (table.classList.contains("outcome-table") || table.closest(".spreadsheet")) return;
     const head = table.querySelector("thead tr");
     const body = table.querySelector("tbody");
-    if (!head || !body) return;
+    if (!head || !body || head.querySelector(".th-sort")) return;
     [...head.children].forEach((th, index) => {
       if (!(th.textContent || "").trim()) return;
       const button = document.createElement("button");

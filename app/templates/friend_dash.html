@@ -104,6 +104,7 @@
           <table>
             <thead>
               <tr>
+                <th>Placed</th>
                 <th>Starts</th>
                 <th>Bookie</th>
                 <th>Event</th>
@@ -114,6 +115,7 @@
               {% for bet in pending_bets[:8] %}
                 <tr>
                   <td>{{ bet.placed or bet.date }}</td>
+                  <td>{{ bet.starts or "—" }}</td>
                   <td>{{ friend_account_link(selected, bet.bookie_id, bet.bookie) }}</td>
                   <td><a href="{{ url_for('main.friend_bet', friend_id=selected.id, bet_id=bet.id) }}">{{ bet.event }}</a></td>
                   <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>

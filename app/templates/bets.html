@@ -21,6 +21,7 @@
       <table>
         <thead>
           <tr>
+            <th>Placed</th>
             <th>Starts</th>
             <th>Offer</th>
             <th>Bookie</th>
@@ -37,6 +38,7 @@
           {% for bet in bets %}
             <tr>
               <td>{{ (bet.placed_at or bet.date_placed) | uktime }}</td>
+              <td>{{ bet.starts_at | uktime }}</td>
               <td>{% if bet.offer %}<a href="{{ url_for('main.offer_detail', offer_id=bet.offer.id) }}">{{ bet.offer.name }}</a>{% else %}—{% endif %}</td>
               <td><a href="{{ url_for('main.account_detail', account_id=bet.bookie_id) }}">{{ bet.bookie.name }}</a></td>
               <td>{{ bet.bet_type | labelize }}</td>

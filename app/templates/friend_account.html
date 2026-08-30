@@ -103,6 +103,7 @@
       <table>
         <thead>
           <tr>
+            <th>Placed</th>
             <th>Starts</th>
             <th>Offer</th>
             {% if account.is_bookie %}<th>Exchange</th>{% else %}<th>Bookie</th>{% endif %}
@@ -117,6 +118,7 @@
           {% for bet in bets %}
             <tr>
               <td>{{ bet.placed or bet.date }}</td>
+              <td>{{ bet.starts or "—" }}</td>
               <td>{{ friend_offer_link(selected, bet.offer_id, bet.offer) }}</td>
               <td>
                 {% if account.is_bookie %}

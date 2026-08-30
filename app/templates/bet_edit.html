@@ -124,6 +124,10 @@
           <input name="date_placed" type="text" inputmode="numeric" placeholder="DD/MM/YYYY"
                  pattern="\d{2}/\d{2}/\d{4}" value="{{ bet.date_placed | ukdate }}" required>
         </label>
+        <label>
+          Starts
+          <input name="starts_at" type="text" placeholder="DD/MM/YYYY HH:MM" value="{{ bet.starts_at | ukdatetime }}">
+        </label>
         <label class="span-2">
           <span class="field-name">Event</span>
           <input name="event" type="text" placeholder="Liverpool vs Chelsea" value="{{ bet.event }}">

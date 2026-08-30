@@ -25,6 +25,7 @@
       <table>
         <thead>
           <tr>
+            <th>Placed</th>
             <th>Starts</th>
             <th>Offer</th>
             <th>Bookie</th>
@@ -40,6 +41,7 @@
           {% for bet in bets %}
             <tr>
               <td>{{ bet.placed or bet.date }}</td>
+              <td>{{ bet.starts or "—" }}</td>
               <td>{{ friend_offer_link(selected, bet.offer_id, bet.offer) }}</td>
               <td>{{ friend_account_link(selected, bet.bookie_id, bet.bookie) }}</td>
               <td>{{ bet.bet_type | labelize }}</td>

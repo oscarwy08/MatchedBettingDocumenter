@@ -127,8 +127,9 @@ def test_welcome_offer_balances_and_workbook(tmp_path: Path):
     assert wb["Offers"]["A2"].value == "Betfred Bet £10 Get £50"
     assert wb["Bets"]["A1"].value == "Date"
     assert wb["Bets"]["B1"].value == "Placed"
-    assert wb["Bets"]["C1"].value == "Settled"
-    assert wb["Bets"]["E2"].value in {"Arsenal vs Spurs", "Liverpool vs Chelsea"}
+    assert wb["Bets"]["C1"].value == "Starts"
+    assert wb["Bets"]["D1"].value == "Settled"
+    assert wb["Bets"]["F2"].value in {"Arsenal vs Spurs", "Liverpool vs Chelsea"}
 
     from app.excel import preview_workbook
 

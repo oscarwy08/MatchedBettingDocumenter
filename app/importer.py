@@ -30,6 +30,7 @@ ZERO = Decimal("0.00")
 BET_ALIASES = {
     "date": {"date", "date of bet"},
     "placed_at": {"placed", "placed at", "time placed"},
+    "starts_at": {"starts", "starts at", "start", "kick off", "kickoff"},
     "settled_at": {"settled", "settled at", "time settled"},
     "offer": {"offer", "campaign", "promotion"},
     "event": {"event", "selection", "fixture"},
@@ -506,6 +507,7 @@ def _import_bets(session: Session, ws) -> int:
         expected = _money(_cell(row, mapping, "expected"))
         date_placed = _date(_cell(row, mapping, "date")) if "date" in mapping else date.today()
         placed_at = _datetime(_cell(row, mapping, "placed_at")) if "placed_at" in mapping else None
+        starts_at = _datetime(_cell(row, mapping, "starts_at")) if "starts_at" in mapping else None
         if "date" not in mapping and placed_at is not None:
             date_placed = placed_at.date()
         settled_at = _datetime(_cell(row, mapping, "settled_at")) if "settled_at" in mapping else None
@@ -514,6 +516,7 @@ def _import_bets(session: Session, ws) -> int:
                 offer_id=offer_id,
                 date_placed=date_placed,
                 placed_at=placed_at,
+                starts_at=starts_at,
                 event=_text(_cell(row, mapping, "event")),
                 market=_text(_cell(row, mapping, "market")),
                 notes=_text(_cell(row, mapping, "notes")),

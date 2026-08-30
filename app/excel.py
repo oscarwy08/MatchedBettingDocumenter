@@ -222,6 +222,7 @@ def _write_bets(ws, bets: list[Bet]) -> None:
         [
             "Date",
             "Placed",
+            "Starts",
             "Settled",
             "Offer",
             "Event",
@@ -247,27 +248,29 @@ def _write_bets(ws, bets: list[Bet]) -> None:
         ws.cell(i, 1, bet.date_placed.isoformat())
         placed = format_uk_time(bet.placed_at or bet.date_placed)
         ws.cell(i, 2, "" if placed == "–" else placed)
+        starts = format_uk_time(bet.starts_at)
+        ws.cell(i, 3, "" if starts == "–" else starts)
         settled = format_uk_time(bet.settled_at)
-        ws.cell(i, 3, "" if settled == "–" else settled)
-        ws.cell(i, 4, bet.offer.name if bet.offer else "")
-        ws.cell(i, 5, bet.event)
-        ws.cell(i, 6, bet.market)
-        ws.cell(i, 7, bet.bet_type.replace("_", " ").title())
-        ws.cell(i, 8, bet.bookie.name)
-        _money(ws.cell(i, 9), bet.back_stake)
-        ws.cell(i, 10, float(bet.back_odds))
-        ws.cell(i, 11, bet.exchange.name)
-        _money(ws.cell(i, 12), bet.lay_stake)
-        ws.cell(i, 13, float(bet.lay_odds))
-        ws.cell(i, 14, float(bet.commission_percent))
-        _money(ws.cell(i, 15), bet.liability)
-        _money(ws.cell(i, 16), bet.expected_profit)
-        _money(ws.cell(i, 17), bet.actual_profit)
-        _money(ws.cell(i, 18), bet.actual_bookie_profit)
-        _money(ws.cell(i, 19), bet.actual_exchange_profit)
-        ws.cell(i, 20, bet.status.replace("_", " ").title())
-        ws.cell(i, 21, bet.notes)
-    _stripe(ws, 2, 21)
+        ws.cell(i, 4, "" if settled == "–" else settled)
+        ws.cell(i, 5, bet.offer.name if bet.offer else "")
+        ws.cell(i, 6, bet.event)
+        ws.cell(i, 7, bet.market)
+        ws.cell(i, 8, bet.bet_type.replace("_", " ").title())
+        ws.cell(i, 9, bet.bookie.name)
+        _money(ws.cell(i, 10), bet.back_stake)
+        ws.cell(i, 11, float(bet.back_odds))
+        ws.cell(i, 12, bet.exchange.name)
+        _money(ws.cell(i, 13), bet.lay_stake)
+        ws.cell(i, 14, float(bet.lay_odds))
+        ws.cell(i, 15, float(bet.commission_percent))
+        _money(ws.cell(i, 16), bet.liability)
+        _money(ws.cell(i, 17), bet.expected_profit)
+        _money(ws.cell(i, 18), bet.actual_profit)
+        _money(ws.cell(i, 19), bet.actual_bookie_profit)
+        _money(ws.cell(i, 20), bet.actual_exchange_profit)
+        ws.cell(i, 21, bet.status.replace("_", " ").title())
+        ws.cell(i, 22, bet.notes)
+    _stripe(ws, 2, 22)
     _autosize(ws)
 
 

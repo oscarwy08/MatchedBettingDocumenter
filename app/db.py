@@ -54,6 +54,8 @@ def _ensure_sqlite_columns(engine: Engine) -> None:
                     "WHERE placed_at IS NULL AND date_placed IS NOT NULL"
                 )
             )
+        if "starts_at" not in bet_cols:
+            conn.execute(text("ALTER TABLE bets ADD COLUMN starts_at DATETIME"))
         account_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(accounts)"))}
         if "last_checked_on" not in account_cols:
             conn.execute(text("ALTER TABLE accounts ADD COLUMN last_checked_on DATE"))

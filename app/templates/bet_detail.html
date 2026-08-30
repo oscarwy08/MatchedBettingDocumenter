@@ -16,6 +16,7 @@
     <article class="stat-card"><p>Liability</p><strong>{{ bet.liability | gbp }}</strong></article>
     <article class="stat-card"><p>Expected</p><strong class="{{ bet.expected_profit | pnl }}">{{ bet.expected_profit | gbp }}</strong></article>
     <article class="stat-card"><p>Placed</p><strong>{{ (bet.placed_at or bet.date_placed) | uktime }}</strong></article>
+    <article class="stat-card"><p>Starts</p><strong>{{ bet.starts_at | uktime }}</strong></article>
     <article class="stat-card"><p>Status</p><strong>{{ bet.status | labelize }}</strong></article>
   </section>
 

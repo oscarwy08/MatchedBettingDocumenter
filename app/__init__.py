@@ -81,6 +81,11 @@ def create_app() -> Flask:
         from app.dates import format_uk_time
         return format_uk_time(value)
 
+    @app.template_filter("ukdatetime")
+    def ukdatetime(value):
+        from app.dates import format_uk_datetime
+        return format_uk_datetime(value)
+
     @app.context_processor
     def inject_globals():
         from app.settings import get as setting

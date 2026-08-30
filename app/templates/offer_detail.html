@@ -67,6 +67,7 @@
       <table>
         <thead>
           <tr>
+            <th>Placed</th>
             <th>Starts</th>
             <th>Type</th>
             <th>Event</th>
@@ -82,6 +83,7 @@
           {% for bet in offer.bets %}
             <tr>
               <td>{{ (bet.placed_at or bet.date_placed) | uktime }}</td>
+              <td>{{ bet.starts_at | uktime }}</td>
               <td>{{ bet.bet_type | labelize }}</td>
               <td><a href="{{ url_for('main.bet_detail', bet_id=bet.id) }}">{{ bet.event or "Untitled" }}</a></td>
               <td class="num">{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}</td>

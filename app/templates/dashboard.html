@@ -105,6 +105,7 @@
         <table>
           <thead>
             <tr>
+              <th>Placed</th>
               <th>Starts</th>
               <th>Bookie</th>
               <th>Event</th>
@@ -115,6 +116,7 @@
             {% for bet in stats.pending_bets[:8] %}
               <tr>
                 <td>{{ (bet.placed_at or bet.date_placed) | uktime }}</td>
+                <td>{{ bet.starts_at | uktime }}</td>
                 <td><a href="{{ url_for('main.account_detail', account_id=bet.bookie_id) }}">{{ bet.bookie.name }}</a></td>
                 <td><a href="{{ url_for('main.bet_detail', bet_id=bet.id) }}">{{ bet.event or "—" }}</a></td>
                 <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>

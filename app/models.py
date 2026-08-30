@@ -200,6 +200,7 @@ class Bet(Base):
     actual_exchange_profit: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
     settled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     placed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     free_bet_returned: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 

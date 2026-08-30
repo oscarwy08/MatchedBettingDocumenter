@@ -164,6 +164,7 @@
       <table>
         <thead>
           <tr>
+            <th>Placed</th>
             <th>Starts</th>
             <th>Offer</th>
             {% if account.is_bookie %}<th>Exchange</th>{% else %}<th>Bookie</th>{% endif %}
@@ -179,6 +180,7 @@
           {% for bet in bets %}
             <tr>
               <td>{{ (bet.placed_at or bet.date_placed) | uktime }}</td>
+              <td>{{ bet.starts_at | uktime }}</td>
               <td>{% if bet.offer %}<a href="{{ url_for('main.offer_detail', offer_id=bet.offer.id) }}">{{ bet.offer.name }}</a>{% else %}—{% endif %}</td>
               <td>
                 {% if account.is_bookie %}
