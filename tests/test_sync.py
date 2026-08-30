@@ -235,15 +235,6 @@ def test_unlink_stays_unlinked(tmp_path, monkeypatch):
     assert ensure_state()["peers"] == []
 
 
-def test_request_push_from_all(tmp_path, monkeypatch):
-    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
-    from app.sync import request_push_from_all, want_push_from
-
-    remember_linked_device(device_id="laptop-1", token="tok", nickname="Laptop", lan_host="10.0.0.2")
-    request_push_from_all()
-    assert "laptop-1" in want_push_from()
-
-
 def test_fetch_tokens_try_ours_first(tmp_path, monkeypatch):
     monkeypatch.setenv("MBD_ROOT", str(tmp_path))
     from app.live_sync import _tokens_for

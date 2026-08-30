@@ -284,38 +284,6 @@ def forget_peer(peer_id: str) -> dict:
     return save_state(state)
 
 
-def set_want_push(peer_id: str, value: bool = True) -> dict:
-    state = load_state()
-    for peer in state.get("peers") or []:
-        if peer.get("id") == peer_id:
-            peer["want_push"] = bool(value)
-            break
-    return save_state(state)
-
-
-def request_push_from_all() -> dict:
-    state = load_state()
-    for peer in state.get("peers") or []:
-        peer["want_push"] = True
-    return save_state(state)
-
-
-def want_push_from() -> list[str]:
-    return [
-        str(peer["device_id"])
-        for peer in load_state().get("peers") or []
-        if peer.get("want_push") and peer.get("device_id")
-    ]
-
-
-def clear_want_push_for(device_id: str) -> dict:
-    state = load_state()
-    for peer in state.get("peers") or []:
-        if peer.get("device_id") == device_id:
-            peer["want_push"] = False
-    return save_state(state)
-
-
 def peer_by_id(peer_id: str) -> dict | None:
     for peer in load_state().get("peers") or []:
         if peer.get("id") == peer_id:
@@ -369,7 +337,6 @@ def status_payload(session, *, include_token: bool = False) -> dict:
         "lan_ip": lan_ip(),
         "lan_ips": [ip for ip in local_ipv4s() if ip and not ip.startswith("127.")],
         "pair_secret": state.get("pair_secret") or "",
-        "want_push_from": want_push_from(),
     }
     if include_token:
         out["token"] = state["device_token"]

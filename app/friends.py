@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import hashlib
-import hmac
 import json
 import secrets
 from datetime import datetime
@@ -293,37 +290,24 @@ def view_dto(session: Session, *, nickname: str) -> dict:
     }
 
 
-def _key(secret: str) -> bytes:
-    return hashlib.sha256(secret.encode("utf-8")).digest()
-
-
 def encrypt_view(secret: str, payload: dict) -> str:
-    raw = json.dumps(payload, separators=(",", ":"), default=str).encode("utf-8")
-    key = _key(secret)
-    nonce = secrets.token_bytes(16)
-    stream = hashlib.shake_256(key + nonce).digest(len(raw))
-    cipher = bytes(a ^ b for a, b in zip(raw, stream))
-    tag = hmac.new(key, nonce + cipher, hashlib.sha256).digest()
-    blob = nonce + tag + cipher
-    return "mbd1." + base64.urlsafe_b64encode(blob).decode("ascii")
+    from app.crypto import encrypt_json
+
+    return encrypt_json(secret, payload)
 
 
 def decrypt_view(secret: str, blob: str) -> dict:
-    if not blob.startswith("mbd1."):
-        raise ValueError("That friend view is not encrypted.")
-    data = base64.urlsafe_b64decode(blob[5:].encode("ascii"))
-    if len(data) < 48:
-        raise ValueError("That friend view is truncated.")
-    nonce, tag, cipher = data[:16], data[16:48], data[48:]
-    key = _key(secret)
-    expect = hmac.new(key, nonce + cipher, hashlib.sha256).digest()
-    if not hmac.compare_digest(tag, expect):
-        raise ValueError("Could not read that friend view.")
-    stream = hashlib.shake_256(key + nonce).digest(len(cipher))
-    raw = bytes(a ^ b for a, b in zip(cipher, stream))
-    payload = json.loads(raw.decode("utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("That friend view is not a dashboard.")
+    from app.crypto import decrypt_json
+
+    try:
+        payload = decrypt_json(secret, blob)
+    except ValueError as exc:
+        text = str(exc)
+        if "not encrypted" in text:
+            raise ValueError("That friend view is not encrypted.") from exc
+        if "truncated" in text:
+            raise ValueError("That friend view is truncated.") from exc
+        raise ValueError("Could not read that friend view.") from exc
     return payload
 
 

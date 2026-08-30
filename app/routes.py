@@ -122,56 +122,11 @@ def _bearer_token() -> str:
     return (request.args.get("token") or "").strip()
 
 
-def _stale_message(state: dict) -> str:
-    name = state.get("peer_name") or "the other computer"
-    action = state.get("action")
-    if state.get("shrink"):
-        local = state.get("local") or {}
-        remote = state.get("remote") or {}
-        return (
-            f"Replace {local.get('bets', 0)} bets with {remote.get('bets', 0)} from {name}? "
-            "Fetch the latest log first, or save this copy anyway."
-        )
-    if action == "conflict":
-        return f"This computer and {name} both changed. Fetch the latest log first, or save this copy anyway."
-    return f"{name} has a newer log. Fetch it first, or save this copy anyway."
-
-
 @bp.before_request
 def _block_remote_ui():
     from app.access import enforce_local_ui
 
     return enforce_local_ui()
-
-
-@bp.before_request
-def _block_stale_writes():
-    if request.method != "POST":
-        return None
-    path = request.path
-    if (
-        path.startswith("/sync")
-        or path.startswith("/friends")
-        or path.startswith("/settings")
-        or path.startswith("/api/")
-    ):
-        return None
-    if request.form.get("sync_force") == "1" or request.headers.get("X-Sync-Force") == "1":
-        return None
-    from app.settings import get as setting
-
-    if not setting("auto_sync"):
-        return None
-    from app.live_sync import freshness
-
-    state = freshness()
-    if not state.get("needs_confirm"):
-        return None
-    wants_json = "application/json" in (request.headers.get("Accept") or "") or bool(request.is_json)
-    if wants_json:
-        return jsonify({"ok": False, "stale": True, **state}), 409
-    flash(_stale_message(state), "error")
-    return redirect(request.referrer or url_for("main.dashboard"))
 
 
 def _app_port() -> int:

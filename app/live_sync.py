@@ -1,9 +1,8 @@
-"""Poll paired own-devices and pull when only the peer changed."""
+"""HTTP helpers for pairing, Friends LAN, and the Wi‑Fi half of replicate."""
 
 from __future__ import annotations
 
 import json
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.error import HTTPError, URLError
@@ -15,7 +14,6 @@ from sqlalchemy.orm import Session
 from app.settings import get as setting
 from app.snapshot import apply_snapshot, dump_snapshot, snapshot_counts, would_shrink
 from app.sync import (
-    clear_want_push_for,
     compare_fingerprints,
     load_state,
     set_conflict,
@@ -23,15 +21,9 @@ from app.sync import (
     upsert_peer,
 )
 
-POLL_EVERY_SEC = 8
 REQUEST_TIMEOUT = 3.0
 LAN_TIMEOUT = 2.0
 FRESHNESS_TIMEOUT = 1.5
-
-_lock = threading.Lock()
-_wakeup = threading.Event()
-_started = False
-_last_error: str | None = None
 
 
 def _headers(token: str | None = None) -> dict:
@@ -94,15 +86,8 @@ def _mark_ok(peer: dict, host: str) -> None:
     peer["last_ok_host"] = host
     peer["can_reach"] = True
     peer["online"] = True
-    peer["want_push"] = False
+    peer["last_via"] = "wifi"
     peer["last_seen"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-    upsert_peer(peer)
-
-
-def _mark_unreachable(peer: dict) -> None:
-    peer["online"] = False
-    peer["can_reach"] = False
-    peer["want_push"] = True
     upsert_peer(peer)
 
 
@@ -289,9 +274,9 @@ def _freshness(session: Session) -> dict:
     for peer in peers:
         try:
             remote = fetch_peer(peer, "/api/sync/status", timeout=FRESHNESS_TIMEOUT)
+            _refresh_peer_address(peer, remote)
         except Exception:  # noqa: BLE001
             continue
-        _refresh_peer_address(peer, remote)
         action = compare_fingerprints(local["fingerprint"], remote.get("fingerprint") or "", last)
         info = {
             "action": action,
@@ -325,43 +310,9 @@ def _freshness(session: Session) -> dict:
 
 
 def pull_peer(session: Session, peer: dict, *, force: bool = False) -> dict:
-    try:
-        remote = fetch_peer(peer, "/api/sync/snapshot")
-    except (HTTPError, URLError, TimeoutError, OSError) as exc:
-        _mark_unreachable(peer)
-        raise ValueError(
-            "This computer cannot reach that one. Asked them to send the log if they can "
-            "call this way — leave both apps open."
-        ) from exc
-    snap = remote.get("snapshot") if isinstance(remote.get("snapshot"), dict) else remote
-    if "accounts" not in snap:
-        raise ValueError("The other computer did not send a log.")
-    local = dump_snapshot(session)
-    if would_shrink(local, snap) and not force:
-        set_conflict(
-            {
-                "peer_id": peer.get("id"),
-                "peer_name": peer.get("nickname") or "the other computer",
-                "local": local["counts"],
-                "remote": snapshot_counts(snap),
-                "shrink": True,
-                "reason": "smaller",
-            }
-        )
-        raise ValueError(
-            f"Replace {local['counts']['bets']} bets with {snapshot_counts(snap)['bets']} "
-            f"from {peer.get('nickname') or 'the other computer'}? Confirm to overwrite."
-        )
-    counts = apply_snapshot(session, snap, backup_why="before-sync")
-    set_last_agreed(snap.get("fingerprint") or dump_snapshot(session)["fingerprint"])
-    upsert_peer(
-        {
-            **peer,
-            "last_seen": time.strftime("%Y-%m-%dT%H:%M:%S"),
-            "online": True,
-        }
-    )
-    return counts
+    from app.replicate import pull_from_anywhere
+
+    return pull_from_anywhere(session, peer, force=force)
 
 
 def apply_push(session: Session, body: dict, *, force: bool = False) -> dict:
@@ -371,8 +322,6 @@ def apply_push(session: Session, body: dict, *, force: bool = False) -> dict:
     local = dump_snapshot(session)
     incoming_fp = snap.get("fingerprint") or ""
     if incoming_fp and incoming_fp == local["fingerprint"]:
-        if body.get("device_id"):
-            clear_want_push_for(str(body["device_id"]))
         return {"same": True, **local["counts"]}
     last = load_state().get("last_agreed") or ""
     we_unchanged = bool(last and last == local["fingerprint"])
@@ -394,7 +343,6 @@ def apply_push(session: Session, body: dict, *, force: bool = False) -> dict:
     counts = apply_snapshot(session, snap, backup_why="before-sync")
     set_last_agreed(snap.get("fingerprint") or dump_snapshot(session)["fingerprint"])
     if body.get("device_id"):
-        clear_want_push_for(str(body["device_id"]))
         existing = None
         for peer in load_state().get("peers") or []:
             if peer.get("device_id") == body.get("device_id"):
@@ -402,6 +350,8 @@ def apply_push(session: Session, body: dict, *, force: bool = False) -> dict:
                 break
         if existing:
             _refresh_peer_address(existing, body)
+            existing["last_via"] = "wifi"
+            upsert_peer(existing)
     return {"same": False, **counts}
 
 
@@ -434,130 +384,19 @@ def push_one(session: Session, peer: dict) -> bool:
         return False
 
 
-def push_to_peers(session: Session | None = None) -> None:
-    if not setting("auto_sync") or not setting("allow_lan"):
-        return
-    peers = load_state().get("peers") or []
-    if not peers:
-        return
-    own = session is None
-    if own:
-        session = _session()
-    try:
-        migrate_last_agreed(session)
-        for peer in peers:
-            push_one(session, peer)
-    finally:
-        if own and session is not None:
-            session.close()
-
-
-def _poll_once() -> None:
-    global _last_error
-    if not setting("auto_sync") or not setting("allow_lan"):
-        return
-    state = load_state()
-    peers = state.get("peers") or []
-    if not peers:
-        return
-    session = _session()
-    try:
-        migrate_last_agreed(session)
-        local = dump_snapshot(session)
-        last = state.get("last_agreed") or ""
-        for peer in peers:
-            try:
-                remote = fetch_peer(peer, "/api/sync/status", timeout=LAN_TIMEOUT)
-            except Exception as exc:  # noqa: BLE001
-                _last_error = str(exc)
-                _mark_unreachable(peer)
-                continue
-            _last_error = None
-            _refresh_peer_address(peer, remote)
-            me_id = load_state().get("device_id")
-            if me_id and me_id in (remote.get("want_push_from") or []):
-                push_one(session, peer)
-            action = compare_fingerprints(local["fingerprint"], remote.get("fingerprint") or "", last)
-            if action == "same":
-                if last != local["fingerprint"]:
-                    set_last_agreed(local["fingerprint"])
-                continue
-            if action == "wait":
-                # We can reach them, so we send. Do not wait for them to call us.
-                push_one(session, peer)
-                continue
-            if action == "conflict":
-                set_conflict(
-                    {
-                        "peer_id": peer.get("id"),
-                        "peer_name": peer.get("nickname") or "the other computer",
-                        "local": local["counts"],
-                        "remote": remote.get("counts"),
-                        "shrink": would_shrink(local["counts"], remote.get("counts") or {}),
-                        "reason": "both",
-                    }
-                )
-                continue
-            if action == "pull":
-                # They changed and we can reach them — fetch. Same lane as a send.
-                pull_peer(session, peer, force=True)
-                session.commit()
-                from app.settings import get as setting_get
-                from app.excel import sync_workbook
-
-                if setting_get("excel_sync"):
-                    try:
-                        sync_workbook(session)
-                    except Exception:  # noqa: BLE001
-                        pass
-                local = dump_snapshot(session)
-    finally:
-        session.close()
-
-
-def tick() -> None:
-    if not _lock.acquire(blocking=False):
-        return
-    try:
-        _poll_once()
-    finally:
-        _lock.release()
-
-
 def notify_after_save() -> None:
-    _wakeup.set()
-    threading.Thread(target=_push_after_save, name="mbd-push", daemon=True).start()
+    from app.replicate import notify_after_save as replicate_notify
 
-
-def _push_after_save() -> None:
-    if not _lock.acquire(timeout=10):
-        _wakeup.set()
-        return
-    try:
-        push_to_peers()
-    except Exception:  # noqa: BLE001
-        pass
-    finally:
-        _lock.release()
+    replicate_notify()
 
 
 def last_error() -> str | None:
-    return _last_error
+    from app.replicate import last_error as replicate_error
 
-
-def _loop() -> None:
-    while True:
-        _wakeup.wait(timeout=POLL_EVERY_SEC)
-        _wakeup.clear()
-        try:
-            tick()
-        except Exception:  # noqa: BLE001
-            pass
+    return replicate_error()
 
 
 def start_background() -> None:
-    global _started
-    if _started:
-        return
-    _started = True
-    threading.Thread(target=_loop, name="mbd-live-sync", daemon=True).start()
+    from app.replicate import start_background as start_replicate
+
+    start_replicate()

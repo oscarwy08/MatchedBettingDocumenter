@@ -28,7 +28,7 @@
 
   <section class="panel">
     <div class="panel-head"><h2>This account</h2></div>
-    <p class="hint">Every computer here is an equal copy of the same account. The street is often one-way: the computer that can call the other both sends and fetches. Leave both apps open. A snapshot is saved before anything is replaced.</p>
+    <p class="hint">Every computer here is an equal copy of the same account. Pair once on the same Wi‑Fi. After that they stay in sync on Wi‑Fi when it works, or over the encrypted internet path if it does not (hotspot, one-way firewall). Leave both apps open. A snapshot is saved before anything is replaced.</p>
     <table>
       <thead>
         <tr>
@@ -49,7 +49,7 @@
           <tr>
             <td>{{ peer.nickname or "Computer" }}</td>
             <td class="mono">{{ peer.lan_host or peer.host or "—" }}{% if peer.wan_host %} · {{ peer.wan_host }}{% endif %}</td>
-            <td>{% if peer.online %}Linked{% elif peer.last_seen %}Last seen {{ peer.last_seen }}{% else %}Linked{% endif %}</td>
+            <td>{% if peer.last_via == "wifi" %}Linked via Wi‑Fi{% elif peer.last_via == "mailbox" %}Linked via internet path{% elif peer.online %}Linked{% elif peer.last_seen %}Last seen {{ peer.last_seen }}{% else %}Linked{% endif %}</td>
             <td class="page-actions">
               <form method="post" action="{{ url_for('main.sync_pull_peer', peer_id=peer.id) }}">
                 <button class="btn" type="submit">Copy their log</button>
@@ -72,7 +72,7 @@
 
   <section class="panel">
     <div class="panel-head"><h2>Link another computer</h2></div>
-    <p class="hint">On either computer, start sharing and copy the code. Paste it on the other once. Both then appear on this list as equals. If one side cannot receive, paste the code on the computer that <em>can</em> send — that machine will keep fetching as well as sending.</p>
+    <p class="hint">On either computer, start sharing and copy the code. Paste it on the other once — that first link needs the same Wi‑Fi. After that they are equals, and a save copies even when they are on different networks.</p>
     {% if sharing %}
       <p>Share this code:</p>
       <p class="link-code" id="link-code">{{ link_code }}</p>

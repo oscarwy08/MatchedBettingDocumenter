@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "One-way streets: the computer that can call the other both sends and fetches the log. "
+        "Saves on this computer are never blocked by sync. The mailbox is checked every few seconds even when Wi‑Fi looks fine. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
