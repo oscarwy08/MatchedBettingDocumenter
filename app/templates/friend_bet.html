@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ bet.event or "Matched bet" }}{% endblock %}
+{% block eyebrow %}{{ bet.bookie }}{% if bet.exchange %} · {{ bet.exchange }}{% endif %} · {{ selected.nickname or "Friend" }}{% endblock %}
+{% block heading %}{{ bet.event or "Matched bet" }}{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ url_for('main.friend_detail', friend_id=selected.id) }}">Back to {{ selected.nickname or "friend" }}</a>
+  <a class="btn" href="{{ url_for('main.friends_page') }}">Friends</a>
+{% endblock %}
+{% block content %}
+  <p class="hint">Read-only. This is their bet, not yours.</p>
+  <section class="stat-grid">
+    <article class="stat-card"><p>Type</p><strong>{{ bet.bet_type | labelize }}</strong></article>
+    <article class="stat-card"><p>Back</p><strong>{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}</strong></article>
+    <article class="stat-card"><p>Lay</p><strong>{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}</strong></article>
+    <article class="stat-card"><p>Liability</p><strong>{{ bet.liability | gbp }}</strong></article>
+    <article class="stat-card"><p>Expected</p><strong class="{{ bet.expected_profit | pnl }}">{{ bet.expected_profit | gbp }}</strong></article>
+    <article class="stat-card"><p>Placed</p><strong>{{ bet.placed or bet.date }}</strong></article>
+    <article class="stat-card"><p>Status</p><strong>{{ bet.status | labelize }}</strong></article>
+  </section>
+
+  {% if bet.offer or bet.market or bet.notes %}
+    <p class="notes">
+      {% if bet.offer %}Offer: {{ bet.offer }}{% endif %}
+      {% if bet.market %} · {{ bet.market }}{% endif %}
+      {% if bet.notes %} · {{ bet.notes }}{% endif %}
+    </p>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-head"><h2>Outcomes</h2></div>
+    <table>
+      <thead>
+        <tr><th></th><th class="num">Bookie</th><th class="num">Exchange</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>If back wins</th>
+          <td class="{{ bet.expected_bookie_back | pnl }} num">{{ bet.expected_bookie_back | gbp }}</td>
+          <td class="{{ bet.expected_exchange_back | pnl }} num">{{ bet.expected_exchange_back | gbp }}</td>
+        </tr>
+        <tr>
+          <th>If lay wins</th>
+          <td class="{{ bet.expected_bookie_lay | pnl }} num">{{ bet.expected_bookie_lay | gbp }}</td>
+          <td class="{{ bet.expected_exchange_lay | pnl }} num">{{ bet.expected_exchange_lay | gbp }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  {% if not bet.pending %}
+    <section class="panel">
+      <div class="panel-head"><h2>Settled result</h2></div>
+      <p>Bookie {{ bet.actual_bookie_profit | gbp }} · Exchange {{ bet.actual_exchange_profit | gbp }} · Net <strong class="{{ bet.actual_profit | pnl }}">{{ bet.actual_profit | gbp }}</strong>
+        {% if bet.settled %} · Settled {{ bet.settled }}{% endif %}
+      </p>
+    </section>
+  {% endif %}
+{% endblock %}

@@ -11,10 +11,8 @@ from urllib.request import Request, urlopen
 
 from sqlalchemy.orm import Session
 
-from app.settings import get as setting
 from app.snapshot import apply_snapshot, dump_snapshot, snapshot_counts, would_shrink
 from app.sync import (
-    compare_fingerprints,
     load_state,
     set_conflict,
     set_last_agreed,
@@ -23,7 +21,6 @@ from app.sync import (
 
 REQUEST_TIMEOUT = 3.0
 LAN_TIMEOUT = 2.0
-FRESHNESS_TIMEOUT = 1.5
 
 
 def _headers(token: str | None = None) -> dict:
@@ -258,53 +255,26 @@ def freshness(session: Session | None = None) -> dict:
 
 
 def _freshness(session: Session) -> dict:
+    """Local only — never dial the other computer from a save."""
     migrate_last_agreed(session)
     local = dump_snapshot(session)
     state = load_state()
-    last = state.get("last_agreed") or ""
-    peers = state.get("peers") or []
-    if not peers or not setting("auto_sync"):
+    conflict = state.get("conflict")
+    if conflict:
         return {
-            "action": "ok",
+            "action": "conflict",
             "needs_confirm": False,
-            "local": local["counts"],
+            "peer_name": conflict.get("peer_name") or "the other computer",
+            "peer_id": conflict.get("peer_id"),
+            "local": conflict.get("local") or local["counts"],
+            "remote": conflict.get("remote"),
+            "shrink": conflict.get("shrink"),
             "fingerprint": local["fingerprint"],
         }
-    best = None
-    for peer in peers:
-        try:
-            remote = fetch_peer(peer, "/api/sync/status", timeout=FRESHNESS_TIMEOUT)
-            _refresh_peer_address(peer, remote)
-        except Exception:  # noqa: BLE001
-            continue
-        action = compare_fingerprints(local["fingerprint"], remote.get("fingerprint") or "", last)
-        info = {
-            "action": action,
-            "peer": peer,
-            "remote": remote,
-            "local": local["counts"],
-            "shrink": would_shrink(local["counts"], remote.get("counts") or {}),
-        }
-        if action in ("pull", "conflict"):
-            best = info
-            break
-        best = info
-    if best is None:
-        return {
-            "action": "offline",
-            "needs_confirm": False,
-            "local": local["counts"],
-            "fingerprint": local["fingerprint"],
-        }
-    needs = best["action"] in ("pull", "conflict") or best.get("shrink")
     return {
-        "action": best["action"],
-        "needs_confirm": bool(needs),
-        "peer_name": (best["peer"] or {}).get("nickname") or "the other computer",
-        "peer_id": (best["peer"] or {}).get("id"),
+        "action": "ok",
+        "needs_confirm": False,
         "local": local["counts"],
-        "remote": (best["remote"] or {}).get("counts"),
-        "shrink": best.get("shrink"),
         "fingerprint": local["fingerprint"],
     }
 

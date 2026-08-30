@@ -218,52 +218,82 @@ def _money(value) -> str:
     return f"{Decimal(str(value)):.2f}"
 
 
-def view_dto(session: Session, *, nickname: str) -> dict:
-    from app.services import dashboard_stats
+def _when(value) -> str:
+    from app.dates import format_uk_time
 
-    stats = dashboard_stats(session)
-    recent = []
-    bets = list(stats.get("pending_bets") or [])
-    # Prefer a mix: pending first already sorted; add settled by date.
+    return format_uk_time(value)
+
+
+def _bet_row(bet) -> dict:
+    from app.models import BetStatus
+
+    pending = bet.status == BetStatus.PENDING
+    profit = bet.expected_profit if pending else bet.actual_profit
+    bookie = ""
+    exchange = ""
+    offer = ""
+    try:
+        bookie = bet.bookie.name if bet.bookie is not None else ""
+    except Exception:  # noqa: BLE001
+        bookie = ""
+    try:
+        exchange = bet.exchange.name if bet.exchange is not None else ""
+    except Exception:  # noqa: BLE001
+        exchange = ""
+    try:
+        offer = bet.offer.name if bet.offer is not None else ""
+    except Exception:  # noqa: BLE001
+        offer = ""
+    return {
+        "id": bet.id,
+        "placed": _when(bet.placed_at or bet.date_placed),
+        "date": _when(bet.placed_at or bet.date_placed),
+        "settled": _when(bet.settled_at) if bet.settled_at else "",
+        "event": bet.event or "—",
+        "market": bet.market or "",
+        "notes": bet.notes or "",
+        "bet_type": bet.bet_type or "",
+        "status": bet.status or "",
+        "bookie": bookie,
+        "exchange": exchange,
+        "offer": offer,
+        "back_stake": _money(bet.back_stake),
+        "back_odds": str(bet.back_odds or ""),
+        "lay_stake": _money(bet.lay_stake),
+        "lay_odds": str(bet.lay_odds or ""),
+        "commission_percent": _money(bet.commission_percent),
+        "cashback": _money(bet.cashback),
+        "liability": _money(bet.liability),
+        "expected_profit": _money(bet.expected_profit),
+        "expected_bookie_back": _money(bet.expected_bookie_back),
+        "expected_exchange_back": _money(bet.expected_exchange_back),
+        "expected_bookie_lay": _money(bet.expected_bookie_lay),
+        "expected_exchange_lay": _money(bet.expected_exchange_lay),
+        "actual_profit": _money(bet.actual_profit) if bet.actual_profit is not None else "",
+        "actual_bookie_profit": _money(bet.actual_bookie_profit) if bet.actual_bookie_profit is not None else "",
+        "actual_exchange_profit": _money(bet.actual_exchange_profit) if bet.actual_exchange_profit is not None else "",
+        "profit": _money(profit),
+        "pending": pending,
+        "free_bet_returned": bool(getattr(bet, "free_bet_returned", False)),
+    }
+
+
+def view_dto(session: Session, *, nickname: str) -> dict:
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
 
-    from app.models import Bet, BetStatus
+    from app.models import Bet
+    from app.services import dashboard_stats, offer_snapshot
 
-    settled = list(
-        session.scalars(
+    stats = dashboard_stats(session)
+    bets = [
+        _bet_row(bet)
+        for bet in session.scalars(
             select(Bet)
-            .options(selectinload(Bet.bookie))
-            .where(Bet.status != BetStatus.PENDING)
-            .order_by(Bet.date_placed.desc())
-            .limit(RECENT_BETS)
+            .options(selectinload(Bet.bookie), selectinload(Bet.exchange), selectinload(Bet.offer))
+            .order_by(Bet.date_placed.desc(), Bet.id.desc())
         )
-    )
-    seen = set()
-    for bet in list(bets) + settled:
-        if bet.id in seen:
-            continue
-        seen.add(bet.id)
-        try:
-            bookie = bet.bookie
-            bookie_name = bookie.name if bookie is not None else ""
-        except Exception:  # noqa: BLE001
-            bookie_name = ""
-        profit = bet.actual_profit if bet.status != BetStatus.PENDING else bet.expected_profit
-        recent.append(
-            {
-                "date": (bet.placed_at or bet.date_placed).isoformat()
-                if hasattr(bet.placed_at or bet.date_placed, "isoformat")
-                else str(bet.date_placed),
-                "event": bet.event or "—",
-                "bookie": bookie_name,
-                "status": bet.status,
-                "profit": _money(profit),
-                "pending": bet.status == BetStatus.PENDING,
-            }
-        )
-        if len(recent) >= RECENT_BETS:
-            break
+    ]
     bookies = []
     for snap in stats.get("profit_by_bookie") or []:
         account = snap["account"]
@@ -272,6 +302,29 @@ def view_dto(session: Session, *, nickname: str) -> dict:
                 "name": account.name,
                 "net_profit": _money(snap["net_profit"]),
                 "deposited": _money(snap["deposited"]),
+                "bookie_profit": _money(snap["bookie_profit"]),
+                "exchange_profit": _money(snap["exchange_profit"]),
+                "balance": _money(snap["balance"]),
+            }
+        )
+    offers = []
+    for offer in stats.get("in_progress_offers") or []:
+        row = offer_snapshot(offer)
+        bookie_name = ""
+        try:
+            bookie_name = offer.bookie.name if offer.bookie is not None else ""
+        except Exception:  # noqa: BLE001
+            bookie_name = ""
+        offers.append(
+            {
+                "name": offer.name or "—",
+                "bookie": bookie_name,
+                "type": offer.type or "",
+                "net_profit": _money(row["net_profit"]),
+                "free_funds": _money(row["free_funds"]),
+                "free_funds_used": _money(row["free_funds_used"]),
+                "pending_count": int(row["pending_count"]),
+                "leg_count": int(row["leg_count"]),
             }
         )
     return {
@@ -286,21 +339,37 @@ def view_dto(session: Session, *, nickname: str) -> dict:
             "settled_count": int(stats["settled_count"]),
         },
         "profit_by_bookie": bookies,
-        "recent_bets": recent,
+        "offers": offers,
+        "bets": bets,
+        "recent_bets": bets[:RECENT_BETS],
     }
 
 
-def encrypt_view(secret: str, payload: dict) -> str:
-    from app.crypto import encrypt_json
+def bet_from_view(view: dict | None, bet_id: str) -> dict | None:
+    if not isinstance(view, dict):
+        return None
+    for bet in view.get("bets") or []:
+        if str(bet.get("id")) == str(bet_id):
+            return bet
+    return None
 
-    return encrypt_json(secret, payload)
+
+def encrypt_view(secret: str, payload: dict) -> str:
+    import gzip
+
+    from app.crypto import encrypt_bytes
+
+    raw = json.dumps(payload, separators=(",", ":"), default=str).encode("utf-8")
+    return encrypt_bytes(secret, gzip.compress(raw))
 
 
 def decrypt_view(secret: str, blob: str) -> dict:
-    from app.crypto import decrypt_json
+    import gzip
+
+    from app.crypto import decrypt_bytes
 
     try:
-        payload = decrypt_json(secret, blob)
+        packed = decrypt_bytes(secret, blob)
     except ValueError as exc:
         text = str(exc)
         if "not encrypted" in text:
@@ -308,6 +377,13 @@ def decrypt_view(secret: str, blob: str) -> dict:
         if "truncated" in text:
             raise ValueError("That friend view is truncated.") from exc
         raise ValueError("Could not read that friend view.") from exc
+    try:
+        raw = gzip.decompress(packed)
+    except OSError:
+        raw = packed
+    payload = json.loads(raw.decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("That friend view is not a dashboard.")
     return payload
 
 

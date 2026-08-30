@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
@@ -102,17 +103,30 @@ def _notify_linked() -> None:
     notify_after_save()
 
 
+def _excel_in_background() -> None:
+    def work() -> None:
+        from app.db import SessionLocal
+
+        if SessionLocal is None:
+            return
+        session = SessionLocal()
+        try:
+            sync_workbook(session)
+        except Exception:  # noqa: BLE001
+            pass
+        finally:
+            session.close()
+
+    threading.Thread(target=work, name="mbd-excel", daemon=True).start()
+
+
 def _commit_and_sync(session: Session) -> None:
     session.commit()
     from app.settings import get as setting
 
     _notify_linked()
-    if not setting("excel_sync"):
-        return
-    try:
-        sync_workbook(session)
-    except Exception as exc:  # noqa: BLE001
-        flash(f"Saved, but Excel sync failed: {exc}", "error")
+    if setting("excel_sync"):
+        _excel_in_background()
 
 
 def _bearer_token() -> str:
@@ -1481,51 +1495,95 @@ def friends_page():
         invites=invites,
         friends=state.get("friends") or [],
         reach=reachability(port),
-        view=None,
-        live=False,
-        last_available=None,
-        fetch_error=None,
         nickname=account_name(),
     )
 
 
+def _load_friend_view(friend: dict) -> tuple[dict | None, bool, str | None, str | None]:
+    from app.friends import fetch_live, load_cache, store_cache
+
+    friend_id = str(friend.get("id") or "")
+    try:
+        view = fetch_live(friend)
+        store_cache(friend_id, view)
+        return view, True, None, None
+    except Exception as exc:  # noqa: BLE001
+        cached = load_cache(friend_id)
+        if cached:
+            return cached.get("payload"), False, cached.get("fetched_at"), str(exc)
+        return None, False, None, str(exc)
+
+
+def _filter_friend_bets(view: dict | None, status: str, q: str) -> list:
+    bets = list((view or {}).get("bets") or (view or {}).get("recent_bets") or [])
+    if status == "pending":
+        bets = [bet for bet in bets if bet.get("pending") or bet.get("status") == "pending"]
+    elif status == "settled":
+        bets = [bet for bet in bets if not bet.get("pending") and bet.get("status") != "pending"]
+    needle = (q or "").strip().lower()
+    if needle:
+        bets = [
+            bet
+            for bet in bets
+            if needle
+            in " ".join(
+                [
+                    str(bet.get("event") or ""),
+                    str(bet.get("bookie") or ""),
+                    str(bet.get("offer") or ""),
+                    str(bet.get("exchange") or ""),
+                ]
+            ).lower()
+        ]
+    return bets
+
+
 @bp.get("/friends/<friend_id>")
 def friend_detail(friend_id: str):
-    from app.friends import account_name, fetch_live, friend_by_id, invite_code, load_cache, load_state as load_friends, store_cache
-    from app.nat import reachability
+    from app.friends import friend_by_id
 
     friend = friend_by_id(friend_id)
     if not friend:
         flash("That friend is not on your list.", "error")
         return redirect(url_for("main.friends_page"))
-    view = None
-    live = False
-    last_available = None
-    fetch_error = None
-    try:
-        view = fetch_live(friend)
-        store_cache(friend_id, view)
-        live = True
-    except Exception as exc:  # noqa: BLE001
-        fetch_error = str(exc)
-        cached = load_cache(friend_id)
-        if cached:
-            view = cached.get("payload")
-            last_available = cached.get("fetched_at")
-    port = _app_port()
-    state = load_friends()
-    invites = [{**invite, "code": invite_code(invite, port)} for invite in state.get("invites") or []]
+    view, live, last_available, fetch_error = _load_friend_view(friend)
+    status = request.args.get("status") or "all"
+    q = (request.args.get("q") or "").strip()
     return render_template(
-        "friends.html",
-        invites=invites,
-        friends=state.get("friends") or [],
-        reach=reachability(port),
+        "friend_dash.html",
+        selected=friend,
         view=view,
         live=live,
         last_available=last_available,
         fetch_error=fetch_error,
+        status=status,
+        q=q,
+        bets=_filter_friend_bets(view, status, q),
+        pending_bets=_filter_friend_bets(view, "pending", ""),
+    )
+
+
+@bp.get("/friends/<friend_id>/bets/<bet_id>")
+def friend_bet(friend_id: str, bet_id: str):
+    from app.friends import bet_from_view, friend_by_id
+
+    friend = friend_by_id(friend_id)
+    if not friend:
+        flash("That friend is not on your list.", "error")
+        return redirect(url_for("main.friends_page"))
+    view, live, last_available, fetch_error = _load_friend_view(friend)
+    bet = bet_from_view(view, bet_id)
+    if not bet:
+        flash("That bet is not in their latest view.", "error")
+        return redirect(url_for("main.friend_detail", friend_id=friend_id))
+    return render_template(
+        "friend_bet.html",
         selected=friend,
-        nickname=account_name(),
+        bet=bet,
+        view=view,
+        live=live,
+        last_available=last_available,
+        fetch_error=fetch_error,
     )
 
 

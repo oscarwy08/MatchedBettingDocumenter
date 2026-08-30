@@ -62,6 +62,27 @@ def test_would_shrink():
     assert would_shrink({"accounts": 34, "offers": 2, "bets": 9, "transfers": 1}, {"accounts": 34, "offers": 1, "bets": 3, "transfers": 1}) is True
 
 
+def test_freshness_does_not_dial(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    from app.db import init_db
+    from app.live_sync import freshness
+    from app.seed import seed_accounts
+
+    Session = init_db(tmp_path / "app.db")
+    session = Session()
+    seed_accounts(session)
+    session.commit()
+    remember_linked_device(device_id="laptop-1", token="tok", nickname="Laptop", lan_host="10.0.0.2")
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("freshness must not dial the other computer")
+
+    monkeypatch.setattr("app.live_sync.fetch_peer", boom)
+    state = freshness(session)
+    assert state["needs_confirm"] is False
+    session.close()
+
+
 def test_pairing_persist(tmp_path, monkeypatch):
     monkeypatch.setenv("MBD_ROOT", str(tmp_path))
     state = ensure_state()

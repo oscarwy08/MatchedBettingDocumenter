@@ -4,7 +4,7 @@
 {% block heading %}Friends{% endblock %}
 {% block content %}
   <p class="reach-line reach-{{ reach.kind }}">{{ reach.label }}{% if reach.lan_ip %} · this Wi‑Fi {{ reach.lan_ip }}:{{ app_port }}{% endif %}{% if reach.mapped and reach.wan_ip %} · internet {{ reach.wan_ip }}:{{ app_port }}{% endif %}</p>
-  <p class="hint">Friends see a read-only dashboard. Their token cannot replace your log. Invites belong to this account on every linked computer. Same Wi‑Fi is a direct link. Another house uses an outbound internet mailbox (both apps running — no VPN). If they are offline you still see the last available view.</p>
+  <p class="hint">Friends see a read-only dashboard — click a name to open it. Their token cannot replace your log. Invites belong to this account on every linked computer. Same Wi‑Fi is a direct link. Another house uses an outbound internet mailbox (both apps running — no VPN). If they are offline you still see the last available view.</p>
 
   <section class="panel">
     <div class="panel-head"><h2>Invite a viewer</h2></div>
@@ -71,94 +71,6 @@
     {% endif %}
   </section>
 
-  {% if selected %}
-  <section class="panel friend-dash">
-    <div class="panel-head">
-      <h2>{{ selected.nickname or "Friend" }}</h2>
-      {% if live %}
-        <span class="pill on">Live</span>
-      {% elif last_available %}
-        <span class="pill">Last available {{ last_available }}</span>
-      {% endif %}
-    </div>
-    {% if fetch_error %}
-      <p class="flash flash-error">{{ fetch_error }}</p>
-    {% endif %}
-    {% if view %}
-      <section class="stat-grid">
-        <article class="stat-card">
-          <p>Settled net profit</p>
-          <strong class="{{ view.stats.net_profit | pnl }}">{{ view.stats.net_profit | gbp }}</strong>
-        </article>
-        <article class="stat-card">
-          <p>Pending expected</p>
-          <strong class="{{ view.stats.pending_expected | pnl }}">{{ view.stats.pending_expected | gbp }}</strong>
-        </article>
-        <article class="stat-card">
-          <p>Bankroll</p>
-          <strong>{{ view.stats.bankroll | gbp }}</strong>
-        </article>
-        <article class="stat-card">
-          <p>Open lay liability</p>
-          <strong>{{ view.stats.open_liability | gbp }}</strong>
-        </article>
-        <article class="stat-card">
-          <p>Profit this month</p>
-          <strong class="{{ view.stats.month_profit | pnl }}">{{ view.stats.month_profit | gbp }}</strong>
-        </article>
-        <article class="stat-card">
-          <p>Bets</p>
-          <strong>{{ view.stats.pending_count }} pending · {{ view.stats.settled_count }} settled</strong>
-        </article>
-      </section>
-      {% if view.recent_bets %}
-        <table>
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Bookie</th>
-              <th>Event</th>
-              <th class="num">P&amp;L</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for bet in view.recent_bets %}
-              <tr>
-                <td>{{ bet.date }}</td>
-                <td>{{ bet.bookie }}</td>
-                <td>{{ bet.event }}</td>
-                <td class="{{ bet.profit | pnl }} num">{{ bet.profit | gbp }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      {% endif %}
-      {% if view.profit_by_bookie %}
-        <h3>Profit by bookie</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Bookie</th>
-              <th class="num">Deposited</th>
-              <th class="num">Net</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in view.profit_by_bookie %}
-              <tr>
-                <td>{{ row.name }}</td>
-                <td class="num">{{ row.deposited | gbp }}</td>
-                <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      {% endif %}
-    {% else %}
-      <p class="empty">No view stored yet. Open their Friends page again when both apps are running, or check the message above.</p>
-    {% endif %}
-  </section>
-  {% endif %}
 {% endblock %}
 {% block scripts %}
 <script>

@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Saves on this computer are never blocked by sync. The mailbox is checked every few seconds even when Wi‑Fi looks fine. "
+        "Saves no longer wait for the other computer. A friend's name opens their full dashboard. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}{{ selected.nickname or "Friend" }}{% endblock %}
+{% block eyebrow %}Friend{% endblock %}
+{% block heading %}{{ selected.nickname or "Friend" }}{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ url_for('main.friends_page') }}">Back to friends</a>
+{% endblock %}
+{% block content %}
+  <p class="hint">Read-only copy of their account. You cannot log, edit, or settle from here.</p>
+  {% if live %}
+    <p><span class="pill on">Live</span></p>
+  {% elif last_available %}
+    <p><span class="pill">Last available {{ last_available }}</span></p>
+  {% endif %}
+  {% if fetch_error %}
+    <p class="flash flash-error">{{ fetch_error }}</p>
+  {% endif %}
+  {% if view %}
+    <section class="stat-grid">
+      <article class="stat-card">
+        <p>Settled net profit</p>
+        <strong class="{{ view.stats.net_profit | pnl }}">{{ view.stats.net_profit | gbp }}</strong>
+      </article>
+      <article class="stat-card">
+        <p>Pending expected</p>
+        <strong class="{{ view.stats.pending_expected | pnl }}">{{ view.stats.pending_expected | gbp }}</strong>
+      </article>
+      <article class="stat-card">
+        <p>Bankroll</p>
+        <strong>{{ view.stats.bankroll | gbp }}</strong>
+      </article>
+      <article class="stat-card">
+        <p>Open lay liability</p>
+        <strong>{{ view.stats.open_liability | gbp }}</strong>
+      </article>
+      <article class="stat-card">
+        <p>Profit this month</p>
+        <strong class="{{ view.stats.month_profit | pnl }}">{{ view.stats.month_profit | gbp }}</strong>
+      </article>
+      <article class="stat-card">
+        <p>Bets</p>
+        <strong>{{ view.stats.pending_count }} pending · {{ view.stats.settled_count }} settled</strong>
+      </article>
+    </section>
+
+    <div class="split">
+      <section class="panel">
+        <div class="panel-head"><h2>Offers in progress</h2></div>
+        {% if view.offers %}
+          <table>
+            <thead>
+              <tr>
+                <th>Offer</th>
+                <th>Bookie</th>
+                <th class="num">Net so far</th>
+                <th class="num">Free funds</th>
+                <th>Legs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in view.offers %}
+                <tr>
+                  <td>{{ row.name }}</td>
+                  <td>{{ row.bookie }}</td>
+                  <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>
+                  <td class="num">{% if row.free_funds and row.free_funds != "0.00" %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}–{% endif %}</td>
+                  <td>{{ row.pending_count }} pending / {{ row.leg_count }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="empty">No open offers.</p>
+        {% endif %}
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Pending bets</h2></div>
+        {% if pending_bets %}
+          <table>
+            <thead>
+              <tr>
+                <th>Placed</th>
+                <th>Bookie</th>
+                <th>Event</th>
+                <th class="num">Expected</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for bet in pending_bets[:8] %}
+                <tr>
+                  <td>{{ bet.placed or bet.date }}</td>
+                  <td>{{ bet.bookie }}</td>
+                  <td><a href="{{ url_for('main.friend_bet', friend_id=selected.id, bet_id=bet.id) }}">{{ bet.event }}</a></td>
+                  <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="empty">Nothing waiting to settle.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Profit by bookie</h2></div>
+      {% if view.profit_by_bookie %}
+        <table>
+          <thead>
+            <tr>
+              <th>Bookie</th>
+              <th class="num">Deposited</th>
+              <th class="num">Bookie P&amp;L</th>
+              <th class="num">Exchange P&amp;L</th>
+              <th class="num">Net profit</th>
+              <th class="num">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in view.profit_by_bookie %}
+              <tr>
+                <td>{{ row.name }}</td>
+                <td class="num">{{ row.deposited | gbp }}</td>
+                <td class="{{ row.bookie_profit | pnl }} num">{{ row.bookie_profit | gbp }}</td>
+                <td class="{{ row.exchange_profit | pnl }} num">{{ row.exchange_profit | gbp }}</td>
+                <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>
+                <td class="num">{{ row.balance | gbp }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">Settled bets will appear here, grouped by bookie.</p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>All bets</h2></div>
+      <div class="filters">
+        <a class="pill {{ 'on' if status == 'all' }}" href="{{ url_for('main.friend_detail', friend_id=selected.id, status='all', q=q) }}">All</a>
+        <a class="pill {{ 'on' if status == 'pending' }}" href="{{ url_for('main.friend_detail', friend_id=selected.id, status='pending', q=q) }}">Pending</a>
+        <a class="pill {{ 'on' if status == 'settled' }}" href="{{ url_for('main.friend_detail', friend_id=selected.id, status='settled', q=q) }}">Settled</a>
+        <form method="get" class="search-inline">
+          <input type="hidden" name="status" value="{{ status }}">
+          <input type="search" name="q" value="{{ q }}" placeholder="Search event, bookie, offer…">
+          <button class="btn" type="submit">Search</button>
+        </form>
+      </div>
+      {% if bets %}
+        <table>
+          <thead>
+            <tr>
+              <th>Placed</th>
+              <th>Offer</th>
+              <th>Bookie</th>
+              <th>Type</th>
+              <th>Event</th>
+              <th class="num">Expected</th>
+              <th class="num">Actual</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for bet in bets %}
+              <tr>
+                <td>{{ bet.placed or bet.date }}</td>
+                <td>{{ bet.offer or "—" }}</td>
+                <td>{{ bet.bookie }}</td>
+                <td>{{ bet.bet_type | labelize }}</td>
+                <td><a href="{{ url_for('main.friend_bet', friend_id=selected.id, bet_id=bet.id) }}">{{ bet.event or "Untitled" }}</a></td>
+                <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
+                <td class="{{ bet.actual_profit | pnl }} num">{{ bet.actual_profit | gbp }}</td>
+                <td><span class="pill">{{ bet.status | labelize }}</span></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No bets in this filter.</p>
+      {% endif %}
+    </section>
+  {% else %}
+    <p class="empty">No view stored yet. Open this page again when both apps are running.</p>
+  {% endif %}
+{% endblock %}
