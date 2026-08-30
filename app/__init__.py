@@ -86,6 +86,16 @@ def create_app() -> Flask:
         from app.dates import format_uk_datetime
         return format_uk_datetime(value)
 
+    @app.template_filter("isodate")
+    def isodate(value):
+        from app.dates import format_iso_date
+        return format_iso_date(value)
+
+    @app.template_filter("isodatetime")
+    def isodatetime(value):
+        from app.dates import format_iso_datetime
+        return format_iso_datetime(value)
+
     @app.context_processor
     def inject_globals():
         from app.settings import get as setting

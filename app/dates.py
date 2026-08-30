@@ -40,11 +40,34 @@ def format_uk_datetime(value: date | datetime | None) -> str:
     return value.strftime("%d/%m/%Y %H:%M")
 
 
+def format_iso_date(value: date | datetime | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        value = value.date()
+    return value.isoformat()
+
+
+def format_iso_datetime(value: date | datetime | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return f"{value.isoformat()}T00:00"
+    return value.strftime("%Y-%m-%dT%H:%M")
+
+
 def parse_uk_datetime(raw: str | None) -> datetime | None:
     text = (raw or "").strip()
     if not text:
         return None
-    for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S", "%d-%m-%Y %H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M"):
+    for fmt in (
+        "%d/%m/%Y %H:%M",
+        "%d/%m/%Y %H:%M:%S",
+        "%d-%m-%Y %H:%M",
+        "%Y-%m-%d %H:%M",
+        "%Y-%m-%dT%H:%M",
+        "%Y-%m-%dT%H:%M:%S",
+    ):
         try:
             return datetime.strptime(text, fmt)
         except ValueError:

@@ -74,3 +74,55 @@ def test_every_bets_table_has_placed_and_starts(tmp_path, monkeypatch):
     assert b"30/08/2026 19:45" in detail.data
     assert b"tables.js" in client.get("/bets").data
     assert b"tables.js" in client.get("/offers").data
+
+
+def test_bet_details_use_date_pickers(tmp_path, monkeypatch):
+    root = tmp_path / "root"
+    monkeypatch.setenv("MBD_ROOT", str(root))
+    import app
+
+    monkeypatch.setattr(app, "ROOT_DIR", root)
+    monkeypatch.setattr(app, "DATA_DIR", root / "data")
+    monkeypatch.setattr(app, "DB_PATH", root / "data" / "app.db")
+    client = app.create_app().test_client()
+    import app.db as db
+
+    session = db.SessionLocal()
+    bookie_id, _offer_id, bet_id = _seed_bet(session)
+    exchange_id = session.scalars(select(Account).where(Account.name == "Smarkets")).one().id
+    session.close()
+
+    calc = client.get("/calculator")
+    assert calc.status_code == 200
+    assert b'name="date_placed" type="date"' in calc.data
+    assert b'name="starts_at" type="datetime-local"' in calc.data
+
+    edit = client.get(f"/bets/{bet_id}/edit")
+    assert edit.status_code == 200
+    assert b'type="date"' in edit.data
+    assert b'type="datetime-local"' in edit.data
+    assert b"2026-08-30T19:45" in edit.data
+
+    logged = client.post(
+        "/calculator/log",
+        data={
+            "bet_type": "normal",
+            "back_stake": "10",
+            "back_odds": "2",
+            "lay_odds": "2.1",
+            "commission_percent": "2",
+            "cashback": "0",
+            "bookie_id": str(bookie_id),
+            "exchange_id": str(exchange_id),
+            "date_placed": "2026-09-01",
+            "starts_at": "2026-09-02T15:30",
+            "event": "Picker cup",
+        },
+        follow_redirects=True,
+    )
+    assert logged.status_code == 200
+    session = db.SessionLocal()
+    saved = session.scalars(select(Bet).where(Bet.event == "Picker cup")).one()
+    assert saved.date_placed.isoformat() == "2026-09-01"
+    assert saved.starts_at == datetime(2026, 9, 2, 15, 30)
+    session.close()

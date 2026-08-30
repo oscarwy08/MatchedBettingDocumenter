@@ -2,7 +2,16 @@ from datetime import date, datetime
 
 import pytest
 
-from app.dates import combine_date, format_uk, format_uk_datetime, format_uk_time, parse_uk, parse_uk_datetime
+from app.dates import (
+    combine_date,
+    format_iso_date,
+    format_iso_datetime,
+    format_uk,
+    format_uk_datetime,
+    format_uk_time,
+    parse_uk,
+    parse_uk_datetime,
+)
 
 
 def test_uk_date_round_trip():
@@ -30,7 +39,11 @@ def test_parse_uk_datetime_optional():
     assert parse_uk_datetime("") is None
     assert parse_uk_datetime("30/08/2026 19:45") == datetime(2026, 8, 30, 19, 45)
     assert parse_uk_datetime("30/08/2026") == datetime(2026, 8, 30, 0, 0)
+    assert parse_uk_datetime("2026-08-30T19:45") == datetime(2026, 8, 30, 19, 45)
     assert format_uk_datetime(datetime(2026, 8, 30, 19, 45)) == "30/08/2026 19:45"
+    assert format_iso_date(date(2026, 8, 30)) == "2026-08-30"
+    assert format_iso_datetime(datetime(2026, 8, 30, 19, 45)) == "2026-08-30T19:45"
+    assert format_iso_datetime(None) == ""
 
 
 def test_combine_date_keeps_existing_clock():

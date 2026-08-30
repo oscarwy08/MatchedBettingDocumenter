@@ -253,6 +253,7 @@ def _form_context(session: Session) -> dict:
         "restrictions": RESTRICTION_CHOICES,
         "weekdays": WEEKDAYS,
         "today": format_uk(date.today()),
+        "today_iso": date.today().isoformat(),
     }
 
 

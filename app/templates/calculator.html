@@ -118,12 +118,11 @@
         </label>
         <label>
           <span class="field-name">Date</span>
-          <input name="date_placed" type="text" inputmode="numeric" placeholder="DD/MM/YYYY"
-                 pattern="\d{2}/\d{2}/\d{4}" value="{{ today }}" required>
+          <input name="date_placed" type="date" value="{{ today_iso }}" required>
         </label>
         <label>
           <span class="field-name">Starts</span>
-          <input name="starts_at" type="text" placeholder="DD/MM/YYYY HH:MM">
+          <input name="starts_at" type="datetime-local">
         </label>
         <label class="span-2">
           <span class="field-name">Event</span>
