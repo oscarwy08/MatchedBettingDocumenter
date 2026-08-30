@@ -11,7 +11,7 @@
           <span class="field-name">Type</span>
           <select name="bet_type" id="bet_type">
             {% for value, label in bet_types %}
-              <option value="{{ value }}">{{ label }}</option>
+              <option value="{{ value }}" {% if selected_bet_type == value %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
           </select>
         </label>

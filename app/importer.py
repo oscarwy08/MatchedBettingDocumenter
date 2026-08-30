@@ -98,6 +98,8 @@ BET_TYPE_MAP = {
     "accumulator": BetType.ACCA,
     "builder": BetType.BUILDER,
     "bet builder": BetType.BUILDER,
+    "mug": BetType.MUG,
+    "mug bet": BetType.MUG,
 }
 
 STATUS_MAP = {

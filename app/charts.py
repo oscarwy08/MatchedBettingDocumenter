@@ -67,6 +67,7 @@ _BET_LABELS = {
     "normal": "Normal",
     "acca": "Accumulator",
     "bet_builder": "Bet builder",
+    "mug": "Mug bet",
     "other": "Other",
 }
 
@@ -196,17 +197,16 @@ def _labelize(raw: str | None) -> str:
 
 
 def _bet_when(bet: Bet) -> datetime:
-    if bet.settled_at:
-        return bet.settled_at
-    if bet.placed_at:
-        return bet.placed_at
-    return datetime.combine(bet.date_placed, time.min)
+    """Bucket by the date on the bet. Keep the clock only when it matches that day."""
+    placed = bet.date_placed
+    clock = time.min
+    if bet.placed_at is not None and bet.placed_at.date() == placed:
+        clock = bet.placed_at.time()
+    return datetime.combine(placed, clock)
 
 
 def _placed_when(bet: Bet) -> datetime:
-    if bet.placed_at:
-        return bet.placed_at
-    return datetime.combine(bet.date_placed, time.min)
+    return _bet_when(bet)
 
 
 def range_window(range_key: str, today: date | None = None) -> tuple[datetime, datetime, str]:

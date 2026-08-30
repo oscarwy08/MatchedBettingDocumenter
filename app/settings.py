@@ -24,6 +24,17 @@ DEFAULTS = {
     "auto_sync": True,
     "port": 5050,
     "default_exchange_id": None,
+    "mug_after_offers": 4,
+    "check_every_days": 7,
+    "daily_check_target": 10,
+    "priority_check_days": 3,
+}
+
+INT_KEYS = {
+    "mug_after_offers",
+    "check_every_days",
+    "daily_check_target",
+    "priority_check_days",
 }
 
 
@@ -97,4 +108,14 @@ def _coerce(key: str, value, default):
             return int(value)
         except (TypeError, ValueError):
             return None
+    if key in INT_KEYS:
+        try:
+            number = int(str(value).strip())
+        except (TypeError, ValueError):
+            return default
+        if number < 1:
+            return default
+        if number > 99:
+            return 99
+        return number
     return default

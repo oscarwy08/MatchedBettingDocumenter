@@ -22,6 +22,8 @@ def test_save_and_reload(tmp_path, monkeypatch):
     assert saved["auto_sync"] is True
     assert saved["port"] == 5050
     assert saved["default_exchange_id"] is None
+    assert saved["mug_after_offers"] == 4
+    assert saved["daily_check_target"] == 10
     assert load()["open_browser"] is False
     assert settings_path().is_file()
 

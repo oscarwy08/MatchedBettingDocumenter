@@ -8,11 +8,11 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app import EXCEL_PATH
 from app.dates import format_uk_time
-from app.models import Account, AccountType, Bet, Offer, Transfer
+from app.models import Account, AccountTask, AccountType, Bet, Offer, Transfer
 from app.services import account_snapshot, dashboard_stats, offer_snapshot
 
 HEADER_FILL = PatternFill("solid", fgColor="1A2332")
@@ -89,6 +89,13 @@ def sync_workbook(session: Session, path: Path | None = None) -> Path:
     transfers = list(
         session.scalars(select(Transfer).order_by(Transfer.date.desc(), Transfer.id.desc()))
     )
+    tasks = list(
+        session.scalars(
+            select(AccountTask)
+            .options(selectinload(AccountTask.account))
+            .order_by(AccountTask.due_on, AccountTask.id)
+        )
+    )
 
     wb = Workbook()
 
@@ -107,6 +114,9 @@ def sync_workbook(session: Session, path: Path | None = None) -> Path:
 
     transfers_ws = wb.create_sheet("Transfers")
     _write_transfers(transfers_ws, transfers)
+
+    tasks_ws = wb.create_sheet("Tasks")
+    _write_tasks(tasks_ws, tasks)
 
     wb.save(target)
     return target
@@ -263,6 +273,10 @@ def _write_accounts(ws, snapshots: list[dict]) -> None:
             "Net profit",
             "Balance",
             "Commission %",
+            "Last checked",
+            "Priority",
+            "Restriction",
+            "Notes",
         ],
     )
     row = 2
@@ -286,8 +300,12 @@ def _write_accounts(ws, snapshots: list[dict]) -> None:
         _money(ws.cell(row, 7), snap["net_profit"])
         _money(ws.cell(row, 8), snap["balance"])
         ws.cell(row, 9, float(account.commission_percent))
+        ws.cell(row, 10, account.last_checked_on.isoformat() if account.last_checked_on else "")
+        ws.cell(row, 11, "Yes" if account.priority else "")
+        ws.cell(row, 12, (account.restriction or "").replace("_", " ").title())
+        ws.cell(row, 13, account.notes or "")
         row += 1
-    _stripe(ws, 2, 9)
+    _stripe(ws, 2, 13)
     _autosize(ws)
 
 
@@ -301,6 +319,17 @@ def _write_transfers(ws, transfers: list[Transfer]) -> None:
         ws.cell(i, 5, transfer.offer.name if transfer.offer else "")
         ws.cell(i, 6, transfer.notes)
     _stripe(ws, 2, 6)
+    _autosize(ws)
+
+
+def _write_tasks(ws, tasks: list[AccountTask]) -> None:
+    _headers(ws, ["Due", "Account", "Note", "Done"])
+    for i, task in enumerate(tasks, start=2):
+        ws.cell(i, 1, task.due_on.isoformat())
+        ws.cell(i, 2, task.account.name if task.account else "")
+        ws.cell(i, 3, task.note)
+        ws.cell(i, 4, "Yes" if task.done else "")
+    _stripe(ws, 2, 4)
     _autosize(ws)
 
 

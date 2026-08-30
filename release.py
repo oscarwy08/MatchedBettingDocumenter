@@ -107,8 +107,8 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Offer and bet type now show only the fields you need, in plain English. "
-        "data/ is never overwritten.",
+        "Graphs use the date on each bet. Today is a daily check list with mug-health "
+        "rings, only for bookies you actually use. data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
     print(f"Published {tag}. Installed copies will pick it up the next time they start.")

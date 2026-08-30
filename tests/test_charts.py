@@ -201,3 +201,29 @@ def test_spark_payload_includes_area():
     assert "L" in art["area"]
     assert art["area"].endswith("Z")
     assert art["down"] is False
+
+
+def test_profit_series_uses_date_placed_not_settled_at(tmp_path: Path):
+    session = _session(tmp_path)
+    bookie = session.scalars(select(Account).where(Account.name == "Betfred")).one()
+    exchange = session.scalars(select(Account).where(Account.name == "Smarkets")).one()
+    last_week = date(2026, 8, 23)
+    today_dt = datetime(2026, 8, 29, 16, 40)
+    bet = _place(
+        session,
+        profit=Decimal("7.50"),
+        when=last_week,
+        bookie=bookie,
+        exchange=exchange,
+    )
+    bet.placed_at = today_dt
+    bet.settled_at = today_dt
+    session.flush()
+    series = profit_series(session, range_key="1W", today=date(2026, 8, 29))
+    assert series["labels"][0] == "Sun"
+    assert series["total"] == 7.5
+    assert series["values"][0] == 7.5
+    assert series["values"][-1] == 7.5
+    activity = visualiser_payload(session, view="activity", range_key="1W", today=date(2026, 8, 29))
+    assert activity["values"][0] == 1.0
+    assert activity["values"][-1] == 0.0

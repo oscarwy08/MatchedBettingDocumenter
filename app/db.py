@@ -54,6 +54,17 @@ def _ensure_sqlite_columns(engine: Engine) -> None:
                     "WHERE placed_at IS NULL AND date_placed IS NOT NULL"
                 )
             )
+        account_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(accounts)"))}
+        if "last_checked_on" not in account_cols:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN last_checked_on DATE"))
+        if "priority" not in account_cols:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN priority INTEGER DEFAULT 0"))
+        if "restriction" not in account_cols:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN restriction VARCHAR(40) DEFAULT ''"))
+        if "notes" not in account_cols:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN notes TEXT DEFAULT ''"))
+        if "check_weekday" not in account_cols:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN check_weekday INTEGER"))
 
 
 def get_session() -> Session:

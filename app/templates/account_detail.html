@@ -1,14 +1,41 @@
 {% extends "base.html" %}
+{% from "_health_ring.html" import health_ring %}
 {% block title %}{{ account.name }}{% endblock %}
 {% block eyebrow %}{{ account.type | labelize }}{% endblock %}
 {% block heading %}{{ account.name }}{% endblock %}
 {% block actions %}
   {% if account.is_bookie %}
+    <form method="post" action="{{ url_for('main.mark_account_checked', account_id=account.id) }}" class="inline-form">
+      <input type="hidden" name="toggle" value="1">
+      <button class="btn{% if health.checked_today %} btn-primary{% endif %}" type="submit">
+        {% if health.checked_today %}Checked today{% else %}Mark checked{% endif %}
+      </button>
+    </form>
+    <a class="btn" href="{{ url_for('main.calculator_page', bet_type='mug', bookie_id=account.id) }}">Log mug bet</a>
     <a class="btn btn-primary" href="{{ url_for('main.calculator_page', bookie_id=account.id) }}">Log a bet</a>
   {% endif %}
   <a class="btn" href="{{ url_for('main.accounts') }}">All accounts</a>
 {% endblock %}
 {% block content %}
+  {% if account.is_bookie %}
+    <section class="stat-grid">
+      <article class="stat-card health-stat">
+        <p>Mug health</p>
+        <div class="health-stat-row">
+          {{ health_ring(health, 'lg') }}
+          <strong><span class="health-pill health-{{ health.level }}">{{ health.label }}</span></strong>
+        </div>
+      </article>
+      <article class="stat-card">
+        <p>Last mug</p>
+        <strong>{{ health.last_mug_on | ukdate }}</strong>
+      </article>
+      <article class="stat-card">
+        <p>Last check</p>
+        <strong>{{ account.last_checked_on | ukdate }}</strong>
+      </article>
+    </section>
+  {% endif %}
   <section class="stat-grid">
     <article class="stat-card">
       <p>Deposited</p>
@@ -239,6 +266,34 @@
           </select>
         </label>
         <label>Commission % <input name="commission_percent" type="number" step="0.01" min="0" value="{{ '%.4g'|format(account.commission_percent|float) }}"></label>
+        {% if account.is_bookie %}
+          <label class="setting-row">
+            <input class="switch-input" type="checkbox" name="priority" {% if account.priority %}checked{% endif %}>
+            <span class="switch" aria-hidden="true"><span class="switch-knob"></span></span>
+            <span>
+              <strong>Priority</strong>
+              <small>Check this one more often. Protects harder bookies.</small>
+            </span>
+          </label>
+          <label>
+            Restriction
+            <select name="restriction">
+              {% for value, label in restrictions %}
+                <option value="{{ value }}" {% if account.restriction == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            Pin to a weekday
+            <select name="check_weekday">
+              <option value="">Rotate — no fixed day</option>
+              {% for value, label in weekdays %}
+                <option value="{{ value }}" {% if account.check_weekday == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Mug notes <input name="notes" type="text" value="{{ account.notes }}" placeholder="Leave £20 in, only racing…"></label>
+        {% endif %}
         <button class="btn" type="submit">Save</button>
       </form>
       {% if snap.can_delete %}
@@ -248,6 +303,45 @@
       {% endif %}
     </section>
   </div>
+
+  {% if account.is_bookie %}
+    <section class="panel">
+      <div class="panel-head"><h2>Dated checks</h2></div>
+      {% if tasks %}
+        <table>
+          <thead>
+            <tr>
+              <th>Due</th>
+              <th>Note</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for task in tasks %}
+              <tr class="{% if task.done %}is-done{% endif %}">
+                <td>{{ task.due_on | ukdate }}</td>
+                <td>{{ task.note }}{% if task.done %} · done{% endif %}</td>
+                <td>
+                  {% if not task.done %}
+                    <form method="post" action="{{ url_for('main.mark_account_task_done', account_id=account.id, task_id=task.id) }}" class="inline-form">
+                      <button class="btn" type="submit">Done</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">No dated reminders on this bookie.</p>
+      {% endif %}
+      <form method="post" action="{{ url_for('main.add_account_task', account_id=account.id) }}" class="stack" style="margin-top:1rem">
+        <label>Due <input name="due_on" type="text" inputmode="numeric" placeholder="DD/MM/YYYY" pattern="\d{2}/\d{2}/\d{4}" value="{{ today }}" required></label>
+        <label>Note <input name="note" type="text" required placeholder="Check Sky Bet Saturday for Bet £10 Get £5"></label>
+        <button class="btn btn-primary" type="submit">Add reminder</button>
+      </form>
+    </section>
+  {% endif %}
 {% endblock %}
 {% block scripts %}
   <script src="{{ url_for('static', filename='charts.js') }}?v=2"></script>

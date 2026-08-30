@@ -58,6 +58,30 @@
     </section>
 
     <section class="panel">
+      <div class="panel-head"><h2>Mug bets and checks</h2></div>
+      <label class="setting-field">
+        Mug after this many promo bets
+        <input name="mug_after_offers" type="number" min="1" max="99" step="1" required value="{{ settings.mug_after_offers }}">
+        <small>A bookie turns amber one short of this, and red at or over it. Counts qualifying and free bets since the last mug.</small>
+      </label>
+      <label class="setting-field">
+        Check a bookie every
+        <input name="check_every_days" type="number" min="1" max="99" step="1" required value="{{ settings.check_every_days }}">
+        <small>Days since last tick before it is due again on the Today list.</small>
+      </label>
+      <label class="setting-field">
+        Daily check target
+        <input name="daily_check_target" type="number" min="1" max="99" step="1" required value="{{ settings.daily_check_target }}">
+        <small>How many bookies to put on Today. Already-ticked ones stay visible as done.</small>
+      </label>
+      <label class="setting-field">
+        Priority bookies every
+        <input name="priority_check_days" type="number" min="1" max="99" step="1" required value="{{ settings.priority_check_days }}">
+        <small>Harder-to-protect accounts use this shorter gap instead of the one above.</small>
+      </label>
+    </section>
+
+    <section class="panel">
       <div class="panel-head"><h2>Excel</h2></div>
       <label class="setting-row">
         <input class="switch-input" type="checkbox" name="excel_sync" {% if settings.excel_sync %}checked{% endif %}>

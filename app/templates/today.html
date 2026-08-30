@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{% if viewing_other %}{{ today_label }}{% else %}Today{% endif %}{% endblock %}
+{% block eyebrow %}Daily list{% endblock %}
+{% block heading %}{% if viewing_other %}{{ today_label }}{% else %}Today{% endif %}{% endblock %}
+{% block actions %}
+  {% if viewing_other %}
+    <a class="btn" href="{{ url_for('main.today_page') }}">Back to today</a>
+  {% endif %}
+  <a class="btn" href="{{ url_for('main.accounts') }}">All accounts</a>
+  <a class="btn btn-primary" href="{{ url_for('main.calculator_page') }}">Log a bet</a>
+{% endblock %}
+{% block content %}
+  <section class="stat-grid">
+    <article class="stat-card">
+      <p>Checks</p>
+      <strong>{{ checked_count }} / {{ target }}</strong>
+    </article>
+    <article class="stat-card">
+      <p>Due {{ 'this day' if viewing_other else 'today' }}</p>
+      <strong>{{ specials | length }}</strong>
+    </article>
+  </section>
+
+  <nav class="panel week-strip" aria-label="Checks this week">
+    {% for day in week %}
+      <a class="week-day{% if day.today %} is-today{% endif %}{% if day.future %} is-future{% endif %}"
+         href="{{ url_for('main.today_page', on=day.href) }}"
+         {% if day.today %}aria-current="date"{% endif %}>
+        <span>{{ day.label }}</span>
+        <strong>{{ day.count }}</strong>
+      </a>
+    {% endfor %}
+  </nav>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Routine checks</h2>
+      <span class="hint">{{ today_label }}</span>
+    </div>
+    {% if routine %}
+      <ul class="today-list">
+        {% for row in routine %}
+          <li class="today-row{% if row.checked_today %} is-done{% endif %}">
+            <form method="post" action="{{ url_for('main.mark_account_checked', account_id=row.account.id) }}" class="tick-form">
+              <input type="hidden" name="next" value="today">
+              <input type="hidden" name="on" value="{{ today_label }}">
+              <input type="hidden" name="toggle" value="1">
+              <button type="submit" class="tick{% if row.checked_today %} is-on{% endif %}" aria-pressed="{{ 'true' if row.checked_today else 'false' }}" title="{% if row.checked_today %}Uncheck{% else %}Mark checked{% endif %}">
+                {% if row.checked_today %}✓{% else %}{% endif %}
+              </button>
+            </form>
+            <div class="today-row-main">
+              <a href="{{ url_for('main.account_detail', account_id=row.account.id) }}"><strong>{{ row.account.name }}</strong></a>
+              <span class="health-pill health-{{ row.health.level }}">{{ row.health.label }}</span>
+              {% if row.account.priority %}<span class="pill">Priority</span>{% endif %}
+              {% if row.account.restriction %}<span class="pill">{{ row.account.restriction | labelize }}</span>{% endif %}
+              {% if row.reload_due %}<span class="pill on">Reload due</span>{% endif %}
+              {% if row.tasks_due %}<span class="pill on">Task due</span>{% endif %}
+              {% if row.account.notes %}<p class="hint">{{ row.account.notes }}</p>{% endif %}
+            </div>
+            <div class="today-row-actions">
+              <a class="btn" href="{{ url_for('main.calculator_page', bet_type='mug', bookie_id=row.account.id) }}">Log mug bet</a>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="empty">Nothing queued. Bookies show up here once they have a bet or an open offer.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Due {{ 'this day' if viewing_other else 'today' }}</h2></div>
+    {% if specials %}
+      <ul class="today-list">
+        {% for item in specials %}
+          <li class="today-row">
+            <div class="today-row-main">
+              {% if item.account %}
+                <a href="{{ url_for('main.account_detail', account_id=item.account.id) }}"><strong>{{ item.account.name }}</strong></a>
+              {% endif %}
+              <span>{{ item.name }}</span>
+              {% if item.kind == 'reload' and item.detail %}
+                <span class="hint">Next due {{ item.detail | ukdate }}</span>
+              {% elif item.kind == 'task' and item.detail %}
+                <span class="hint">Due {{ item.detail | ukdate }}</span>
+              {% endif %}
+            </div>
+            <div class="today-row-actions">
+              {% if item.kind == 'reload' and item.offer %}
+                <form method="post" action="{{ url_for('main.claim_reload', offer_id=item.offer.id) }}">
+                  <input type="hidden" name="next" value="today">
+                  <input type="hidden" name="on" value="{{ today_label }}">
+                  <button class="btn btn-primary" type="submit">Mark claimed</button>
+                </form>
+              {% elif item.kind == 'task' and item.task %}
+                <form method="post" action="{{ url_for('main.mark_account_task_done', account_id=item.task.account_id, task_id=item.task.id) }}">
+                  <input type="hidden" name="next" value="today">
+                  <input type="hidden" name="on" value="{{ today_label }}">
+                  <button class="btn btn-primary" type="submit">Done</button>
+                </form>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% elif clean %}
+      <p class="empty">All clear. No reloads or dated checks {% if viewing_other %}on this day{% else %}today{% endif %}.</p>
+    {% else %}
+      <p class="empty">No dated specials {% if viewing_other %}on this day{% else %}today{% endif %}. Work through the routine list above.</p>
+    {% endif %}
+  </section>
+{% endblock %}

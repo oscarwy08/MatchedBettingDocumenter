@@ -33,15 +33,18 @@ from app.charts import (
 from app.dates import combine_date, format_uk, local_now, parse_uk
 from app.db import get_session
 from app.excel import preview_workbook, sync_workbook
+from app.health import WEEKDAYS, account_health, attach_health, today_board
 from app.importer import import_workbook
 from app.models import (
     Account,
+    AccountTask,
     AccountType,
     Bet,
     BetStatus,
     BetType,
     Offer,
     OfferType,
+    Restriction,
     Transfer,
     TransferKind,
 )
@@ -97,7 +100,15 @@ BET_TYPE_CHOICES = [
     (BetType.NORMAL, "Normal / unmatched"),
     (BetType.ACCA, "Accumulator"),
     (BetType.BUILDER, "Bet builder"),
+    (BetType.MUG, "Mug bet"),
     (BetType.OTHER, "Other / manual"),
+]
+
+RESTRICTION_CHOICES = [
+    (Restriction.NONE, "No restriction"),
+    (Restriction.PROMO_RESTRICTED, "Promo restricted"),
+    (Restriction.STAKE_LIMITED, "Stake limited"),
+    (Restriction.CLOSED, "Closed"),
 ]
 
 RELOAD_FREQUENCY_CHOICES = [
@@ -238,6 +249,8 @@ def _form_context(session: Session) -> dict:
         "offer_types": OFFER_TYPE_CHOICES,
         "bet_types": BET_TYPE_CHOICES,
         "reload_frequencies": RELOAD_FREQUENCY_CHOICES,
+        "restrictions": RESTRICTION_CHOICES,
+        "weekdays": WEEKDAYS,
         "today": format_uk(date.today()),
     }
 
@@ -262,6 +275,44 @@ def dashboard():
         offer_rows=offer_rows,
         show_spreadsheet_cta=show_spreadsheet_cta,
         profit_chart=profit_series(session, range_key="1W"),
+    )
+
+
+def _today_on() -> date | None:
+    raw = (request.form.get("on") or request.args.get("on") or "").strip()
+    if not raw:
+        return None
+    try:
+        return parse_uk(raw)
+    except ValueError:
+        return None
+
+
+def _after_account_action(account_id: int):
+    dest = (request.form.get("next") or request.args.get("next") or "").strip()
+    if dest == "today":
+        return _today_redirect()
+    return redirect(url_for("main.account_detail", account_id=account_id))
+
+
+def _today_redirect():
+    viewed = _today_on()
+    if viewed and viewed != date.today():
+        return redirect(url_for("main.today_page", on=format_uk(viewed)))
+    return redirect(url_for("main.today_page"))
+
+
+@bp.get("/today")
+def today_page():
+    session = get_session()
+    viewed = _today_on() or date.today()
+    board = today_board(session, today=viewed)
+    return render_template(
+        "today.html",
+        **board,
+        today_label=format_uk(board["today"]),
+        real_today=date.today(),
+        viewing_other=viewed != date.today(),
     )
 
 
@@ -329,6 +380,7 @@ def calculator_page():
     if selected_exchange.isdigit() and session.get(Account, int(selected_exchange)) is None:
         selected_exchange = ""
     ctx["selected_exchange_id"] = selected_exchange
+    ctx["selected_bet_type"] = (request.args.get("bet_type") or "").strip()
     return render_template("calculator.html", **ctx)
 
 
@@ -497,10 +549,11 @@ def log_bet():
         if not exchange_id:
             raise ValueError("Choose an exchange, or log this as an unmatched bet.")
         offer = _resolve_offer(session, bookie_id)
-        placed_at = local_now()
+        date_placed = parse_uk(request.form.get("date_placed"))
+        placed_at = combine_date(local_now(), date_placed)
         bet = Bet(
             offer_id=offer.id if offer else None,
-            date_placed=parse_uk(request.form.get("date_placed")),
+            date_placed=date_placed,
             placed_at=placed_at,
             event=(request.form.get("event") or "").strip(),
             market=(request.form.get("market") or "").strip(),
@@ -759,6 +812,7 @@ def accounts():
         if snap["deposited"] or snap["withdrawn"] or snap["net_profit"] or snap["balance"]
     ]
     unused_bookies = [snap for snap in bookies if snap not in active_bookies]
+    attach_health(bookies, today_board(session)["health_by_id"])
     totals = {
         "balance": sum((snap["balance"] for snap in bookies + exchanges), Decimal("0")),
         "deposited": sum((snap["deposited"] for snap in bookies + exchanges), Decimal("0")),
@@ -835,6 +889,18 @@ def account_detail(account_id: int):
         offer_chart=visualiser_payload(session, view="by_offer", account_id=account.id)
         if account.is_bookie
         else None,
+        health=account_health(session, account),
+        tasks=list(
+            session.scalars(
+                select(AccountTask)
+                .where(AccountTask.account_id == account.id)
+                .order_by(AccountTask.done, AccountTask.due_on, AccountTask.id)
+            )
+        )
+        if account.is_bookie
+        else [],
+        restrictions=RESTRICTION_CHOICES,
+        weekdays=WEEKDAYS,
     )
 
 
@@ -878,15 +944,87 @@ def update_account(account_id: int):
             account.name = new_name
         account.type = kind
         account.commission_percent = _parse_decimal("commission_percent")
+        if account.is_bookie:
+            account.priority = request.form.get("priority") == "on"
+            restriction = (request.form.get("restriction") or "").strip()
+            allowed = {item[0] for item in RESTRICTION_CHOICES}
+            account.restriction = restriction if restriction in allowed else ""
+            account.notes = (request.form.get("notes") or "").strip()
+            weekday_raw = (request.form.get("check_weekday") or "").strip()
+            if weekday_raw.isdigit() and int(weekday_raw) in range(7):
+                account.check_weekday = int(weekday_raw)
+            else:
+                account.check_weekday = None
         _commit_and_sync(session)
         flash(f"{account.name} updated.", "ok")
-        return redirect(url_for("main.account_detail", account_id=account.id))
+        return _after_account_action(account.id)
     except IntegrityError:
         session.rollback()
         flash("An account with that name already exists.", "error")
     except (ValueError, InvalidOperation) as exc:
         flash(str(exc), "error")
     return redirect(url_for("main.account_detail", account_id=account.id))
+
+
+@bp.post("/accounts/<int:account_id>/checked")
+def mark_account_checked(account_id: int):
+    session = get_session()
+    account = session.get(Account, account_id)
+    if account is None or not account.is_bookie:
+        flash("Bookie not found.", "error")
+        return redirect(url_for("main.today_page"))
+    viewed = _today_on() or date.today()
+    if request.form.get("clear") == "1":
+        account.last_checked_on = None
+    elif request.form.get("toggle") == "1" and account.last_checked_on == viewed:
+        account.last_checked_on = None
+    else:
+        account.last_checked_on = viewed
+    _commit_and_sync(session)
+    if account.last_checked_on == viewed:
+        when = "today" if viewed == date.today() else format_uk(viewed)
+        flash(f"{account.name} checked {when}.", "ok")
+    else:
+        flash(f"{account.name} unmarked.", "ok")
+    return _after_account_action(account.id)
+
+
+@bp.post("/accounts/<int:account_id>/tasks")
+def add_account_task(account_id: int):
+    session = get_session()
+    account = session.get(Account, account_id)
+    if account is None or not account.is_bookie:
+        flash("Bookie not found.", "error")
+        return redirect(url_for("main.accounts"))
+    try:
+        note = (request.form.get("note") or "").strip()
+        if not note:
+            raise ValueError("Add a short note for the check.")
+        session.add(
+            AccountTask(
+                account_id=account.id,
+                due_on=parse_uk(request.form.get("due_on")),
+                note=note,
+            )
+        )
+        _commit_and_sync(session)
+        flash("Reminder added.", "ok")
+    except (ValueError, InvalidOperation) as exc:
+        flash(str(exc), "error")
+    return _after_account_action(account.id)
+
+
+@bp.post("/accounts/<int:account_id>/tasks/<int:task_id>/done")
+def mark_account_task_done(account_id: int, task_id: int):
+    session = get_session()
+    task = session.get(AccountTask, task_id)
+    if task is None or task.account_id != account_id:
+        flash("Reminder not found.", "error")
+        return redirect(url_for("main.today_page"))
+    task.done = not task.done if request.form.get("toggle") == "1" else True
+    _commit_and_sync(session)
+    flash("Reminder updated.", "ok")
+    return _after_account_action(account_id)
 
 
 @bp.post("/accounts/<int:account_id>/delete")
@@ -1147,6 +1285,8 @@ def claim_reload(offer_id: int):
         flash(f"Reload marked done. Next due {format_uk(nxt)}.", "ok")
     else:
         flash("Set a repeat frequency on this offer first.", "error")
+    if (request.form.get("next") or "").strip() == "today":
+        return _today_redirect()
     return redirect(url_for("main.offer_detail", offer_id=offer_id))
 
 
@@ -1884,6 +2024,10 @@ def settings_save():
             "auto_sync": request.form.get("auto_sync") == "on",
             "port": port,
             "default_exchange_id": int(exchange_raw) if exchange_raw.isdigit() else None,
+            "mug_after_offers": request.form.get("mug_after_offers"),
+            "check_every_days": request.form.get("check_every_days"),
+            "daily_check_target": request.form.get("daily_check_target"),
+            "priority_check_days": request.form.get("priority_check_days"),
         }
     )
     flash("Settings saved. Port and Wi‑Fi access apply the next time you Start.", "ok")

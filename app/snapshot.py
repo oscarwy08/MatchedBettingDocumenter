@@ -10,7 +10,7 @@ from decimal import Decimal
 from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
-from app.models import Account, Bet, Offer, Transfer
+from app.models import Account, AccountTask, Bet, Offer, Transfer
 from app.version import VERSION
 
 SNAPSHOT_FORMAT = 2
@@ -30,7 +30,19 @@ def _row(model, fields: list[str]) -> dict:
     return {name: _jsonable(getattr(model, name)) for name in fields}
 
 
-ACCOUNT_FIELDS = ["id", "name", "type", "commission_percent", "created_at"]
+ACCOUNT_FIELDS = [
+    "id",
+    "name",
+    "type",
+    "commission_percent",
+    "last_checked_on",
+    "priority",
+    "restriction",
+    "notes",
+    "check_weekday",
+    "created_at",
+]
+TASK_FIELDS = ["id", "account_id", "due_on", "note", "done", "created_at"]
 OFFER_FIELDS = [
     "id",
     "name",
@@ -90,6 +102,9 @@ def dump_snapshot(session: Session) -> dict:
         "transfers": [
             _row(item, TRANSFER_FIELDS) for item in session.scalars(select(Transfer).order_by(Transfer.id))
         ],
+        "account_tasks": [
+            _row(item, TASK_FIELDS) for item in session.scalars(select(AccountTask).order_by(AccountTask.id))
+        ],
     }
     from app.friends import export_account
 
@@ -114,6 +129,7 @@ def snapshot_counts(payload: dict) -> dict:
         "offers": _count_field(payload.get("offers")),
         "bets": _count_field(payload.get("bets")),
         "transfers": _count_field(payload.get("transfers")),
+        "account_tasks": _count_field(payload.get("account_tasks")),
     }
 
 
@@ -146,6 +162,7 @@ def fingerprint_payload(payload: dict) -> str:
         "offers": payload.get("offers") or [],
         "bets": payload.get("bets") or [],
         "transfers": payload.get("transfers") or [],
+        "account_tasks": payload.get("account_tasks") or [],
         "friends": _friends_body(payload),
     }
     raw = json.dumps(body, sort_keys=True, separators=(",", ":"), default=str)
@@ -196,16 +213,23 @@ def apply_snapshot(session: Session, payload: dict, *, backup_why: str | None = 
     session.execute(delete(Bet))
     session.execute(delete(Transfer))
     session.execute(delete(Offer))
+    session.execute(delete(AccountTask))
     session.execute(delete(Account))
     session.flush()
 
     for row in payload.get("accounts", []):
+        weekday = row.get("check_weekday")
         session.add(
             Account(
                 id=int(row["id"]),
                 name=row["name"],
                 type=row["type"],
                 commission_percent=_dec(row.get("commission_percent")) or Decimal("0"),
+                last_checked_on=_parse_d(row.get("last_checked_on")),
+                priority=_bool(row.get("priority")),
+                restriction=row.get("restriction") or "",
+                notes=row.get("notes") or "",
+                check_weekday=int(weekday) if weekday not in (None, "") else None,
                 created_at=_parse_dt(row.get("created_at")) or datetime.now(),
             )
         )
@@ -278,6 +302,18 @@ def apply_snapshot(session: Session, payload: dict, *, backup_why: str | None = 
             )
         )
     session.flush()
+    for row in payload.get("account_tasks", []):
+        session.add(
+            AccountTask(
+                id=int(row["id"]),
+                account_id=int(row["account_id"]),
+                due_on=_parse_d(row.get("due_on")) or date.today(),
+                note=row.get("note") or "",
+                done=_bool(row.get("done")),
+                created_at=_parse_dt(row.get("created_at")) or datetime.now(),
+            )
+        )
+    session.flush()
     _reset_sqlite_sequences(session, payload)
     if "friends" in payload:
         from app.friends import apply_account
@@ -305,6 +341,7 @@ def _reset_sqlite_sequences(session: Session, payload: dict) -> None:
         "offers": payload.get("offers", []),
         "bets": payload.get("bets", []),
         "transfers": payload.get("transfers", []),
+        "account_tasks": payload.get("account_tasks", []),
     }
     for table, rows in tables.items():
         max_id = max((int(row["id"]) for row in rows), default=0)

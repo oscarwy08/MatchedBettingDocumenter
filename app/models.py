@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -35,7 +35,15 @@ class BetType(StrEnum):
     NORMAL = "normal"
     ACCA = "acca"
     BUILDER = "bet_builder"
+    MUG = "mug"
     OTHER = "other"
+
+
+class Restriction(StrEnum):
+    NONE = ""
+    PROMO_RESTRICTED = "promo_restricted"
+    STAKE_LIMITED = "stake_limited"
+    CLOSED = "closed"
 
 
 class ReloadFrequency(StrEnum):
@@ -73,6 +81,11 @@ class Account(Base):
     name: Mapped[str] = mapped_column(String(80), unique=True)
     type: Mapped[str] = mapped_column(String(20))
     commission_percent: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=Decimal("0"))
+    last_checked_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    priority: Mapped[bool] = mapped_column(default=False)
+    restriction: Mapped[str] = mapped_column(String(40), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    check_weekday: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     transfers: Mapped[list[Transfer]] = relationship(back_populates="account")
@@ -82,6 +95,9 @@ class Account(Base):
     )
     lay_bets: Mapped[list[Bet]] = relationship(
         back_populates="exchange", foreign_keys="Bet.exchange_id"
+    )
+    tasks: Mapped[list[AccountTask]] = relationship(
+        back_populates="account", cascade="all, delete-orphan"
     )
 
     @property
@@ -222,3 +238,16 @@ class Transfer(Base):
 
     account: Mapped[Account] = relationship(back_populates="transfers")
     offer: Mapped[Offer | None] = relationship(back_populates="transfers")
+
+
+class AccountTask(Base):
+    __tablename__ = "account_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
+    due_on: Mapped[date] = mapped_column(Date)
+    note: Mapped[str] = mapped_column(String(200), default="")
+    done: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+    account: Mapped[Account] = relationship(back_populates="tasks")

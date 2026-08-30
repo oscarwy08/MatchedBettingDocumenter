@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_health_ring.html" import health_ring %}
 {% macro account_tile(snap) %}
   {% if snap.account.is_bookie %}
     {% set meta %}{{ snap.bets }} bet{% if snap.bets != 1 %}s{% endif %}{% if snap.offers %} · {{ snap.offers }} offer{% if snap.offers != 1 %}s{% endif %}{% endif %}{% endset %}
@@ -11,7 +12,10 @@
   {% endif %}
   <a class="account-card" href="{{ url_for('main.account_detail', account_id=snap.account.id) }}">
     <div class="account-card-main">
-      <strong>{{ snap.account.name }}</strong>
+      <div class="account-card-title">
+        {% if snap.health %}{{ health_ring(snap.health, 'sm') }}{% endif %}
+        <strong>{{ snap.account.name }}</strong>
+      </div>
       <div class="account-card-graph">
         <span class="account-card-meta">{{ meta }}</span>
         <svg class="account-spark{% if snap.spark.down %} is-neg{% endif %}" viewBox="0 0 100 42" preserveAspectRatio="none" aria-hidden="true">
@@ -104,7 +108,10 @@
       <summary>Unused bookies ({{ unused_bookies | length }})</summary>
       <div class="unused-list">
         {% for snap in unused_bookies %}
-          <a class="pill" href="{{ url_for('main.account_detail', account_id=snap.account.id) }}">{{ snap.account.name }}</a>
+          <a class="pill unused-health" href="{{ url_for('main.account_detail', account_id=snap.account.id) }}">
+            {% if snap.health %}{{ health_ring(snap.health, 'sm') }}{% endif %}
+            {{ snap.account.name }}
+          </a>
         {% endfor %}
       </div>
     </details>

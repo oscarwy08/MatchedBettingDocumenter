@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=28">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=30">
 </head>
 <body>
   <div class="shell">
@@ -28,6 +28,7 @@
       </a>
       <nav>
         <a href="{{ url_for('main.dashboard') }}" class="{{ 'on' if request.path == '/' }}">Dashboard</a>
+        <a href="{{ url_for('main.today_page') }}" class="{{ 'on' if request.path.startswith('/today') }}">Today</a>
         <a href="{{ url_for('main.calculator_page') }}" class="{{ 'on' if request.path.startswith('/calculator') }}">Calculator</a>
         <a href="{{ url_for('main.offers') }}" class="{{ 'on' if request.path.startswith('/offers') }}">Offers</a>
         <a href="{{ url_for('main.bets') }}" class="{{ 'on' if request.path.startswith('/bets') }}">Bets</a>
