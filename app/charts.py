@@ -64,6 +64,9 @@ _BET_LABELS = {
     "free_bet_snr": "Free bet (SNR)",
     "free_bet_sr": "Free bet (SR)",
     "money_back": "Money back",
+    "normal": "Normal",
+    "acca": "Accumulator",
+    "bet_builder": "Bet builder",
     "other": "Other",
 }
 

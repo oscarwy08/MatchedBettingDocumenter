@@ -36,6 +36,7 @@
         Total free funds
         <input name="free_funds" type="number" step="0.01" min="0" placeholder="30.00">
       </label>
+      {% include "_reload_fields.html" %}
       <label class="span-2">
         Notes
         <input name="notes" type="text">
@@ -55,6 +56,7 @@
             <th>Offer</th>
             <th>Bookie</th>
             <th>Type</th>
+            <th>Reload</th>
             <th class="num">Deposited</th>
             <th class="num">Free funds</th>
             <th class="num">Bookie P&amp;L</th>
@@ -69,6 +71,15 @@
               <td><a href="{{ url_for('main.offer_detail', offer_id=row.offer.id) }}">{{ row.offer.name }}</a></td>
               <td><a href="{{ url_for('main.account_detail', account_id=row.offer.bookie_id) }}">{{ row.offer.bookie.name }}</a></td>
               <td>{{ row.offer.type | labelize }}</td>
+              <td>
+                {% if row.reload_frequency %}
+                  {{ row.reload_frequency | labelize }}
+                  {% if row.reload_stake %} · {{ row.reload_stake | gbp }}{% endif %}
+                  {% if row.reload_reward %} → {{ row.reload_reward | gbp }}{% endif %}
+                  {% if row.next_reload_on %} · next {{ row.next_reload_on | ukdate }}{% endif %}
+                  {% if row.reload_due %}<span class="pill on">Due</span>{% endif %}
+                {% else %}–{% endif %}
+              </td>
               <td class="num">{{ row.deposited | gbp }}</td>
               <td class="num">{% if row.free_funds %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}–{% endif %}</td>
               <td class="{{ row.bookie_profit | pnl }} num">{{ row.bookie_profit | gbp }}</td>

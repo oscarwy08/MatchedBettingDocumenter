@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from app.calculator import CalcBetType, calculate
+from app.calculator import CalcBetType, calculate, unmatched_back
 from app.charts import (
     RANGES,
     VIEWS,
@@ -48,6 +48,7 @@ from app.models import (
 from app.services import (
     account_snapshot,
     account_usage,
+    advance_reload,
     dashboard_stats,
     offer_snapshot,
     reconcile_offer_deposits,
@@ -93,7 +94,18 @@ BET_TYPE_CHOICES = [
     (BetType.FREE_BET_SNR, "Free bet (stake not returned)"),
     (BetType.FREE_BET_SR, "Free bet (stake returned)"),
     (BetType.MONEY_BACK, "Money back if bet loses"),
+    (BetType.NORMAL, "Normal / unmatched"),
+    (BetType.ACCA, "Accumulator"),
+    (BetType.BUILDER, "Bet builder"),
     (BetType.OTHER, "Other / manual"),
+]
+
+RELOAD_FREQUENCY_CHOICES = [
+    ("", "Does not repeat"),
+    ("daily", "Daily"),
+    ("weekly", "Weekly"),
+    ("fortnightly", "Every 2 weeks"),
+    ("monthly", "Monthly"),
 ]
 
 
@@ -149,6 +161,16 @@ def _app_port() -> int:
     return int(setting("port"))
 
 
+def _apply_reload_fields(offer: Offer, *, prefix: str = "") -> None:
+    freq = (request.form.get(f"{prefix}reload_frequency") or "").strip()
+    allowed = {item[0] for item in RELOAD_FREQUENCY_CHOICES}
+    offer.reload_frequency = freq if freq in allowed else ""
+    offer.reload_stake = _parse_decimal(f"{prefix}reload_stake")
+    offer.reload_reward = _parse_decimal(f"{prefix}reload_reward")
+    raw = (request.form.get(f"{prefix}next_reload_on") or "").strip()
+    offer.next_reload_on = parse_uk(raw) if raw else None
+
+
 def _parse_decimal(name: str, default: str = "0") -> Decimal:
     raw = (request.form.get(name) or default).strip().replace("£", "").replace(",", "")
     if raw == "":
@@ -196,6 +218,7 @@ def _form_context(session: Session) -> dict:
         "offers": _offers(session),
         "offer_types": OFFER_TYPE_CHOICES,
         "bet_types": BET_TYPE_CHOICES,
+        "reload_frequencies": RELOAD_FREQUENCY_CHOICES,
         "today": format_uk(date.today()),
     }
 
@@ -290,18 +313,39 @@ def calculator_page():
     return render_template("calculator.html", **ctx)
 
 
+def _calc_kind(bet_type: str) -> str:
+    try:
+        return CalcBetType(bet_type)
+    except ValueError:
+        return CalcBetType.QUALIFYING
+
+
 @bp.post("/api/calculate")
 def api_calculate():
     data = request.get_json(force=True, silent=True) or {}
     try:
+        bet_type = data.get("bet_type") or CalcBetType.QUALIFYING
+        lay_raw = data.get("lay_odds")
+        try:
+            lay_odds = Decimal(str(lay_raw or 0))
+        except InvalidOperation:
+            lay_odds = Decimal("0")
+        if lay_odds <= 1:
+            calc = unmatched_back(
+                bet_type=_calc_kind(bet_type),
+                back_stake=data.get("back_stake") or 0,
+                back_odds=data.get("back_odds") or 0,
+                cashback=data.get("cashback") or 0,
+            )
+            return jsonify(calc.as_dict())
         override = data.get("lay_stake_override")
         if override in ("", None):
             override = None
         calc = calculate(
-            bet_type=data.get("bet_type") or CalcBetType.QUALIFYING,
+            bet_type=_calc_kind(bet_type),
             back_stake=data.get("back_stake") or 0,
             back_odds=data.get("back_odds") or 0,
-            lay_odds=data.get("lay_odds") or 0,
+            lay_odds=lay_odds,
             commission_percent=data.get("commission_percent") or 0,
             cashback=data.get("cashback") or 0,
             lay_stake_override=override,
@@ -325,7 +369,7 @@ def _calculation_from_form():
         lay_stake = _parse_decimal("lay_stake_override")
         liability = (
             (lay_stake * (lay_odds - 1)).quantize(Decimal("0.01"))
-            if lay_odds
+            if lay_odds > 1
             else Decimal("0")
         )
         expected = _parse_decimal("expected_profit_manual")
@@ -345,8 +389,31 @@ def _calculation_from_form():
             "expected_exchange_lay": Decimal("0"),
         }
 
+    if lay_odds <= 1:
+        calc = unmatched_back(
+            bet_type=_calc_kind(bet_type),
+            back_stake=back_stake,
+            back_odds=back_odds,
+            cashback=cashback,
+        )
+        return {
+            "bet_type": bet_type,
+            "back_stake": calc.back_stake,
+            "back_odds": calc.back_odds,
+            "lay_odds": calc.lay_odds,
+            "commission_percent": commission,
+            "cashback": calc.cashback,
+            "lay_stake": calc.lay_stake,
+            "liability": calc.liability,
+            "expected_profit": calc.expected_profit,
+            "expected_bookie_back": calc.if_back_wins.bookie,
+            "expected_exchange_back": calc.if_back_wins.exchange,
+            "expected_bookie_lay": calc.if_lay_wins.bookie,
+            "expected_exchange_lay": calc.if_lay_wins.exchange,
+        }
+
     calc = calculate(
-        bet_type=bet_type,
+        bet_type=_calc_kind(bet_type),
         back_stake=back_stake,
         back_odds=back_odds,
         lay_odds=lay_odds,
@@ -392,6 +459,7 @@ def _resolve_offer(session: Session, bookie_id: int) -> Offer | None:
         free_funds=_parse_decimal("offer_free_funds"),
         notes=(request.form.get("offer_notes") or "").strip(),
     )
+    _apply_reload_fields(offer, prefix="offer_")
     session.add(offer)
     session.flush()
     sync_offer_deposit(session, offer, when=parse_uk(request.form.get("date_placed")))
@@ -458,6 +526,7 @@ def create_offer():
             free_funds=_parse_decimal("free_funds"),
             notes=(request.form.get("notes") or "").strip(),
         )
+        _apply_reload_fields(offer)
         session.add(offer)
         session.flush()
         sync_offer_deposit(session, offer)
@@ -1033,11 +1102,28 @@ def edit_offer(offer_id: int):
         offer.notes = (request.form.get("notes") or "").strip()
         offer.deposit_amount = _parse_decimal("deposit_amount")
         offer.free_funds = _parse_decimal("free_funds")
+        _apply_reload_fields(offer)
         sync_offer_deposit(session, offer)
         _commit_and_sync(session)
         flash("Offer updated.", "ok")
     except (ValueError, InvalidOperation) as exc:
         flash(str(exc), "error")
+    return redirect(url_for("main.offer_detail", offer_id=offer_id))
+
+
+@bp.post("/offers/<int:offer_id>/claim-reload")
+def claim_reload(offer_id: int):
+    session = get_session()
+    offer = session.get(Offer, offer_id)
+    if offer is None:
+        flash("Offer not found.", "error")
+        return redirect(url_for("main.offers"))
+    nxt = advance_reload(offer)
+    _commit_and_sync(session)
+    if nxt:
+        flash(f"Reload marked done. Next due {format_uk(nxt)}.", "ok")
+    else:
+        flash("Set a repeat frequency on this offer first.", "error")
     return redirect(url_for("main.offer_detail", offer_id=offer_id))
 
 
@@ -1515,7 +1601,10 @@ def _load_friend_view(friend: dict) -> tuple[dict | None, bool, str | None, str 
 
 
 def _filter_friend_bets(view: dict | None, status: str, q: str) -> list:
-    bets = list((view or {}).get("bets") or (view or {}).get("recent_bets") or [])
+    from app.friends import display_bet
+
+    raw = list((view or {}).get("bets") or (view or {}).get("recent_bets") or [])
+    bets = [display_bet(bet) for bet in raw if isinstance(bet, dict)]
     if status == "pending":
         bets = [bet for bet in bets if bet.get("pending") or bet.get("status") == "pending"]
     elif status == "settled":
@@ -1580,6 +1669,36 @@ def friend_bet(friend_id: str, bet_id: str):
         "friend_bet.html",
         selected=friend,
         bet=bet,
+        view=view,
+        live=live,
+        last_available=last_available,
+        fetch_error=fetch_error,
+    )
+
+
+@bp.get("/friends/<friend_id>/offers/<offer_id>")
+def friend_offer(friend_id: str, offer_id: str):
+    from app.friends import friend_by_id, offer_from_view
+
+    friend = friend_by_id(friend_id)
+    if not friend:
+        flash("That friend is not on your list.", "error")
+        return redirect(url_for("main.friends_page"))
+    view, live, last_available, fetch_error = _load_friend_view(friend)
+    offer = offer_from_view(view, offer_id)
+    if not offer:
+        flash("That offer is not in their latest view.", "error")
+        return redirect(url_for("main.friend_detail", friend_id=friend_id))
+    legs = [
+        bet
+        for bet in _filter_friend_bets(view, "all", "")
+        if str(bet.get("offer_id") or "") == str(offer_id) or bet.get("offer") == offer.get("name")
+    ]
+    return render_template(
+        "friend_offer.html",
+        selected=friend,
+        offer=offer,
+        legs=legs,
         view=view,
         live=live,
         last_available=last_available,

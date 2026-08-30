@@ -52,6 +52,8 @@
               <tr>
                 <th>Offer</th>
                 <th>Bookie</th>
+                <th>Type</th>
+                <th>Reload</th>
                 <th class="num">Net so far</th>
                 <th class="num">Free funds</th>
                 <th>Legs</th>
@@ -60,8 +62,16 @@
             <tbody>
               {% for row in view.offers %}
                 <tr>
-                  <td>{{ row.name }}</td>
+                  <td>{% if row.id %}<a href="{{ url_for('main.friend_offer', friend_id=selected.id, offer_id=row.id) }}">{{ row.name }}</a>{% else %}{{ row.name }}{% endif %}</td>
                   <td>{{ row.bookie }}</td>
+                  <td>{{ row.type | labelize }}</td>
+                  <td>
+                    {% if row.reload_frequency %}
+                      {{ row.reload_frequency | labelize }}
+                      {% if row.reload_stake and row.reload_stake != "0.00" %} · {{ row.reload_stake | gbp }}{% endif %}
+                      {% if row.reload_due %}<span class="pill on">Due</span>{% elif row.next_reload_on %} · {{ row.next_reload_on }}{% endif %}
+                    {% else %}–{% endif %}
+                  </td>
                   <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>
                   <td class="num">{% if row.free_funds and row.free_funds != "0.00" %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}–{% endif %}</td>
                   <td>{{ row.pending_count }} pending / {{ row.leg_count }}</td>
@@ -150,11 +160,12 @@
         <table>
           <thead>
             <tr>
-              <th>Placed</th>
-              <th>Offer</th>
-              <th>Bookie</th>
-              <th>Type</th>
-              <th>Event</th>
+                <th>Placed</th>
+                <th>Offer</th>
+                <th>Bookie</th>
+                <th>Type</th>
+                <th>Selections</th>
+                <th>Event</th>
               <th class="num">Expected</th>
               <th class="num">Actual</th>
               <th>Status</th>
@@ -167,6 +178,7 @@
                 <td>{{ bet.offer or "—" }}</td>
                 <td>{{ bet.bookie }}</td>
                 <td>{{ bet.bet_type | labelize }}</td>
+                <td>{{ bet.market or "—" }}</td>
                 <td><a href="{{ url_for('main.friend_bet', friend_id=selected.id, bet_id=bet.id) }}">{{ bet.event or "Untitled" }}</a></td>
                 <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
                 <td class="{{ bet.actual_profit | pnl }} num">{{ bet.actual_profit | gbp }}</td>

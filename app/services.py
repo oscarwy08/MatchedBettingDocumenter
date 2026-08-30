@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from calendar import monthrange
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, or_, select
@@ -214,6 +215,11 @@ def offer_snapshot(offer: Offer) -> dict:
         "expected_pending": expected_pending,
         "pending_count": len(pending),
         "leg_count": len(offer.bets),
+        "reload_frequency": offer.reload_frequency or "",
+        "reload_stake": money(offer.reload_stake or ZERO),
+        "reload_reward": money(offer.reload_reward or ZERO),
+        "next_reload_on": offer.next_reload_on,
+        "reload_due": offer.reload_due,
     }
 
 
@@ -242,7 +248,7 @@ def dashboard_stats(session: Session) -> dict:
             select(Offer).options(selectinload(Offer.bets)).order_by(Offer.created_at.desc())
         )
     )
-    in_progress = [offer for offer in offers if offer.status == "In progress"]
+    in_progress = [offer for offer in offers if offer.status in {"In progress", "Reload due"}]
 
     return {
         "net_profit": _sum(bet.actual_profit for bet in settled),
@@ -398,3 +404,30 @@ def account_usage(session: Session, account_id: int) -> dict:
         "transfers": int(transfers),
         "can_delete": bets == 0 and offers == 0 and transfers == 0,
     }
+
+
+def _add_months(when: date, months: int = 1) -> date:
+    month = when.month - 1 + months
+    year = when.year + month // 12
+    month = month % 12 + 1
+    day = min(when.day, monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def next_reload_after(frequency: str, from_date: date | None = None) -> date | None:
+    start = from_date or date.today()
+    if frequency == "daily":
+        return start + timedelta(days=1)
+    if frequency == "weekly":
+        return start + timedelta(days=7)
+    if frequency == "fortnightly":
+        return start + timedelta(days=14)
+    if frequency == "monthly":
+        return _add_months(start, 1)
+    return None
+
+
+def advance_reload(offer: Offer, from_date: date | None = None) -> date | None:
+    nxt = next_reload_after(offer.reload_frequency or "", from_date or date.today())
+    offer.next_reload_on = nxt
+    return nxt

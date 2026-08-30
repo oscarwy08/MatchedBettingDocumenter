@@ -39,10 +39,26 @@
       <p>Pending expected</p>
       <strong class="{{ snap.expected_pending | pnl }}">{{ snap.expected_pending | gbp }}</strong>
     </article>
+    {% if offer.repeats or offer.reload_frequency %}
+      <article class="stat-card">
+        <p>Reload</p>
+        <strong>{% if snap.reload_due %}Due{% elif snap.next_reload_on %}{{ snap.next_reload_on | ukdate }}{% else %}Set a due date{% endif %}</strong>
+      </article>
+      <article class="stat-card">
+        <p>{{ offer.reload_frequency | labelize or "Each time" }}</p>
+        <strong>{% if snap.reload_stake %}{{ snap.reload_stake | gbp }}{% else %}–{% endif %}{% if snap.reload_reward %} → {{ snap.reload_reward | gbp }}{% endif %}</strong>
+      </article>
+    {% endif %}
   </section>
 
   {% if offer.notes %}
     <p class="notes">{{ offer.notes }}</p>
+  {% endif %}
+  {% if offer.repeats %}
+    <form method="post" action="{{ url_for('main.claim_reload', offer_id=offer.id) }}" class="page-actions">
+      <button class="btn btn-primary" type="submit">Mark this reload done</button>
+      <span class="hint">Moves the next due date forward by the frequency.</span>
+    </form>
   {% endif %}
 
   <section class="panel">
@@ -112,6 +128,7 @@
         <span class="hint">Saved as a transfer. Counts once in bankroll.</span>
       </label>
       <label>Total free funds <input name="free_funds" type="number" step="0.01" min="0" value="{{ offer.free_funds }}"></label>
+      {% include "_reload_fields.html" %}
       <label class="span-2">Notes <input name="notes" type="text" value="{{ offer.notes }}"></label>
       <div class="form-actions span-2">
         <button class="btn btn-primary" type="submit">Save offer</button>

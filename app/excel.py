@@ -160,6 +160,10 @@ def _write_offers(ws, offers: list[Offer]) -> None:
             "Offer",
             "Bookie",
             "Type",
+            "Repeats",
+            "Reload stake",
+            "Reward",
+            "Next due",
             "Deposited",
             "Free funds",
             "Bookie profit",
@@ -175,15 +179,19 @@ def _write_offers(ws, offers: list[Offer]) -> None:
         ws.cell(i, 1, offer.name)
         ws.cell(i, 2, offer.bookie.name)
         ws.cell(i, 3, offer.type.replace("_", " ").title())
-        _money(ws.cell(i, 4), snap["deposited"])
-        _money(ws.cell(i, 5), snap["free_funds"])
-        _money(ws.cell(i, 6), snap["bookie_profit"])
-        _money(ws.cell(i, 7), snap["exchange_profit"])
-        _money(ws.cell(i, 8), snap["net_profit"])
-        ws.cell(i, 9, snap["status"])
-        ws.cell(i, 10, snap["leg_count"])
-        ws.cell(i, 11, offer.notes)
-    _stripe(ws, 2, 11)
+        ws.cell(i, 4, (offer.reload_frequency or "").replace("_", " ").title())
+        _money(ws.cell(i, 5), snap["reload_stake"])
+        _money(ws.cell(i, 6), snap["reload_reward"])
+        ws.cell(i, 7, offer.next_reload_on.isoformat() if offer.next_reload_on else "")
+        _money(ws.cell(i, 8), snap["deposited"])
+        _money(ws.cell(i, 9), snap["free_funds"])
+        _money(ws.cell(i, 10), snap["bookie_profit"])
+        _money(ws.cell(i, 11), snap["exchange_profit"])
+        _money(ws.cell(i, 12), snap["net_profit"])
+        ws.cell(i, 13, snap["status"])
+        ws.cell(i, 14, snap["leg_count"])
+        ws.cell(i, 15, offer.notes)
+    _stripe(ws, 2, 15)
     _autosize(ws)
 
 

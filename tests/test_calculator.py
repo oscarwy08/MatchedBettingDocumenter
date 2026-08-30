@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.calculator import CalcBetType, calculate
+from app.calculator import CalcBetType, calculate, unmatched_back
 
 
 def D(value) -> Decimal:
@@ -163,3 +163,12 @@ def test_rejects_invalid_odds():
             lay_odds="1.01",
             commission_percent=200,
         )
+
+
+def test_unmatched_back_has_no_lay():
+    calc = unmatched_back("acca", back_stake=10, back_odds=8)
+    assert calc.lay_stake == Decimal("0.00")
+    assert calc.liability == Decimal("0.00")
+    assert calc.expected_profit == Decimal("0.00")
+    assert calc.if_back_wins.bookie == Decimal("70.00")
+    assert calc.if_lay_wins.bookie == Decimal("-10.00")

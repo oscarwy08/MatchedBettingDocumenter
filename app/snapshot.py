@@ -31,7 +31,20 @@ def _row(model, fields: list[str]) -> dict:
 
 
 ACCOUNT_FIELDS = ["id", "name", "type", "commission_percent", "created_at"]
-OFFER_FIELDS = ["id", "name", "type", "bookie_id", "deposit_amount", "free_funds", "notes", "created_at"]
+OFFER_FIELDS = [
+    "id",
+    "name",
+    "type",
+    "bookie_id",
+    "deposit_amount",
+    "free_funds",
+    "reload_frequency",
+    "reload_stake",
+    "reload_reward",
+    "next_reload_on",
+    "notes",
+    "created_at",
+]
 BET_FIELDS = [
     "id",
     "offer_id",
@@ -206,6 +219,10 @@ def apply_snapshot(session: Session, payload: dict, *, backup_why: str | None = 
                 bookie_id=int(row["bookie_id"]),
                 deposit_amount=_dec(row.get("deposit_amount")) or Decimal("0"),
                 free_funds=_dec(row.get("free_funds")) or Decimal("0"),
+                reload_frequency=row.get("reload_frequency") or "",
+                reload_stake=_dec(row.get("reload_stake")) or Decimal("0"),
+                reload_reward=_dec(row.get("reload_reward")) or Decimal("0"),
+                next_reload_on=_parse_d(row.get("next_reload_on")),
                 notes=row.get("notes") or "",
                 created_at=_parse_dt(row.get("created_at")) or datetime.now(),
             )

@@ -91,6 +91,13 @@ BET_TYPE_MAP = {
     "money back if bet loses": BetType.MONEY_BACK,
     "other": BetType.OTHER,
     "other manual": BetType.OTHER,
+    "normal": BetType.NORMAL,
+    "normal unmatched": BetType.NORMAL,
+    "unmatched": BetType.NORMAL,
+    "acca": BetType.ACCA,
+    "accumulator": BetType.ACCA,
+    "builder": BetType.BUILDER,
+    "bet builder": BetType.BUILDER,
 }
 
 STATUS_MAP = {

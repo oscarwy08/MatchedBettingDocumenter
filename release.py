@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Saves no longer wait for the other computer. A friend's name opens their full dashboard. "
+        "Log normal bets, accas and builders. Reload offers track frequency, stake, reward and next due. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

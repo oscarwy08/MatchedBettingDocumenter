@@ -213,9 +213,14 @@ def forget_friend(friend_id: str) -> dict:
 
 
 def _money(value) -> str:
+    from decimal import InvalidOperation
+
     if value is None or value == "":
         return "0.00"
-    return f"{Decimal(str(value)):.2f}"
+    try:
+        return f"{Decimal(str(value)):.2f}"
+    except InvalidOperation:
+        return "0.00"
 
 
 def _when(value) -> str:
@@ -257,6 +262,7 @@ def _bet_row(bet) -> dict:
         "bookie": bookie,
         "exchange": exchange,
         "offer": offer,
+        "offer_id": bet.offer_id,
         "back_stake": _money(bet.back_stake),
         "back_odds": str(bet.back_odds or ""),
         "lay_stake": _money(bet.lay_stake),
@@ -315,16 +321,25 @@ def view_dto(session: Session, *, nickname: str) -> dict:
             bookie_name = offer.bookie.name if offer.bookie is not None else ""
         except Exception:  # noqa: BLE001
             bookie_name = ""
+        nxt = offer.next_reload_on
         offers.append(
             {
+                "id": offer.id,
                 "name": offer.name or "—",
                 "bookie": bookie_name,
                 "type": offer.type or "",
+                "notes": offer.notes or "",
+                "status": row["status"],
                 "net_profit": _money(row["net_profit"]),
                 "free_funds": _money(row["free_funds"]),
                 "free_funds_used": _money(row["free_funds_used"]),
                 "pending_count": int(row["pending_count"]),
                 "leg_count": int(row["leg_count"]),
+                "reload_frequency": offer.reload_frequency or "",
+                "reload_stake": _money(row["reload_stake"]),
+                "reload_reward": _money(row["reload_reward"]),
+                "next_reload_on": _when(nxt) if nxt else "",
+                "reload_due": bool(row["reload_due"]),
             }
         )
     return {
@@ -345,12 +360,41 @@ def view_dto(session: Session, *, nickname: str) -> dict:
     }
 
 
+def _blank(value) -> bool:
+    return value is None or value == ""
+
+
+def display_bet(bet: dict | None) -> dict:
+    """Fill expected/actual from older friend views that only sent `profit`."""
+    if not isinstance(bet, dict):
+        return {}
+    row = dict(bet)
+    profit = row.get("profit")
+    pending = bool(row.get("pending") or row.get("status") == "pending")
+    if _blank(row.get("expected_profit")) and not _blank(profit) and pending:
+        row["expected_profit"] = profit
+    if _blank(row.get("actual_profit")) and not _blank(profit) and not pending:
+        row["actual_profit"] = profit
+    return row
+
+
 def bet_from_view(view: dict | None, bet_id: str) -> dict | None:
     if not isinstance(view, dict):
         return None
-    for bet in view.get("bets") or []:
+    for bet in list(view.get("bets") or []) + list(view.get("recent_bets") or []):
+        if not isinstance(bet, dict):
+            continue
         if str(bet.get("id")) == str(bet_id):
-            return bet
+            return display_bet(bet)
+    return None
+
+
+def offer_from_view(view: dict | None, offer_id: str) -> dict | None:
+    if not isinstance(view, dict):
+        return None
+    for offer in view.get("offers") or []:
+        if isinstance(offer, dict) and str(offer.get("id")) == str(offer_id):
+            return offer
     return None
 
 

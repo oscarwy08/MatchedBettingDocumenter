@@ -25,6 +25,7 @@
             <th>Offer</th>
             <th>Bookie</th>
             <th>Type</th>
+            <th>Selections</th>
             <th>Event</th>
             <th class="num">Expected</th>
             <th class="num">Actual</th>
@@ -39,6 +40,7 @@
               <td>{% if bet.offer %}<a href="{{ url_for('main.offer_detail', offer_id=bet.offer.id) }}">{{ bet.offer.name }}</a>{% else %}—{% endif %}</td>
               <td><a href="{{ url_for('main.account_detail', account_id=bet.bookie_id) }}">{{ bet.bookie.name }}</a></td>
               <td>{{ bet.bet_type | labelize }}</td>
+              <td>{{ bet.market or "—" }}</td>
               <td><a href="{{ url_for('main.bet_detail', bet_id=bet.id) }}">{{ bet.event or "Untitled" }}</a></td>
               <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
               <td class="{{ bet.actual_profit | pnl }} num">{{ bet.actual_profit | gbp }}</td>

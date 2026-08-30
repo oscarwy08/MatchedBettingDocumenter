@@ -67,6 +67,7 @@
             <tr>
               <th>Offer</th>
               <th>Bookie</th>
+              <th>Reload</th>
               <th class="num">Net so far</th>
               <th class="num">Free funds</th>
               <th>Legs</th>
@@ -77,6 +78,12 @@
               <tr>
                 <td><a href="{{ url_for('main.offer_detail', offer_id=row.offer.id) }}">{{ row.offer.name }}</a></td>
                 <td><a href="{{ url_for('main.account_detail', account_id=row.offer.bookie_id) }}">{{ row.offer.bookie.name }}</a></td>
+                <td>
+                  {% if row.reload_frequency %}
+                    {{ row.reload_frequency | labelize }}
+                    {% if row.reload_due %}<span class="pill on">Due</span>{% elif row.next_reload_on %}{{ row.next_reload_on | ukdate }}{% endif %}
+                  {% else %}–{% endif %}
+                </td>
                 <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>
                 <td class="num">{% if row.free_funds %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}–{% endif %}</td>
                 <td>{{ row.pending_count }} pending / {{ row.leg_count }}</td>

@@ -1,0 +1,29 @@
+{% set prefix = prefix|default("") %}
+{% set freq = offer.reload_frequency if offer is defined else "" %}
+{% set stake = offer.reload_stake if offer is defined else "" %}
+{% set reward = offer.reload_reward if offer is defined else "" %}
+{% set due = offer.next_reload_on | ukdate if offer is defined and offer.next_reload_on else "" %}
+<label>
+  Repeats
+  <select name="{{ prefix }}reload_frequency">
+    {% for value, label in reload_frequencies %}
+      <option value="{{ value }}" {% if freq == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <span class="hint">Weekly / monthly reloads stay on the dashboard so you can check them.</span>
+</label>
+<label>
+  Qualifying amount
+  <input name="{{ prefix }}reload_stake" type="number" step="0.01" min="0" value="{{ stake }}" placeholder="20.00">
+  <span class="hint">Stake or deposit needed each time.</span>
+</label>
+<label>
+  Reward
+  <input name="{{ prefix }}reload_reward" type="number" step="0.01" min="0" value="{{ reward }}" placeholder="5.00">
+  <span class="hint">Free bet or cash you get back.</span>
+</label>
+<label>
+  Next due
+  <input name="{{ prefix }}next_reload_on" type="text" inputmode="numeric" placeholder="DD/MM/YYYY"
+         pattern="\d{2}/\d{2}/\d{4}" value="{{ due if due != '–' else '' }}">
+</label>

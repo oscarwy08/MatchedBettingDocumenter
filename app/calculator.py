@@ -130,6 +130,47 @@ def _bookie_outcomes(
     return back_stake * (back_odds - ONE), -back_stake
 
 
+def unmatched_back(
+    bet_type: CalcBetType | str,
+    back_stake: Decimal | int | float | str,
+    back_odds: Decimal | int | float | str,
+    cashback: Decimal | int | float | str = 0,
+) -> Calculation:
+    """Back-only bet: no lay. Expected profit stays 0 until you settle."""
+    try:
+        kind = CalcBetType(bet_type)
+    except ValueError:
+        kind = CalcBetType.QUALIFYING
+    stake = money(back_stake)
+    b_odds = to_decimal(back_odds)
+    extra = money(cashback)
+    if stake < 0:
+        raise ValueError("Back stake must be zero or positive.")
+    if b_odds <= 1:
+        raise ValueError("Back odds must be greater than 1.")
+    if extra < 0:
+        raise ValueError("Cashback cannot be negative.")
+    bookie_back, bookie_lay = _bookie_outcomes(kind, stake, b_odds, extra)
+    bookie_back = money(bookie_back)
+    bookie_lay = money(bookie_lay)
+    back_side = SideResult(bookie=bookie_back, exchange=ZERO)
+    lay_side = SideResult(bookie=bookie_lay, exchange=ZERO)
+    return Calculation(
+        bet_type=kind,
+        back_stake=stake,
+        back_odds=b_odds,
+        lay_odds=ZERO,
+        commission_percent=ZERO,
+        cashback=extra,
+        lay_stake=ZERO,
+        liability=ZERO,
+        if_back_wins=back_side,
+        if_lay_wins=lay_side,
+        expected_profit=ZERO,
+        lay_stake_overridden=False,
+    )
+
+
 def calculate(
     bet_type: CalcBetType | str,
     back_stake: Decimal | int | float | str,

@@ -29,8 +29,12 @@ function syncVisibility() {
   const type = currentType();
   const cashback = document.getElementById("cashback-field");
   const manual = document.getElementById("manual-expected");
+  const lay = document.getElementById("lay_odds");
   if (cashback) cashback.classList.toggle("is-hidden", type !== "money_back");
   if (manual) manual.classList.toggle("is-hidden", type !== "other");
+  if (lay && (type === "normal" || type === "acca" || type === "bet_builder") && !lay.value) {
+    lay.placeholder = "Leave blank if unmatched";
+  }
 }
 
 function payload() {

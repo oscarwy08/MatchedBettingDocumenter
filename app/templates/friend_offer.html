@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ offer.name or "Offer" }}{% endblock %}
+{% block eyebrow %}{{ offer.bookie }} · {{ offer.type | labelize }} · {{ selected.nickname or "Friend" }}{% endblock %}
+{% block heading %}{{ offer.name or "Offer" }}{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ url_for('main.friend_detail', friend_id=selected.id) }}">Back to {{ selected.nickname or "friend" }}</a>
+  <a class="btn" href="{{ url_for('main.friends_page') }}">Friends</a>
+{% endblock %}
+{% block content %}
+  <p class="hint">Read-only. This is their offer, not yours.</p>
+  <section class="stat-grid">
+    <article class="stat-card"><p>Status</p><strong>{{ offer.status or "—" }}</strong></article>
+    <article class="stat-card"><p>Net so far</p><strong class="{{ offer.net_profit | pnl }}">{{ offer.net_profit | gbp }}</strong></article>
+    <article class="stat-card"><p>Free funds</p><strong>{% if offer.free_funds and offer.free_funds != "0.00" %}{{ offer.free_funds_used | gbp }} / {{ offer.free_funds | gbp }}{% else %}–{% endif %}</strong></article>
+    <article class="stat-card"><p>Legs</p><strong>{{ offer.pending_count }} pending · {{ offer.leg_count }} total</strong></article>
+    {% if offer.reload_frequency %}
+      <article class="stat-card"><p>Repeats</p><strong>{{ offer.reload_frequency | labelize }}</strong></article>
+      <article class="stat-card"><p>Each time</p><strong>{% if offer.reload_stake and offer.reload_stake != "0.00" %}{{ offer.reload_stake | gbp }}{% else %}–{% endif %}{% if offer.reload_reward and offer.reload_reward != "0.00" %} → {{ offer.reload_reward | gbp }}{% endif %}</strong></article>
+      <article class="stat-card"><p>Next due</p><strong>{% if offer.reload_due %}Due{% elif offer.next_reload_on %}{{ offer.next_reload_on }}{% else %}–{% endif %}</strong></article>
+    {% endif %}
+  </section>
+  {% if offer.notes %}
+    <p class="notes">{{ offer.notes }}</p>
+  {% endif %}
+  <section class="panel">
+    <div class="panel-head"><h2>Legs</h2></div>
+    {% if legs %}
+      <table>
+        <thead>
+          <tr>
+            <th>Placed</th>
+            <th>Type</th>
+            <th>Event</th>
+            <th class="num">Expected</th>
+            <th class="num">Actual</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bet in legs %}
+            <tr>
+              <td>{{ bet.placed or bet.date }}</td>
+              <td>{{ bet.bet_type | labelize }}</td>
+              <td><a href="{{ url_for('main.friend_bet', friend_id=selected.id, bet_id=bet.id) }}">{{ bet.event }}</a></td>
+              <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
+              <td class="{{ bet.actual_profit | pnl }} num">{{ bet.actual_profit | gbp }}</td>
+              <td><span class="pill">{{ bet.status | labelize }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="empty">No legs in this view yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

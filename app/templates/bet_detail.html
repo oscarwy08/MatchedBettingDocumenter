@@ -12,7 +12,7 @@
   <section class="stat-grid">
     <article class="stat-card"><p>Type</p><strong>{{ bet.bet_type | labelize }}</strong></article>
     <article class="stat-card"><p>Back</p><strong>{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}</strong></article>
-    <article class="stat-card"><p>Lay</p><strong>{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}</strong></article>
+    <article class="stat-card"><p>Lay</p><strong>{% if bet.lay_odds and bet.lay_odds > 1 %}{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}{% else %}Unmatched{% endif %}</strong></article>
     <article class="stat-card"><p>Liability</p><strong>{{ bet.liability | gbp }}</strong></article>
     <article class="stat-card"><p>Expected</p><strong class="{{ bet.expected_profit | pnl }}">{{ bet.expected_profit | gbp }}</strong></article>
     <article class="stat-card"><p>Placed</p><strong>{{ (bet.placed_at or bet.date_placed) | uktime }}</strong></article>

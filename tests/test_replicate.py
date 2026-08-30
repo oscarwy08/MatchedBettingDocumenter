@@ -36,7 +36,6 @@ def _settings(monkeypatch, *, allow_lan=True):
         return False
 
     monkeypatch.setattr("app.replicate.setting", fake)
-    monkeypatch.setattr("app.live_sync.setting", fake)
 
 
 def _mailbox(monkeypatch):

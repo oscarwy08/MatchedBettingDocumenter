@@ -35,6 +35,14 @@ def _ensure_sqlite_columns(engine: Engine) -> None:
         cols = {row[1] for row in conn.execute(text("PRAGMA table_info(offers)"))}
         if "free_funds" not in cols:
             conn.execute(text("ALTER TABLE offers ADD COLUMN free_funds NUMERIC(12, 2) DEFAULT 0"))
+        if "reload_frequency" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN reload_frequency VARCHAR(20) DEFAULT ''"))
+        if "reload_stake" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN reload_stake NUMERIC(12, 2) DEFAULT 0"))
+        if "reload_reward" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN reload_reward NUMERIC(12, 2) DEFAULT 0"))
+        if "next_reload_on" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN next_reload_on DATE"))
         bet_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(bets)"))}
         if "free_bet_returned" not in bet_cols:
             conn.execute(text("ALTER TABLE bets ADD COLUMN free_bet_returned INTEGER DEFAULT 0"))

@@ -32,7 +32,17 @@ class BetType(StrEnum):
     FREE_BET_SNR = "free_bet_snr"
     FREE_BET_SR = "free_bet_sr"
     MONEY_BACK = "money_back"
+    NORMAL = "normal"
+    ACCA = "acca"
+    BUILDER = "bet_builder"
     OTHER = "other"
+
+
+class ReloadFrequency(StrEnum):
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    FORTNIGHTLY = "fortnightly"
+    MONTHLY = "monthly"
 
 
 class BetStatus(StrEnum):
@@ -92,6 +102,10 @@ class Offer(Base):
     bookie_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"))
     deposit_amount: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
     free_funds: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
+    reload_frequency: Mapped[str] = mapped_column(String(20), default="")
+    reload_stake: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
+    reload_reward: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
+    next_reload_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
@@ -111,15 +125,31 @@ class Offer(Base):
         return used
 
     @property
+    def repeats(self) -> bool:
+        return bool(self.reload_frequency) or self.type == OfferType.RELOAD
+
+    @property
+    def reload_due(self) -> bool:
+        if not self.repeats:
+            return False
+        if self.next_reload_on is None:
+            return True
+        return self.next_reload_on <= date.today()
+
+    @property
     def status(self) -> str:
+        if self.repeats and self.reload_due:
+            return "Reload due"
         funds = Decimal(str(self.free_funds or 0))
         if funds > 0:
-            if self.free_funds_used >= funds:
+            if self.free_funds_used >= funds and not self.repeats:
                 return "Used"
             return "In progress"
         if not self.bets:
             return "In progress"
         if any(bet.status == BetStatus.PENDING for bet in self.bets):
+            return "In progress"
+        if self.repeats:
             return "In progress"
         return "Complete"
 

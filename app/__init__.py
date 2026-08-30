@@ -34,24 +34,38 @@ def create_app() -> Flask:
         if session is not None:
             session.close()
 
+    def _decimal(value):
+        from decimal import InvalidOperation
+
+        if value is None:
+            return None
+        try:
+            text = str(value).strip()
+        except Exception:  # noqa: BLE001
+            return None
+        if not text:
+            return None
+        try:
+            return Decimal(text)
+        except InvalidOperation:
+            return None
+
     @app.template_filter("gbp")
     def gbp(value):
-        if value is None or value == "":
+        amount = _decimal(value)
+        if amount is None:
             return "–"
-        amount = Decimal(str(value))
         sign = "−" if amount < 0 else ""
         return f"{sign}£{abs(amount):,.2f}"
 
     @app.template_filter("pnl")
     def pnl(value):
-        if value is None or value == "":
+        amount = _decimal(value)
+        if amount is None or amount == 0:
             return "pnl-zero"
-        amount = Decimal(str(value))
         if amount > 0:
             return "pnl-pos"
-        if amount < 0:
-            return "pnl-neg"
-        return "pnl-zero"
+        return "pnl-neg"
 
     @app.template_filter("labelize")
     def labelize(value):
