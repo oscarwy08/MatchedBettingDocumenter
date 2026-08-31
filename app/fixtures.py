@@ -20,7 +20,7 @@ FOOTBALL_STALE = timedelta(minutes=30)
 FOOTBALL_LIVE_STALE = timedelta(minutes=5)
 RACING_CARDS_STALE = timedelta(hours=1)
 RACING_RESULTS_STALE = timedelta(minutes=3)
-RACING_CACHE_VER = 2
+RACING_CACHE_VER = 3
 RACING_GAP = 1.05
 _last_racing_at = 0.0
 
@@ -31,7 +31,7 @@ RACING_RESULTS_URL = "https://api.theracingapi.com/v1/results/today/free"
 _UK_REGIONS = {"gb", "ire", "uk", "ireland", "great britain"}
 _FINISHED = {"FINISHED", "AWARDED"}
 _lock = threading.Lock()
-USER_AGENT = "MatchedBettingDocumenter/2.0.1"
+USER_AGENT = "MatchedBettingDocumenter/2.0.2"
 
 
 def football_token_path() -> Path:
@@ -115,6 +115,7 @@ def search(query: str, *, limit: int = 40, now: datetime | None = None) -> list[
                 str(item.get("label") or ""),
                 str(item.get("hint") or ""),
                 str(item.get("course") or ""),
+                str(item.get("name") or ""),
             ]
         ).casefold()
         if needles and not all(part in hay for part in needles):
@@ -278,18 +279,20 @@ def _fetch_racing_cards(user: str, password: str, now: datetime | None = None) -
                 continue
             course = str(card.get("course") or "").strip() or "Race"
             name = str(card.get("race_name") or "").strip()
-            stamp = _race_stamp(start_at, clock)
+            stamp = start_at.strftime("%H:%M")
             label = f"{stamp} {course}"
-            if name:
-                label = f"{label} — {name}"
+            hint = format_uk_time(start_at)
+            if start_at.date() == clock.date() + timedelta(days=1):
+                hint = f"Tomorrow · {hint}"
             seen.add(ident)
             rows.append(
                 {
                     "source": "racing",
                     "fixture_id": ident,
                     "label": label,
-                    "hint": f"{course} · {format_uk_time(start_at)}",
+                    "hint": hint,
                     "course": course,
+                    "name": name,
                     "starts_at": start_at.isoformat(timespec="minutes"),
                     "ends_at": (start_at + RACING_PAD).isoformat(timespec="minutes"),
                     "status": str(card.get("race_status") or ""),
@@ -346,17 +349,6 @@ def _race_start(card: dict) -> datetime | None:
     except ValueError:
         return None
     return base.replace(hour=hour, minute=minute, second=0, microsecond=0)
-
-
-def _race_stamp(start_at: datetime, now: datetime) -> str:
-    stamp = start_at.strftime("%H:%M")
-    day = start_at.date()
-    today = now.date()
-    if day == today:
-        return stamp
-    if day == today + timedelta(days=1):
-        return f"Tomorrow {stamp}"
-    return f"{start_at.strftime('%d/%m')} {stamp}"
 
 
 def _to_local(raw) -> datetime | None:

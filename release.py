@@ -107,9 +107,8 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Show tomorrow's UK and Irish races in the event picker, labelled so they "
-        "are distinct from today. The free feed still stops at tomorrow. data/ is "
-        "never overwritten.",
+        "Picked horse races now use the off time and course only, such as 16:06 Brighton. "
+        "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
     print(f"Published {tag}. Installed copies will pick it up the next time they start.")

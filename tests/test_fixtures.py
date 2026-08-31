@@ -86,16 +86,21 @@ def test_search_football_and_racing(tmp_path, monkeypatch):
     racing = search("ascot", now=datetime(2026, 8, 31, 10, 0))
     assert racing
     assert racing[0]["source"] == "racing"
-    assert "Ascot" in racing[0]["label"]
-    labels = [row["label"] for row in search("ascot", now=datetime(2026, 8, 31, 10, 0))]
-    assert any(label.startswith("14:50") for label in labels)
-    assert any("Tomorrow" in label for label in labels)
+    labels = [row["label"] for row in racing]
+    assert "14:50 Ascot" in labels
+    assert all("—" not in label for label in labels)
+    assert all("Tomorrow" not in label for label in labels)
+    tomorrow = [row for row in racing if row["fixture_id"] == "rac_tmw"]
+    assert tomorrow
+    assert tomorrow[0]["label"] == "14:50 Ascot"
+    assert "Tomorrow" in tomorrow[0]["hint"]
     york = search("york", now=datetime(2026, 8, 31, 10, 0))
     assert york
     assert york[0]["fixture_id"] == "rac_york"
-    assert "Tomorrow" in york[0]["label"]
+    assert york[0]["label"] == "15:15 York"
     assert york[0]["starts_at"].endswith("15:15")
     assert search("tomorrow", now=datetime(2026, 8, 31, 10, 0))
+    assert search("handicap", now=datetime(2026, 8, 31, 10, 0))
     assert not search("sha tin", now=datetime(2026, 8, 31, 10, 0))
     assert not is_finished("football", "42")
     refresh(now=datetime(2026, 8, 31, 15, 0), racing_results=True)

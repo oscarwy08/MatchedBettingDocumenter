@@ -31,6 +31,14 @@ NOTES = {
         ],
         "primary": "OK",
     },
+    "2.0.2": {
+        "kicker": "This update",
+        "title": "Shorter racing names",
+        "paragraphs": [
+            "Picked horse races now use the off time and course only, such as 16:06 Brighton. Tomorrow still shows on the smaller line, and Starts still gets the real date.",
+        ],
+        "primary": "OK",
+    },
 }
 
 

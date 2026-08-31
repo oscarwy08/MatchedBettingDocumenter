@@ -1287,6 +1287,9 @@ tr.is-done td { color: var(--muted); text-decoration: line-through; }
 }
 .event-suggest-item:hover,
 .event-suggest-item:focus { background: var(--wash); }
+.event-suggest-item strong {
+  font-weight: 650;
+}
 .event-suggest-item small {
   color: var(--muted);
   font-size: 0.86rem;
