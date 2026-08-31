@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Windows desktop toasts now show as an OS popup. Settings can send a test notification. "
+        "Fix Windows desktop toasts so the OS popup actually appears. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

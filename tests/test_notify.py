@@ -206,14 +206,17 @@ def test_windows_toast_uses_registered_app_id():
     assert "Windows.Data.Xml.Dom, ContentType" in script
     assert "CreateToastNotifier('Matched Betting Documenter')" not in script
     assert r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe" in script
-    assert "ToastGeneric" in script
-    assert "Start-Sleep" in script
-    assert "placement='attribution'" in script
+    assert 'template="ToastGeneric"' in script
+    assert "$xml.LoadXml(@'" in script
+    assert "LoadXml('" not in script
+    assert 'placement="attribution"' in script
+    assert "ShowBalloonTip" in script
     assert _xml("A & B <C>") == "A &amp; B &lt;C&gt;"
     escaped = _windows_script("O'Brien", "It's on")
-    assert "O'Brien" not in escaped
     assert "O&apos;Brien" in escaped
     assert "It&apos;s on" in escaped
+    assert "It''s on" in escaped
+    assert "O'Brien" not in escaped.split("ShowBalloonTip")[0]
 
 
 def test_notify_test_sends_when_enabled(tmp_path, monkeypatch):
@@ -229,6 +232,16 @@ def test_notify_test_sends_when_enabled(tmp_path, monkeypatch):
     blocked = client.post("/settings/notify-test")
     assert blocked.status_code == 302
     assert sent == []
+
+
+def test_notify_test_includes_error_detail(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    monkeypatch.setattr("app.desktop_notify.send", lambda *a, **k: False)
+    monkeypatch.setattr("app.desktop_notify.last_error", lambda: "Windows PowerShell was not found.")
+    save({"desktop_notifications": True})
+    client.post("/settings/notify-test")
+    page = client.get("/settings")
+    assert b"Windows PowerShell was not found." in page.data
 
 
 def test_clear_all_via_json(tmp_path, monkeypatch):

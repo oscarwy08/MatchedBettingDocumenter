@@ -2317,7 +2317,7 @@ def settings_firewall():
 
 @bp.post("/settings/notify-test")
 def settings_notify_test():
-    from app.desktop_notify import send
+    from app.desktop_notify import last_error, send
     from app.settings import get as setting
 
     if not setting("desktop_notifications"):
@@ -2326,7 +2326,11 @@ def settings_notify_test():
     if send("Matched Betting Documenter", "Desktop notifications are working on this computer."):
         flash("Sent a test notification. Check the corner of the screen.", "ok")
     else:
-        flash("Could not show an OS popup on this computer.", "error")
+        detail = (last_error() or "").strip()
+        if detail:
+            flash(f"Could not show an OS popup on this computer. {detail}", "error")
+        else:
+            flash("Could not show an OS popup on this computer.", "error")
     return redirect(url_for("main.settings_page"))
 
 
