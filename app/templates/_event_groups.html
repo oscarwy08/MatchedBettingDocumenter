@@ -1,0 +1,95 @@
+{% macro event_groups(groups, own=True, selected=None) %}
+  {% if groups %}
+    <div class="event-list">
+      {% for group in groups %}
+        <details class="event-card event-card-{{ group.sport or 'other' }}"{% if group.pending %} open{% endif %}>
+          <summary>
+            <span class="event-copy">
+              <span class="event-title">
+                {{ group.title }}
+                <span class="event-count">{{ group.count }}</span>
+              </span>
+              {% if group.starts_label %}
+                <span class="event-sub">{{ group.starts_label }}</span>
+              {% endif %}
+            </span>
+            <span class="event-range">
+              <span class="event-range-pair">
+                <span class="event-range-label">Worst</span>
+                <span class="{{ group.worst | pnl }}">{{ group.worst | gbp }}</span>
+              </span>
+              <span class="event-range-pair">
+                <span class="event-range-label">Best</span>
+                <span class="{{ group.best | pnl }}">{{ group.best | gbp }}</span>
+              </span>
+            </span>
+          </summary>
+          <div class="event-body">
+            <table class="event-rows">
+              <thead>
+                <tr>
+                  <th>Contract</th>
+                  <th>Price</th>
+                  <th>Stake / liability</th>
+                  <th class="num">Return</th>
+                  <th class="num">P&amp;L</th>
+                  <th>Status</th>
+                  {% if own %}<th></th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in group.rows %}
+                  <tr>
+                    <td>
+                      {% if own %}
+                        <a href="{{ url_for('main.bet_detail', bet_id=row.id) }}">{{ row.market or row.event or "Untitled" }}</a>
+                      {% elif selected %}
+                        <a href="{{ url_for('main.friend_bet', friend_id=selected.id, bet_id=row.id) }}">{{ row.market or row.event or "Untitled" }}</a>
+                      {% else %}
+                        {{ row.market or row.event or "Untitled" }}
+                      {% endif %}
+                      <span class="event-row-meta">
+                        {% if own and row.bookie_id %}
+                          <a href="{{ url_for('main.account_detail', account_id=row.bookie_id) }}">{{ row.bookie or "—" }}</a>
+                        {% elif selected %}
+                          {% if row.bookie_id %}
+                            <a href="{{ url_for('main.friend_account', friend_id=selected.id, account_id=row.bookie_id) }}">{{ row.bookie or "—" }}</a>
+                          {% else %}
+                            {{ row.bookie or "—" }}
+                          {% endif %}
+                        {% else %}
+                          {{ row.bookie or "—" }}
+                        {% endif %}
+                        {% if row.exchange %} · {{ row.exchange }}{% endif %}
+                      </span>
+                    </td>
+                    <td>
+                      {{ row.back_odds or "—" }}
+                      {% if row.lay_odds %}<span class="event-row-meta">lay {{ row.lay_odds }}</span>{% endif %}
+                    </td>
+                    <td>
+                      {{ row.back_stake | gbp }}
+                      <span class="event-row-meta">{{ row.liability | gbp }} liab.</span>
+                    </td>
+                    <td class="num">{{ row.ret | gbp }}</td>
+                    <td class="{{ (row.actual_profit if not row.pending else row.expected_profit) | pnl }} num">
+                      {{ (row.actual_profit if not row.pending else row.expected_profit) | gbp }}
+                    </td>
+                    <td><span class="pill">{{ row.status | labelize }}</span></td>
+                    {% if own %}
+                      <td><a href="{{ url_for('main.edit_bet_page', bet_id=row.id) }}">Edit</a></td>
+                    {% endif %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      {% endfor %}
+    </div>
+  {% else %}
+    <section class="panel">
+      <p class="empty">No bets in this filter.</p>
+    </section>
+  {% endif %}
+{% endmacro %}

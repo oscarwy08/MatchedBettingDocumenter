@@ -1,8 +1,9 @@
 {% extends "base.html" %}
-{% from "_friend_top.html" import friend_nav, friend_banner, friend_account_link, friend_offer_link %}
+{% from "_friend_top.html" import friend_nav, friend_banner, friend_account_link, friend_offer_link, friend_heading %}
+{% from "_event_groups.html" import event_groups %}
 {% block title %}Bets · {{ selected.nickname or "Friend" }}{% endblock %}
 {% block eyebrow %}Friend{% endblock %}
-{% block heading %}{{ selected.nickname or "Friend" }}{% endblock %}
+{% block heading %}{{ friend_heading(selected.nickname or "Friend", presence) }}{% endblock %}
 {% block actions %}
   <a class="btn" href="{{ url_for('main.friends_page') }}">Back to friends</a>
 {% endblock %}
@@ -10,15 +11,23 @@
   {{ friend_nav(selected, friend_tab) }}
   {{ friend_banner(live, last_available, fetch_error) }}
   <div class="filters">
-    <a class="pill {{ 'on' if status == 'all' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, status='all', q=q) }}">All</a>
-    <a class="pill {{ 'on' if status == 'pending' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, status='pending', q=q) }}">Pending</a>
-    <a class="pill {{ 'on' if status == 'settled' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, status='settled', q=q) }}">Settled</a>
+    <a class="pill {{ 'on' if bets_view == 'table' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, view='table', status=status, q=q) }}">Table</a>
+    <a class="pill {{ 'on' if bets_view == 'events' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, view='events', status=status, q=q) }}">By event</a>
+  </div>
+  <div class="filters">
+    <a class="pill {{ 'on' if status == 'all' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, view=bets_view, status='all', q=q) }}">All</a>
+    <a class="pill {{ 'on' if status == 'pending' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, view=bets_view, status='pending', q=q) }}">Pending</a>
+    <a class="pill {{ 'on' if status == 'settled' }}" href="{{ url_for('main.friend_bets', friend_id=selected.id, view=bets_view, status='settled', q=q) }}">Settled</a>
     <form method="get" class="search-inline">
+      <input type="hidden" name="view" value="{{ bets_view }}">
       <input type="hidden" name="status" value="{{ status }}">
       <input type="search" name="q" value="{{ q }}" placeholder="Search event, bookie, offer…">
       <button class="btn" type="submit">Search</button>
     </form>
   </div>
+  {% if bets_view == 'events' %}
+    {{ event_groups(groups, own=False, selected=selected) }}
+  {% else %}
   <section class="panel">
     <div class="panel-head"><h2>All bets</h2></div>
     {% if bets %}
@@ -58,4 +67,5 @@
       <p class="empty">No bets in this filter.</p>
     {% endif %}
   </section>
+  {% endif %}
 {% endblock %}

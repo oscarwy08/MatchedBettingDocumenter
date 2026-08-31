@@ -489,8 +489,11 @@ def _bet_row(bet) -> dict:
         "placed": _when(bet.placed_at or bet.date_placed),
         "date": _when(bet.placed_at or bet.date_placed),
         "starts": _when(bet.starts_at) if bet.starts_at else "",
+        "starts_at": bet.starts_at.isoformat(timespec="minutes") if bet.starts_at else "",
         "settled": _when(bet.settled_at) if bet.settled_at else "",
         "event": bet.event or "—",
+        "fixture_source": bet.fixture_source or "",
+        "fixture_id": bet.fixture_id or "",
         "market": bet.market or "",
         "notes": bet.notes or "",
         "bet_type": bet.bet_type or "",
@@ -695,14 +698,104 @@ def cache_path(friend_id: str) -> Path:
     return cache_dir() / f"{friend_id}.json"
 
 
-def store_cache(friend_id: str, payload: dict) -> dict:
+def store_cache(friend_id: str, payload: dict, *, live: bool = True) -> dict:
+    previous = load_cache(friend_id) or {}
+    now = datetime.now().isoformat(timespec="seconds")
     record = {
         "friend_id": friend_id,
-        "fetched_at": datetime.now().isoformat(timespec="seconds"),
+        "fetched_at": now,
+        "live_at": now if live else previous.get("live_at"),
         "payload": payload,
     }
     cache_path(friend_id).write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     return record
+
+
+ONLINE_WINDOW_SEC = 90
+LAN_PROBE_TIMEOUT = 0.7
+
+
+def _parse_stamp(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        from app.dates import parse_uk_datetime
+
+        return parse_uk_datetime(text)
+
+
+def presence_for(friend_id: str, *, live: bool | None = None) -> dict:
+    """Online if we just reached them, or last seen from the cached view."""
+    from app.dates import format_uk_time
+
+    if live:
+        return {"online": True, "label": "Online"}
+    cached = load_cache(friend_id) if friend_id else None
+    stamp = None
+    if cached:
+        stamp = cached.get("live_at") or cached.get("fetched_at")
+    parsed = _parse_stamp(stamp)
+    if parsed is None:
+        return {"online": False, "label": ""}
+    if live is None:
+        age = (datetime.now() - parsed).total_seconds()
+        if 0 <= age <= ONLINE_WINDOW_SEC:
+            return {"online": True, "label": "Online"}
+    return {"online": False, "label": f"Last seen {format_uk_time(parsed)}"}
+
+
+def fetch_lan(friend: dict) -> dict | None:
+    """Try Wi‑Fi only — no mailbox wait. Used to mark Online on the friends list."""
+    from urllib.error import HTTPError, URLError
+
+    from app.live_sync import fetch_json, peer_hosts
+
+    hosts = peer_hosts(
+        {
+            "lan_host": friend.get("lan_host"),
+            "wan_host": friend.get("wan_host"),
+            "host": friend.get("host"),
+            "port": friend.get("port") or 5050,
+        }
+    )
+    secret = friend.get("secret")
+    if not hosts or not secret:
+        return None
+    token = VIEW_PREFIX + str(secret)
+    try:
+        remote = fetch_json(hosts, "/api/friend/view", token, timeout=LAN_PROBE_TIMEOUT)
+        cipher = remote.get("ciphertext") or remote.get("payload")
+        if isinstance(cipher, str):
+            return decrypt_view(str(secret), cipher)
+    except (HTTPError, URLError, TimeoutError, OSError, ValueError):
+        return None
+    return None
+
+
+def attach_presence(friends: list) -> list:
+    """Probe each friend on Wi‑Fi in parallel, then attach Online / last seen."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    items = [item for item in friends if isinstance(item, dict) and item.get("id") and item.get("secret")]
+
+    def probe(item: dict) -> None:
+        try:
+            payload = fetch_lan(item)
+            if payload:
+                store_cache(str(item.get("id") or ""), payload, live=True)
+        except Exception:  # noqa: BLE001
+            return
+
+    if items:
+        workers = min(6, len(items))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(probe, items))
+    return [{**item, "presence": presence_for(str(item.get("id") or ""))} for item in friends]
 
 
 def fetch_live(friend: dict) -> dict:

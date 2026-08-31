@@ -59,7 +59,12 @@
       <ul class="friend-list">
         {% for item in friends %}
           <li>
-            <a href="{{ url_for('main.friend_detail', friend_id=item.id) }}">{{ item.nickname or "Friend" }}</a>
+            <div class="friend-who">
+              <a href="{{ url_for('main.friend_detail', friend_id=item.id) }}">{{ item.nickname or "Friend" }}</a>
+              {% if item.presence and item.presence.label %}
+                <span class="presence{% if item.presence.online %} is-on{% endif %}"><span class="presence-dot" aria-hidden="true"></span>{{ item.presence.label }}</span>
+              {% endif %}
+            </div>
             <form method="post" action="{{ url_for('main.friends_forget', friend_id=item.id) }}" class="inline-form">
               <button class="btn" type="submit">Remove</button>
             </form>

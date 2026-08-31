@@ -790,6 +790,7 @@ def bets():
     session = get_session()
     status = request.args.get("status") or "all"
     q = (request.args.get("q") or "").strip().lower()
+    bets_view = _bets_view()
     query = select(Bet).options(
         selectinload(Bet.bookie),
         selectinload(Bet.exchange),
@@ -810,7 +811,19 @@ def bets():
             or q in bet.bookie.name.lower()
             or (bet.offer and q in bet.offer.name.lower())
         ]
-    return render_template("bets.html", bets=rows, status=status, q=request.args.get("q") or "")
+    groups = []
+    if bets_view == "events":
+        from app.event_groups import group_bets
+
+        groups = group_bets(rows)
+    return render_template(
+        "bets.html",
+        bets=rows,
+        groups=groups,
+        bets_view=bets_view,
+        status=status,
+        q=request.args.get("q") or "",
+    )
 
 
 @bp.get("/bets/<int:bet_id>")
@@ -1876,7 +1889,7 @@ def sync_restore():
 
 @bp.get("/friends")
 def friends_page():
-    from app.friends import account_name, invite_code, load_state as load_friends
+    from app.friends import account_name, attach_presence, invite_code, load_state as load_friends
     from app.nat import reachability
 
     port = _app_port()
@@ -1887,7 +1900,7 @@ def friends_page():
     return render_template(
         "friends.html",
         invites=invites,
-        friends=state.get("friends") or [],
+        friends=attach_presence(state.get("friends") or []),
         reach=reachability(port),
         nickname=account_name(),
     )
@@ -1906,6 +1919,11 @@ def _load_friend_view(friend: dict) -> tuple[dict | None, bool, str | None, str 
         if cached:
             return cached.get("payload"), False, cached.get("fetched_at"), str(exc)
         return None, False, None, str(exc)
+
+
+def _bets_view() -> str:
+    raw = (request.args.get("view") or "table").strip().lower()
+    return raw if raw in {"table", "events"} else "table"
 
 
 def _filter_friend_bets(view: dict | None, status: str, q: str) -> list:
@@ -1936,7 +1954,7 @@ def _filter_friend_bets(view: dict | None, status: str, q: str) -> list:
 
 
 def _friend_ctx(friend_id: str):
-    from app.friends import friend_by_id
+    from app.friends import friend_by_id, presence_for
 
     friend = friend_by_id(friend_id)
     if not friend:
@@ -1949,6 +1967,7 @@ def _friend_ctx(friend_id: str):
         "live": live,
         "last_available": last_available,
         "fetch_error": fetch_error,
+        "presence": presence_for(str(friend.get("id") or ""), live=live),
     }, None
 
 
@@ -2006,13 +2025,22 @@ def friend_bets(friend_id: str):
         return bounced
     status = request.args.get("status") or "all"
     q = (request.args.get("q") or "").strip()
+    bets_view = _bets_view()
+    rows = _filter_friend_bets(ctx["view"], status, q)
+    groups = []
+    if bets_view == "events":
+        from app.event_groups import group_bets
+
+        groups = group_bets(rows)
     return render_template(
         "friend_bets.html",
         **ctx,
         friend_tab="bets",
         status=status,
         q=q,
-        bets=_filter_friend_bets(ctx["view"], status, q),
+        bets_view=bets_view,
+        bets=rows,
+        groups=groups,
     )
 
 

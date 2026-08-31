@@ -240,9 +240,14 @@ def test_friend_opens_own_dashboard_page(tmp_path, monkeypatch):
     assert b"Accounts" in dash.data
     assert b"Sky weekly" in dash.data
     assert b"Weekly" in dash.data
+    assert b"Online" in dash.data
+    listing_live = client.get("/friends")
+    assert listing_live.status_code == 200
+    assert b"Online" in listing_live.data
     bets_page = client.get("/friends/f1/bets")
     assert bets_page.status_code == 200
     assert b"All bets" in bets_page.data
+    assert b"By event" in bets_page.data
     assert b"/friends/f1/offers/3" in bets_page.data
     assert b"Sky weekly" in bets_page.data
     assert b"<th>Placed</th>" in dash.data
@@ -250,6 +255,12 @@ def test_friend_opens_own_dashboard_page(tmp_path, monkeypatch):
     assert b"<th>Placed</th>" in bets_page.data
     assert b"<th>Starts</th>" in bets_page.data
     assert b"01/08/2026 15:00" in bets_page.data
+    events_page = client.get("/friends/f1/bets?view=events")
+    assert events_page.status_code == 200
+    assert b"event-card" in events_page.data
+    assert b"Friend cup" in events_page.data
+    assert b"Worst" in events_page.data
+    assert b"Best" in events_page.data
     offers_page = client.get("/friends/f1/offers")
     assert offers_page.status_code == 200
     assert b"Sky weekly" in offers_page.data
@@ -339,6 +350,26 @@ def test_last_available_cache(tmp_path, monkeypatch):
     cached = load_cache("abc123")
     assert cached["payload"]["stats"]["net_profit"] == "4.00"
     assert cached["fetched_at"]
+    assert cached["live_at"]
+
+
+def test_presence_online_and_last_seen(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    from datetime import datetime, timedelta
+
+    from app.friends import cache_path, presence_for
+
+    store_cache("abc123", {"nickname": "Alex"})
+    assert presence_for("abc123")["label"] == "Online"
+    assert presence_for("abc123", live=True)["label"] == "Online"
+    cached = load_cache("abc123")
+    cached["live_at"] = (datetime.now() - timedelta(hours=3)).isoformat(timespec="seconds")
+    cached["fetched_at"] = cached["live_at"]
+    cache_path("abc123").write_text(__import__("json").dumps(cached), encoding="utf-8")
+    row = presence_for("abc123", live=False)
+    assert row["online"] is False
+    assert row["label"].startswith("Last seen")
+    assert presence_for("missing")["label"] == ""
 
 
 def test_view_dto_is_read_only_dashboard(tmp_path, monkeypatch):
@@ -403,6 +434,7 @@ def test_view_dto_is_read_only_dashboard(tmp_path, monkeypatch):
     assert dto["offers"][0]["reload_due"] is True
     assert dto["bets"][0]["event"] == "Friend cup"
     assert dto["bets"][0]["starts"] == "01/08/2026 15:00"
+    assert dto["bets"][0]["starts_at"] == "2026-08-01T15:00"
     assert str(dto["bets"][0]["back_odds"]).startswith("2")
     assert dto["bets"][0]["bookie_id"] == sky.id
     assert dto["bets"][0]["offer_id"] is None

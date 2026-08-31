@@ -107,7 +107,8 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Picked horse races now use the off time and course only, such as 16:06 Brighton. "
+        "Friends now show Online or last seen next to their name. "
+        "On Bets, By event groups matched bets by fixture. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

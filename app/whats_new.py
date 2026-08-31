@@ -39,6 +39,14 @@ NOTES = {
         ],
         "primary": "OK",
     },
+    "2.0.3": {
+        "kicker": "This update",
+        "title": "Friends online, and bets by event",
+        "paragraphs": [
+            "Friends now show Online or last seen next to their name. On Bets, By event groups matched bets by fixture, soonest first, with worst and best for the group.",
+        ],
+        "primary": "OK",
+    },
 }
 
 

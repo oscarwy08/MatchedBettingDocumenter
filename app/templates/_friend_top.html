@@ -1,3 +1,7 @@
+{% macro friend_heading(title, presence=None) %}
+{{ title }}{% if presence and presence.label %} <span class="presence{% if presence.online %} is-on{% endif %}"><span class="presence-dot" aria-hidden="true"></span>{{ presence.label }}</span>{% endif %}
+{% endmacro %}
+
 {% macro friend_nav(selected, tab='dashboard') %}
 <nav class="filters friend-tabs" aria-label="{{ selected.nickname or 'Friend' }} pages">
   <a class="pill {{ 'on' if tab == 'dashboard' }}" href="{{ url_for('main.friend_detail', friend_id=selected.id) }}">Dashboard</a>
@@ -11,11 +15,6 @@
 
 {% macro friend_banner(live, last_available, fetch_error) %}
   <p class="hint">Read-only copy of their account. You cannot log, edit, or settle from here.</p>
-  {% if live %}
-    <p><span class="pill on">Live</span></p>
-  {% elif last_available %}
-    <p><span class="pill">Last available {{ last_available }}</span></p>
-  {% endif %}
   {% if fetch_error %}
     <p class="flash flash-error">{{ fetch_error }}</p>
   {% endif %}

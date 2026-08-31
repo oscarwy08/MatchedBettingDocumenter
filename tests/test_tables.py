@@ -74,6 +74,18 @@ def test_every_bets_table_has_placed_and_starts(tmp_path, monkeypatch):
     assert b"30/08/2026 19:45" in detail.data
     assert b"tables.js" in client.get("/bets").data
     assert b"tables.js" in client.get("/offers").data
+    table = client.get("/bets")
+    assert b">Table</a>" in table.data
+    assert b">By event</a>" in table.data
+    events = client.get("/bets?view=events")
+    assert events.status_code == 200
+    assert b"event-card" in events.data
+    assert b"Kickoff" in events.data
+    assert b"Worst" in events.data
+    assert b"Best" in events.data
+    assert b"<th>Placed</th>" not in events.data
+    assert "⚽".encode() not in events.data
+    assert "🏇".encode() not in events.data
 
 
 def test_bet_details_use_date_pickers(tmp_path, monkeypatch):

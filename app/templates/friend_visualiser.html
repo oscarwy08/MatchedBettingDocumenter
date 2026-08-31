@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% from "_friend_top.html" import friend_nav, friend_banner %}
+{% from "_friend_top.html" import friend_nav, friend_banner, friend_heading %}
 {% block title %}Visualiser · {{ selected.nickname or "Friend" }}{% endblock %}
 {% block eyebrow %}Friend{% endblock %}
-{% block heading %}{{ selected.nickname or "Friend" }}{% endblock %}
+{% block heading %}{{ friend_heading(selected.nickname or "Friend", presence) }}{% endblock %}
 {% block actions %}
   <a class="btn" href="{{ url_for('main.friends_page') }}">Back to friends</a>
 {% endblock %}
