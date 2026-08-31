@@ -1,6 +1,7 @@
 import errno
 import os
 import socket
+import sys
 import threading
 import time
 import webbrowser
@@ -112,10 +113,22 @@ if __name__ == "__main__":
     if host == "0.0.0.0":
         print(f"Other devices on Wi-Fi can use this PC IP on port {port} (see Devices).")
         try:
-            from app.win_firewall import allow_port
+            from app.win_firewall import allow_port as allow_win
 
-            if allow_port(port):
+            if allow_win(port):
                 print("Windows Firewall: allowed this app on the private network.")
+        except Exception:
+            pass
+        try:
+            from app.linux_firewall import allow_port as allow_linux
+
+            if allow_linux(port):
+                print("Linux firewall: this port is open for phones on the same Wi-Fi.")
+            elif sys.platform.startswith("linux"):
+                print(
+                    f"If the phone sits on loading, open Settings and press "
+                    f"Allow this port through the firewall (port {port})."
+                )
         except Exception:
             pass
         # Map the port only when a friend invite or paired computer needs inbound internet.

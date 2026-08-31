@@ -5,9 +5,11 @@ You need Python 3.10+ from https://www.python.org/downloads/
 On Windows, tick "Add python.exe to PATH" when installing.
 
 Windows:  double-click  start.bat
-If another computer cannot connect, double-click allow-firewall.bat
-and click Yes so Windows Firewall allows the app.
 Mac / Linux:  chmod +x start.sh && ./start.sh
+
+If a phone cannot open this computer, open Settings and press
+Allow this port through the firewall. A password or Windows
+prompt may appear once.
 
 That is the only file you need to click. The program folder is hidden on
 purpose. Your bets live in the data folder next to start.sh — keep that if

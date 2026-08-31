@@ -2255,13 +2255,15 @@ def friend_view_api():
 
 @bp.get("/settings")
 def settings_page():
-    from app.settings import load
+    from app.open_firewall import is_open
+    from app.settings import get as setting, load
 
     session = get_session()
     return render_template(
         "settings.html",
         settings=load(),
         exchanges=_exchanges(session),
+        firewall_open=is_open(int(setting("port"))),
     )
 
 
@@ -2294,6 +2296,22 @@ def settings_save():
         }
     )
     flash("Settings saved. Port and Wi‑Fi access apply the next time you Start.", "ok")
+    return redirect(url_for("main.settings_page"))
+
+
+@bp.post("/settings/firewall")
+def settings_firewall():
+    from app.open_firewall import apply, is_open, launch_elevated
+    from app.settings import get as setting
+
+    port = int(setting("port"))
+    if is_open(port) or apply(port):
+        flash("This port is open for phones on the same Wi‑Fi.", "ok")
+        return redirect(url_for("main.settings_page"))
+    if launch_elevated(port):
+        flash("A password or Windows prompt should appear. Allow it, then try the phone again.", "ok")
+        return redirect(url_for("main.settings_page"))
+    flash("Could not open the firewall from here.", "error")
     return redirect(url_for("main.settings_page"))
 
 

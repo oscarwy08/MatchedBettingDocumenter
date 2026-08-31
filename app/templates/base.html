@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=42">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=44">
 </head>
 <body>
   <div class="shell">
@@ -95,7 +95,7 @@
       {% if phone_ready %}
         <div class="phone-qr-wrap">{{ phone_qr_svg | safe }}</div>
         <p class="link-code friend-code"><a href="{{ phone_url }}" data-phone-url>{{ phone_url }}</a></p>
-        <p class="update-pop-copy">Same Wi‑Fi as this computer. Scan the code or copy the link.</p>
+        <p class="update-pop-copy">Same Wi‑Fi as this computer. Scan the code or copy the link. If the phone sits on loading, open Settings and press <strong>Allow this port through the firewall</strong>.</p>
         <div class="update-pop-actions">
           <button type="button" class="btn btn-primary" data-phone-copy>Copy link</button>
           <button type="button" class="btn" data-phone-close>Close</button>

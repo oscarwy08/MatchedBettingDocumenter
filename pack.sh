@@ -19,7 +19,6 @@ rsync -a \
 cp run.py update.py requirements.txt "$PROG/"
 cp start.bat "$STAGING/start.bat"
 cp start.sh "$STAGING/start.sh"
-cp allow-firewall.bat "$STAGING/allow-firewall.bat"
 cp share/README.txt "$STAGING/README.txt"
 
 chmod +x "$STAGING/start.sh" "$PROG/update.py" 2>/dev/null || true

@@ -6,8 +6,9 @@ if exist "%~dp0start.sh" del /q "%~dp0start.sh" >nul 2>&1
 if exist "%~dp0Start.sh" del /q "%~dp0Start.sh" >nul 2>&1
 if exist "%~dp0Start.command" del /q "%~dp0Start.command" >nul 2>&1
 attrib -h "%~dp0start.bat" >nul 2>&1
-attrib -h "%~dp0allow-firewall.bat" >nul 2>&1
 attrib -h "%~dp0README.txt" >nul 2>&1
+if exist "%~dp0allow-firewall.bat" del /q "%~dp0allow-firewall.bat" >nul 2>&1
+if exist "%~dp0allow-firewall.sh" del /q "%~dp0allow-firewall.sh" >nul 2>&1
 
 if exist "program\run.py" goto use_program
 set "APP_DIR=%~dp0"
@@ -55,12 +56,6 @@ if not exist .venv (
   call .venv\Scripts\activate.bat
 )
 python -m pip install -q -r requirements.txt
-
-if not exist "%MBD_ROOT%data\firewall.ok" if exist "%MBD_ROOT%allow-firewall.bat" (
-  echo.
-  echo Allowing this app through Windows Firewall. Click Yes on the Windows prompt.
-  powershell -NoProfile -Command "Start-Process -FilePath '%MBD_ROOT%allow-firewall.bat' -Verb RunAs -Wait"
-)
 
 echo.
 echo Matched Betting Documenter is starting.

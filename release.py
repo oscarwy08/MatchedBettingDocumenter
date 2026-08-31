@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Bell and Windows/Linux toasts when a bet starts or a Today item is due. "
+        "Settings can open this app's port on the firewall so a phone on the same Wi‑Fi can load. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

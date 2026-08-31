@@ -13,7 +13,7 @@ pick_app() {
 }
 
 hide_other_os() {
-  rm -f start.bat Start.bat Start.command
+  rm -f start.bat Start.bat Start.command allow-firewall.bat allow-firewall.sh
   if [ -f start.sh ] && [ -f Start.sh ]; then
     rm -f Start.sh
   fi

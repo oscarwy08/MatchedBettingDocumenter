@@ -20,7 +20,7 @@ from pathlib import Path
 
 KEEP_TOP = {"data", ".venv", "venv"}
 SKIP_NAMES = {".git", "__pycache__", ".pytest_cache", "dist", ".env"}
-FRONT_FILES = ("start.sh", "start.bat", "README.txt", "allow-firewall.bat")
+FRONT_FILES = ("start.sh", "start.bat", "README.txt")
 MOVE_INTO_PROGRAM = ("app", "run.py", "update.py", "requirements.txt", ".venv", "venv")
 OBSOLETE_FILES = (
     "update.sh",
@@ -34,6 +34,8 @@ OBSOLETE_FILES = (
     "README.md",
     "Start.sh",
     "Start.command",
+    "allow-firewall.bat",
+    "allow-firewall.sh",
 )
 OBSOLETE_DIRS = ("tests", "share", "__pycache__", ".pytest_cache")
 USER_AGENT = "MatchedBettingDocumenter"
@@ -300,7 +302,7 @@ def _hide_internal(front: Path) -> None:
     _drop_other_os_launcher(front)
     if os.name == "nt":
         subprocess.run(["attrib", "+h", str(front / "program")], check=False, capture_output=True)
-        for name in ("start.bat", "allow-firewall.bat", "README.txt"):
+        for name in ("start.bat", "README.txt"):
             path = front / name
             if path.is_file():
                 subprocess.run(["attrib", "-h", "-s", str(path)], check=False, capture_output=True)
