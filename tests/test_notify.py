@@ -180,6 +180,7 @@ def test_api_and_page_and_mark_read(tmp_path, monkeypatch):
     session.close()
     settings = client.get("/settings")
     assert b"desktop_notifications" in settings.data
+    assert b"Send a test notification" in settings.data
 
 
 def test_mark_all_read(tmp_path, monkeypatch):
@@ -196,6 +197,38 @@ def test_mark_all_read(tmp_path, monkeypatch):
     mark_read(session, all_items=True)
     assert all(row.read_at for row in list_notifications(session))
     session.close()
+
+
+def test_windows_toast_uses_registered_app_id():
+    from app.desktop_notify import _windows_script, _xml
+
+    script = _windows_script("Bet started", "Kickoff is underway")
+    assert "Windows.Data.Xml.Dom, ContentType" in script
+    assert "CreateToastNotifier('Matched Betting Documenter')" not in script
+    assert r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe" in script
+    assert "ToastGeneric" in script
+    assert "Start-Sleep" in script
+    assert "placement='attribution'" in script
+    assert _xml("A & B <C>") == "A &amp; B &lt;C&gt;"
+    escaped = _windows_script("O'Brien", "It's on")
+    assert "O'Brien" not in escaped
+    assert "O&apos;Brien" in escaped
+    assert "It&apos;s on" in escaped
+
+
+def test_notify_test_sends_when_enabled(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch)
+    sent = []
+    monkeypatch.setattr("app.desktop_notify.send", lambda title, body: sent.append((title, body)) or True)
+    save({"desktop_notifications": True})
+    response = client.post("/settings/notify-test")
+    assert response.status_code == 302
+    assert sent == [("Matched Betting Documenter", "Desktop notifications are working on this computer.")]
+    save({"desktop_notifications": False})
+    sent.clear()
+    blocked = client.post("/settings/notify-test")
+    assert blocked.status_code == 302
+    assert sent == []
 
 
 def test_clear_all_via_json(tmp_path, monkeypatch):

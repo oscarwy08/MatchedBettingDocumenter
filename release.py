@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Settings can open this app's port on the firewall so a phone on the same Wi‑Fi can load. "
+        "Windows desktop toasts now show as an OS popup. Settings can send a test notification. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

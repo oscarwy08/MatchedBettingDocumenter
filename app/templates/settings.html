@@ -4,6 +4,7 @@
 {% block heading %}Settings{% endblock %}
 {% block content %}
   <form id="firewall-form" method="post" action="{{ url_for('main.settings_firewall') }}" hidden></form>
+  <form id="notify-test-form" method="post" action="{{ url_for('main.settings_notify_test') }}" hidden></form>
   <form method="post" action="{{ url_for('main.settings_save') }}" class="stack">
     <section class="panel">
       <div class="panel-head"><h2>Startup</h2></div>
@@ -136,6 +137,10 @@
           <small>When Start is running, show a Windows or Linux toast for bet starts and Today dues. The bell and in-app card still work if this is off.</small>
         </span>
       </label>
+      <div class="setting-action">
+        <button class="btn" type="submit" form="notify-test-form">Send a test notification</button>
+        <small>Checks the OS popup. Already-due alerts do not toast again.</small>
+      </div>
     </section>
 
     <div class="form-actions">

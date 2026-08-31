@@ -2315,6 +2315,21 @@ def settings_firewall():
     return redirect(url_for("main.settings_page"))
 
 
+@bp.post("/settings/notify-test")
+def settings_notify_test():
+    from app.desktop_notify import send
+    from app.settings import get as setting
+
+    if not setting("desktop_notifications"):
+        flash("Turn on desktop notifications, save, then try the test.", "error")
+        return redirect(url_for("main.settings_page"))
+    if send("Matched Betting Documenter", "Desktop notifications are working on this computer."):
+        flash("Sent a test notification. Check the corner of the screen.", "ok")
+    else:
+        flash("Could not show an OS popup on this computer.", "error")
+    return redirect(url_for("main.settings_page"))
+
+
 @bp.get("/api/update-status")
 def update_status():
     from app.live_update import status
