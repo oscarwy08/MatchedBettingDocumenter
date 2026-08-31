@@ -139,6 +139,32 @@ def test_future_start_waits(tmp_path, monkeypatch):
     session.close()
 
 
+def test_start_without_finish_estimate(tmp_path, monkeypatch):
+    _client(tmp_path, monkeypatch)
+    _quiet_scan()
+    session = _session()
+    bookie, exchange = _accounts(session)
+    session.add(
+        Bet(
+            **_bet_kwargs(
+                bookie,
+                exchange,
+                event="Typed by hand",
+                starts_at=datetime(2026, 8, 30, 19, 45),
+                ends_at=None,
+                fixture_id=None,
+                fixture_source=None,
+            )
+        )
+    )
+    session.commit()
+    created = sweep(session, now=datetime(2026, 8, 30, 20, 0), send_desktop=False)
+    assert [row.kind for row in created] == ["bet_started"]
+    later = sweep(session, now=datetime(2026, 8, 30, 23, 0), send_desktop=False)
+    assert later == []
+    session.close()
+
+
 def test_site_scan_due(tmp_path, monkeypatch):
     _client(tmp_path, monkeypatch)
     save({"last_sites_checked_on": date(2026, 8, 20).isoformat()})
@@ -181,6 +207,7 @@ def test_api_and_page_and_mark_read(tmp_path, monkeypatch):
     settings = client.get("/settings")
     assert b"desktop_notifications" in settings.data
     assert b"Send a test notification" in settings.data
+    assert b"Event list" in settings.data
 
 
 def test_mark_all_read(tmp_path, monkeypatch):

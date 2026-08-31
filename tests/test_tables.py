@@ -96,6 +96,8 @@ def test_bet_details_use_date_pickers(tmp_path, monkeypatch):
     assert calc.status_code == 200
     assert b'name="date_placed" type="date"' in calc.data
     assert b'name="starts_at" type="datetime-local"' in calc.data
+    assert b'name="ends_at" type="datetime-local"' in calc.data
+    assert b"fixtures.js" in calc.data
 
     edit = client.get(f"/bets/{bet_id}/edit")
     assert edit.status_code == 200

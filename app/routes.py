@@ -167,6 +167,13 @@ def _block_remote_ui():
     return enforce_local_ui()
 
 
+def _safe_next(raw: str | None) -> str:
+    path = (raw or "").strip()
+    if path.startswith("/") and not path.startswith("//") and "://" not in path:
+        return path
+    return url_for("main.dashboard")
+
+
 def _app_port() -> int:
     from app.settings import get as setting
 
@@ -414,6 +421,14 @@ def notifications_read():
     return redirect(request.referrer or url_for("main.notifications_page"))
 
 
+@bp.get("/api/fixtures")
+def fixtures_search():
+    from app.fixtures import configured, search
+
+    query = (request.args.get("q") or "").strip()
+    return jsonify({"configured": configured(), "items": search(query)})
+
+
 @bp.get("/api/notifications")
 def notifications_api():
     from app.notify import as_dict, list_notifications, sweep, unread_count
@@ -646,6 +661,18 @@ def _resolve_offer(session: Session, bookie_id: int) -> Offer | None:
     return offer
 
 
+def _apply_fixture_fields(bet: Bet) -> None:
+    source = (request.form.get("fixture_source") or "").strip()
+    ident = (request.form.get("fixture_id") or "").strip()
+    if source not in {"football", "racing"} or not ident:
+        bet.fixture_source = None
+        bet.fixture_id = None
+    else:
+        bet.fixture_source = source
+        bet.fixture_id = ident
+    bet.ends_at = parse_uk_datetime(request.form.get("ends_at"))
+
+
 @bp.post("/calculator/log")
 def log_bet():
     session = get_session()
@@ -674,6 +701,7 @@ def log_bet():
             status=BetStatus.PENDING,
             **numbers,
         )
+        _apply_fixture_fields(bet)
         session.add(bet)
         web_session["last_bookie_id"] = bookie_id
         web_session["last_exchange_id"] = exchange_id
@@ -1310,6 +1338,7 @@ def edit_bet(bet_id: int):
         bet.notes = (request.form.get("notes") or "").strip()
         bet.bookie_id = bookie_id
         bet.exchange_id = exchange_id
+        _apply_fixture_fields(bet)
         _apply_numbers(bet, numbers)
         _commit_and_sync(session)
         flash("Bet updated.", "ok")
@@ -1332,6 +1361,9 @@ def duplicate_bet(bet_id: int):
         date_placed=placed_at.date(),
         placed_at=placed_at,
         starts_at=bet.starts_at,
+        ends_at=bet.ends_at,
+        fixture_source=bet.fixture_source,
+        fixture_id=bet.fixture_id,
         event=bet.event,
         market=bet.market,
         notes=bet.notes,
@@ -2255,20 +2287,26 @@ def friend_view_api():
 
 @bp.get("/settings")
 def settings_page():
+    from app.fixtures import football_token, racing_creds
     from app.open_firewall import is_open
     from app.settings import get as setting, load
 
     session = get_session()
+    racing_user, racing_password = racing_creds()
     return render_template(
         "settings.html",
         settings=load(),
         exchanges=_exchanges(session),
         firewall_open=is_open(int(setting("port"))),
+        football_saved=bool(football_token()),
+        racing_saved=bool(racing_user and racing_password),
+        racing_user=racing_user,
     )
 
 
 @bp.post("/settings")
 def settings_save():
+    from app.fixtures import save_tokens
     from app.settings import parse_port, save
 
     try:
@@ -2295,8 +2333,34 @@ def settings_save():
             "scan_sites_every_days": request.form.get("scan_sites_every_days"),
         }
     )
+    save_tokens(
+        football_token_value=request.form.get("football_token"),
+        racing_user=request.form.get("racing_user"),
+        racing_password=request.form.get("racing_password"),
+    )
     flash("Settings saved. Port and Wi‑Fi access apply the next time you Start.", "ok")
     return redirect(url_for("main.settings_page"))
+
+
+@bp.post("/whats-new")
+def whats_new():
+    from app.fixtures import save_tokens
+    from app.whats_new import event_picker_complete, mark_seen
+
+    nxt = _safe_next(request.form.get("next"))
+    if request.form.get("action") == "save":
+        football = request.form.get("football_token")
+        racing_user = request.form.get("racing_user")
+        racing_password = request.form.get("racing_password")
+        if not event_picker_complete(football, racing_user, racing_password):
+            return redirect(nxt)
+        save_tokens(
+            football_token_value=football,
+            racing_user=racing_user,
+            racing_password=racing_password,
+        )
+    mark_seen()
+    return redirect(nxt)
 
 
 @bp.post("/settings/firewall")

@@ -119,18 +119,7 @@
             {% endfor %}
           </select>
         </label>
-        <label>
-          Date
-          <input name="date_placed" type="date" value="{{ bet.date_placed | isodate }}" required>
-        </label>
-        <label>
-          Starts
-          <input name="starts_at" type="datetime-local" value="{{ bet.starts_at | isodatetime }}">
-        </label>
-        <label class="span-2">
-          <span class="field-name">Event</span>
-          <input name="event" type="text" placeholder="Liverpool vs Chelsea" value="{{ bet.event }}">
-        </label>
+        {% include "_event_fields.html" %}
         <label class="span-2" id="selections-field">
           <span class="field-name" id="selections-label">Market</span>
           <input name="market" id="market" type="text" placeholder="Match odds / Liverpool" value="{{ bet.market }}">
@@ -190,4 +179,5 @@
 {% block scripts %}
   <script src="{{ url_for('static', filename='forms.js') }}?v=1"></script>
   <script src="{{ url_for('static', filename='calculator.js') }}?v=9"></script>
+  <script src="{{ url_for('static', filename='fixtures.js') }}?v=1"></script>
 {% endblock %}

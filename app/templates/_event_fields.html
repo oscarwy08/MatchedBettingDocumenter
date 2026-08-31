@@ -1,0 +1,22 @@
+        <label>
+          <span class="field-name">Date</span>
+          <input name="date_placed" type="date" value="{% if bet is defined %}{{ bet.date_placed | isodate }}{% else %}{{ today_iso }}{% endif %}" required>
+        </label>
+        <label class="span-2">
+          <span class="field-name">Event</span>
+          <span class="event-picker" data-event-picker>
+            <input name="event" type="text" autocomplete="off" placeholder="Liverpool vs Chelsea or 14:50 Ascot" value="{% if bet is defined %}{{ bet.event }}{% endif %}">
+            <input type="hidden" name="fixture_source" value="{% if bet is defined and bet.fixture_source %}{{ bet.fixture_source }}{% endif %}">
+            <input type="hidden" name="fixture_id" value="{% if bet is defined and bet.fixture_id %}{{ bet.fixture_id }}{% endif %}">
+            <div class="event-suggest" data-event-suggest hidden></div>
+          </span>
+          <small class="hint">Start typing a Premier League, Championship, Champions League, or UK/Irish race. Other events can still be typed by hand. A start time sends a start alert. Finish alerts only fire for a picked match or race.</small>
+        </label>
+        <label>
+          <span class="field-name">Starts</span>
+          <input name="starts_at" type="datetime-local" value="{% if bet is defined %}{{ bet.starts_at | isodatetime }}{% endif %}">
+        </label>
+        <label>
+          <span class="field-name">Estimated finish</span>
+          <input name="ends_at" type="datetime-local" value="{% if bet is defined %}{{ bet.ends_at | isodatetime }}{% endif %}">
+        </label>

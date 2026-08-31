@@ -7,6 +7,10 @@ data/*.db
 data/*.xlsx
 data/update_repo
 data/github_token
+data/football_token
+data/racing_api.json
+data/fixtures_cache.json
+data/whats_new.json
 data/settings.json
 data/sync.json
 data/friends.json

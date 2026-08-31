@@ -17,6 +17,9 @@
     <article class="stat-card"><p>Expected</p><strong class="{{ bet.expected_profit | pnl }}">{{ bet.expected_profit | gbp }}</strong></article>
     <article class="stat-card"><p>Placed</p><strong>{{ (bet.placed_at or bet.date_placed) | uktime }}</strong></article>
     <article class="stat-card"><p>Starts</p><strong>{{ bet.starts_at | uktime }}</strong></article>
+    {% if bet.ends_at %}
+    <article class="stat-card"><p>Est. finish</p><strong>{{ bet.ends_at | uktime }}</strong></article>
+    {% endif %}
     <article class="stat-card"><p>Status</p><strong>{{ bet.status | labelize }}</strong></article>
   </section>
 

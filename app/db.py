@@ -56,6 +56,12 @@ def _ensure_sqlite_columns(engine: Engine) -> None:
             )
         if "starts_at" not in bet_cols:
             conn.execute(text("ALTER TABLE bets ADD COLUMN starts_at DATETIME"))
+        if "ends_at" not in bet_cols:
+            conn.execute(text("ALTER TABLE bets ADD COLUMN ends_at DATETIME"))
+        if "fixture_source" not in bet_cols:
+            conn.execute(text("ALTER TABLE bets ADD COLUMN fixture_source VARCHAR(20)"))
+        if "fixture_id" not in bet_cols:
+            conn.execute(text("ALTER TABLE bets ADD COLUMN fixture_id VARCHAR(80)"))
         account_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(accounts)"))}
         if "last_checked_on" not in account_cols:
             conn.execute(text("ALTER TABLE accounts ADD COLUMN last_checked_on DATE"))

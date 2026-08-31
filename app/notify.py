@@ -74,6 +74,7 @@ def mark_read(session: Session, notification_id: int | None = None, *, all_items
 def sweep(session: Session, *, now=None, send_desktop: bool = True) -> list[Notification]:
     clock = now or local_now()
     today = clock.date() if hasattr(clock, "hour") else clock
+    _refresh_fixtures(session, clock)
     existing = set(session.scalars(select(Notification.source_key)))
     created: list[Notification] = []
     for payload in _due(session, clock, today):
@@ -112,6 +113,37 @@ def _loop() -> None:
         except Exception:  # noqa: BLE001
             pass
         time.sleep(SWEEP_EVERY_SEC)
+
+
+def _refresh_fixtures(session: Session, clock) -> None:
+    from datetime import datetime, time
+
+    from app.fixtures import refresh
+
+    when = clock if hasattr(clock, "hour") else datetime.combine(clock, time.max)
+    pending = list(
+        session.scalars(
+            select(Bet).where(
+                Bet.status == BetStatus.PENDING,
+                Bet.fixture_id.is_not(None),
+            )
+        )
+    )
+    football_live = False
+    racing_results = False
+    for bet in pending:
+        ident = (bet.fixture_id or "").strip()
+        if not ident:
+            continue
+        started = bet.starts_at is None or bet.starts_at <= when
+        if bet.fixture_source == "football" and started:
+            football_live = True
+        if bet.fixture_source == "racing" and started:
+            racing_results = True
+    try:
+        refresh(now=when if hasattr(when, "hour") else None, football_live=football_live, racing_results=racing_results)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _desktop(rows: list[Notification]) -> None:
@@ -153,6 +185,30 @@ def _due(session: Session, clock, today) -> list[dict]:
                 "body": f"{event} · {bookie}. Starts {format_uk_time(bet.starts_at)}. Open to settle.",
                 "href": f"/bets/{bet.id}",
                 "source_key": f"bet:{bet.id}:starts",
+            }
+        )
+    from app.fixtures import is_finished
+
+    linked = list(
+        session.scalars(
+            select(Bet)
+            .options(selectinload(Bet.bookie))
+            .where(Bet.status == BetStatus.PENDING, Bet.fixture_id.is_not(None))
+        )
+    )
+    for bet in linked:
+        ident = (bet.fixture_id or "").strip()
+        if not ident or not is_finished(bet.fixture_source, ident):
+            continue
+        bookie = bet.bookie.name if bet.bookie is not None else ""
+        event = bet.event or "Untitled"
+        items.append(
+            {
+                "kind": "bet_ended",
+                "title": "Event finished",
+                "body": f"{event} · {bookie}. Open to settle.",
+                "href": f"/bets/{bet.id}",
+                "source_key": f"bet:{bet.id}:ends",
             }
         )
     offers = list(session.scalars(select(Offer).options(selectinload(Offer.bookie))))

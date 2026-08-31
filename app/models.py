@@ -201,6 +201,9 @@ class Bet(Base):
     settled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     placed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     starts_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    fixture_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    fixture_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     free_bet_returned: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 

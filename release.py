@@ -107,8 +107,9 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Fix Windows desktop toasts so the OS popup actually appears. "
-        "data/ is never overwritten.",
+        "Pick football and racing events on the calculator, with a first-launch "
+        "card for the free signups. Finish alerts wait for the feed. Typed events "
+        "with a start time still get a start alert. data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
     print(f"Published {tag}. Installed copies will pick it up the next time they start.")

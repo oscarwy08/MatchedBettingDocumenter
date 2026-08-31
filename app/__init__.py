@@ -102,8 +102,14 @@ def create_app() -> Flask:
         from app.version import VERSION
 
         from app.phone import phone_context
+        from app.whats_new import current as whats_new_note
 
-        return {"app_version": VERSION, "app_port": setting("port"), **phone_context()}
+        return {
+            "app_version": VERSION,
+            "app_port": setting("port"),
+            "whats_new": whats_new_note(),
+            **phone_context(),
+        }
 
     boot = Session()
     try:

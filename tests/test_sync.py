@@ -144,6 +144,9 @@ def test_snapshot_round_trip(tmp_path, monkeypatch):
             status=BetStatus.PENDING,
             placed_at=datetime(2026, 8, 1, 11, 30),
             starts_at=datetime(2026, 8, 1, 15, 0),
+            ends_at=datetime(2026, 8, 1, 17, 5),
+            fixture_source="football",
+            fixture_id="99",
         )
     )
     session.commit()
@@ -161,6 +164,9 @@ def test_snapshot_round_trip(tmp_path, monkeypatch):
     assert copied.back_stake == Decimal("10.00")
     assert copied.placed_at == datetime(2026, 8, 1, 11, 30)
     assert copied.starts_at == datetime(2026, 8, 1, 15, 0)
+    assert copied.ends_at == datetime(2026, 8, 1, 17, 5)
+    assert copied.fixture_source == "football"
+    assert copied.fixture_id == "99"
     other.add(Account(name="Brand New Bookie", type="bookie", commission_percent=Decimal("0")))
     other.commit()
     fresh = other.scalars(select(Account).where(Account.name == "Brand New Bookie")).one()
