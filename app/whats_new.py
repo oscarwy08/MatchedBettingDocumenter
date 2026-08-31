@@ -23,6 +23,14 @@ NOTES = {
         "primary": "Enter",
         "secondary": "Skip",
     },
+    "2.0.1": {
+        "kicker": "This update",
+        "title": "Tomorrow's races in the picker",
+        "paragraphs": [
+            "UK and Irish racecards now include tomorrow as well as today. Type a course, or tomorrow, to find them. The free feed does not list meetings after that; those can still be typed by hand.",
+        ],
+        "primary": "OK",
+    },
 }
 
 

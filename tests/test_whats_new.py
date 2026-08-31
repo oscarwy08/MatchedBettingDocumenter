@@ -12,32 +12,33 @@ def _root(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "DB_PATH", tmp_path / "data" / "app.db")
 
 
-def test_skip_survives_relaunch(tmp_path, monkeypatch):
+def test_ok_survives_relaunch(tmp_path, monkeypatch):
     _root(tmp_path, monkeypatch)
     import app
 
     client = app.create_app().test_client()
     home = client.get("/")
-    assert b"Pick football and racing events" in home.data
+    assert b"races in the picker" in home.data
     assert b"inert" in home.data
-    assert b'name="football_token"' in home.data
+    assert b'name="football_token"' not in home.data
+    assert b">OK<" in home.data
     assert pending() is True
-    skipped = client.post("/whats-new", data={"action": "skip", "next": "/calculator"}, follow_redirects=False)
+    skipped = client.post("/whats-new", data={"action": "ok", "next": "/calculator"}, follow_redirects=False)
     assert skipped.status_code == 302
     assert skipped.headers["Location"].endswith("/calculator")
     assert pending() is False
-    assert football_token() == ""
     later = client.get("/")
-    assert b"Pick football and racing events" not in later.data
+    assert b"races in the picker" not in later.data
     assert b" inert" not in later.data
     relaunched = app.create_app().test_client()
     again = relaunched.get("/")
-    assert b"Pick football and racing events" not in again.data
+    assert b"races in the picker" not in again.data
     assert pending() is False
 
 
 def test_enter_requires_all_fields(tmp_path, monkeypatch):
     _root(tmp_path, monkeypatch)
+    monkeypatch.setattr("app.whats_new.VERSION", "2.0.0")
     import app
 
     client = app.create_app().test_client()
@@ -63,6 +64,7 @@ def test_enter_requires_all_fields(tmp_path, monkeypatch):
 
 def test_enter_saves_tokens(tmp_path, monkeypatch):
     _root(tmp_path, monkeypatch)
+    monkeypatch.setattr("app.whats_new.VERSION", "2.0.0")
     import app
 
     client = app.create_app().test_client()
@@ -94,25 +96,25 @@ def test_old_event_picker_flag_counts_as_seen(tmp_path, monkeypatch):
     path.write_text('{"event_picker": true}\n', encoding="utf-8")
     assert "1.9.7" in seen()
     assert pending() is True
-    assert current()["title"] == "Pick football and racing events"
+    assert current()["title"] == "Tomorrow's races in the picker"
 
 
 def test_next_version_shows_ok_card(tmp_path, monkeypatch):
     _root(tmp_path, monkeypatch)
     import app
 
-    mark_seen("2.0.0")
-    monkeypatch.setattr("app.whats_new.VERSION", "2.0.1")
+    mark_seen("2.0.1")
+    monkeypatch.setattr("app.whats_new.VERSION", "2.0.2")
     assert pending() is True
     note = current()
-    assert note["title"] == "Version 2.0.1"
+    assert note["title"] == "Version 2.0.2"
     assert note.get("fields") is None
     client = app.create_app().test_client()
     page = client.get("/")
-    assert b"Version 2.0.1" in page.data
+    assert b"Version 2.0.2" in page.data
     assert b">OK<" in page.data
     assert b'name="football_token"' not in page.data
     client.post("/whats-new", data={"action": "ok", "next": "/"})
     assert pending() is False
     relaunched = app.create_app().test_client()
-    assert b"Version 2.0.1" not in relaunched.get("/").data
+    assert b"Version 2.0.2" not in relaunched.get("/").data

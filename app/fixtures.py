@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import threading
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
@@ -19,6 +20,9 @@ FOOTBALL_STALE = timedelta(minutes=30)
 FOOTBALL_LIVE_STALE = timedelta(minutes=5)
 RACING_CARDS_STALE = timedelta(hours=1)
 RACING_RESULTS_STALE = timedelta(minutes=3)
+RACING_CACHE_VER = 2
+RACING_GAP = 1.05
+_last_racing_at = 0.0
 
 FOOTBALL_URL = "https://api.football-data.org/v4/matches"
 RACING_CARDS_URL = "https://api.theracingapi.com/v1/racecards/free"
@@ -27,7 +31,7 @@ RACING_RESULTS_URL = "https://api.theracingapi.com/v1/results/today/free"
 _UK_REGIONS = {"gb", "ire", "uk", "ireland", "great britain"}
 _FINISHED = {"FINISHED", "AWARDED"}
 _lock = threading.Lock()
-USER_AGENT = "MatchedBettingDocumenter/2.0.0"
+USER_AGENT = "MatchedBettingDocumenter/2.0.1"
 
 
 def football_token_path() -> Path:
@@ -100,7 +104,7 @@ def estimate_ends(source: str | None, starts_at: datetime | None) -> datetime | 
     return starts_at + FOOTBALL_PAD
 
 
-def search(query: str, *, limit: int = 20, now: datetime | None = None) -> list[dict]:
+def search(query: str, *, limit: int = 40, now: datetime | None = None) -> list[dict]:
     refresh(now=now)
     clock = now or local_now()
     needles = [part for part in (query or "").casefold().split() if part]
@@ -170,11 +174,15 @@ def refresh(
                 items = _merge_football(items, fetched, clock)
                 cache["football_at"] = clock.isoformat(timespec="seconds")
         user, password = racing_creds()
-        if user and password and _stale(cache.get("racing_at"), RACING_CARDS_STALE, clock):
-            fetched = _fetch_racing_cards(user, password)
+        if user and password and (
+            cache.get("racing_v") != RACING_CACHE_VER
+            or _stale(cache.get("racing_at"), RACING_CARDS_STALE, clock)
+        ):
+            fetched = _fetch_racing_cards(user, password, clock)
             if fetched is not None:
                 items = [row for row in items if row.get("source") != "racing"] + fetched
                 cache["racing_at"] = clock.isoformat(timespec="seconds")
+                cache["racing_v"] = RACING_CACHE_VER
         if user and password and racing_results and _stale(
             cache.get("results_at"), RACING_RESULTS_STALE, clock
         ):
@@ -246,32 +254,32 @@ def _fetch_football(now: datetime) -> list[dict] | None:
     return rows
 
 
-def _fetch_racing_cards(user: str, password: str) -> list[dict] | None:
+def _fetch_racing_cards(user: str, password: str, now: datetime | None = None) -> list[dict] | None:
     rows: list[dict] = []
     seen: set[str] = set()
+    clock = now or local_now()
     for day in ("today", "tomorrow"):
-        payload = _get_json(
-            f"{RACING_CARDS_URL}?day={day}",
-            headers=_basic(user, password),
-        )
+        payload = _racing_json(f"{RACING_CARDS_URL}?day={day}", headers=_basic(user, password))
         if payload is None:
             if not rows:
                 return None
             continue
         for card in payload.get("racecards") or []:
+            if not isinstance(card, dict):
+                continue
             ident = str(card.get("race_id") or "").strip()
             if not ident or ident in seen:
                 continue
             region = str(card.get("region") or "").strip().casefold()
             if region and region not in _UK_REGIONS:
                 continue
-            start_at = _to_local(card.get("off_dt"))
+            start_at = _race_start(card)
             if start_at is None:
                 continue
             course = str(card.get("course") or "").strip() or "Race"
             name = str(card.get("race_name") or "").strip()
-            clock = start_at.strftime("%H:%M")
-            label = f"{clock} {course}"
+            stamp = _race_stamp(start_at, clock)
+            label = f"{stamp} {course}"
             if name:
                 label = f"{label} — {name}"
             seen.add(ident)
@@ -294,7 +302,7 @@ def _fetch_racing_results(user: str, password: str) -> set[str] | None:
     ids: set[str] = set()
     skip = 0
     while skip < 500:
-        payload = _get_json(
+        payload = _racing_json(
             f"{RACING_RESULTS_URL}?limit=100&skip={skip}",
             headers=_basic(user, password),
         )
@@ -315,6 +323,40 @@ def _team(blob) -> str:
     if not isinstance(blob, dict):
         return ""
     return str(blob.get("shortName") or blob.get("name") or "").strip()
+
+
+def _race_start(card: dict) -> datetime | None:
+    start = _to_local(card.get("off_dt"))
+    if start is not None:
+        return start
+    day = str(card.get("date") or "").strip()
+    clock = str(card.get("off_time") or "").strip().replace(".", ":")
+    if not day or not clock:
+        return None
+    parts = clock.split(":")
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1]) if len(parts) > 1 else 0
+    except (TypeError, ValueError):
+        return None
+    if hour < 10:
+        hour += 12
+    try:
+        base = datetime.fromisoformat(day)
+    except ValueError:
+        return None
+    return base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+
+def _race_stamp(start_at: datetime, now: datetime) -> str:
+    stamp = start_at.strftime("%H:%M")
+    day = start_at.date()
+    today = now.date()
+    if day == today:
+        return stamp
+    if day == today + timedelta(days=1):
+        return f"Tomorrow {stamp}"
+    return f"{start_at.strftime('%d/%m')} {stamp}"
 
 
 def _to_local(raw) -> datetime | None:
@@ -345,6 +387,17 @@ def _parse_stored(raw) -> datetime | None:
 def _basic(user: str, password: str) -> dict[str, str]:
     token = base64.b64encode(f"{user}:{password}".encode()).decode("ascii")
     return {"Authorization": f"Basic {token}"}
+
+
+def _racing_json(url: str, headers: dict[str, str] | None = None) -> dict | None:
+    global _last_racing_at
+    if RACING_GAP > 0 and _last_racing_at:
+        wait = RACING_GAP - (time.monotonic() - _last_racing_at)
+        if wait > 0:
+            time.sleep(wait)
+    payload = _get_json(url, headers=headers)
+    _last_racing_at = time.monotonic()
+    return payload
 
 
 def _get_json(url: str, headers: dict[str, str] | None = None) -> dict | None:

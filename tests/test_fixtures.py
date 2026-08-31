@@ -16,6 +16,7 @@ def _root(tmp_path, monkeypatch):
     monkeypatch.setattr(app, "ROOT_DIR", tmp_path)
     monkeypatch.setattr(app, "DATA_DIR", tmp_path / "data")
     monkeypatch.setattr(app, "DB_PATH", tmp_path / "data" / "app.db")
+    monkeypatch.setattr("app.fixtures.RACING_GAP", 0)
 
 
 def test_search_football_and_racing(tmp_path, monkeypatch):
@@ -39,16 +40,29 @@ def test_search_football_and_racing(tmp_path, monkeypatch):
                 ]
             }
         if "racecards/free" in url:
+            tomorrow = "day=tomorrow" in url
             return {
                 "racecards": [
                     {
-                        "race_id": "rac_1",
+                        "race_id": "rac_tmw" if tomorrow else "rac_1",
                         "course": "Ascot",
                         "race_name": "Handicap",
-                        "off_dt": "2026-08-31T14:50:00+01:00",
+                        "off_dt": (
+                            "2026-09-01T14:50:00+01:00" if tomorrow else "2026-08-31T14:50:00+01:00"
+                        ),
                         "region": "GB",
                     },
                     {
+                        "race_id": "rac_york",
+                        "course": "York",
+                        "race_name": "Stakes",
+                        "date": "2026-09-01",
+                        "off_time": "3:15",
+                        "off_dt": "",
+                        "region": "GB",
+                    }
+                    if tomorrow
+                    else {
                         "race_id": "rac_hk",
                         "course": "Sha Tin",
                         "race_name": "Overseas",
@@ -73,6 +87,15 @@ def test_search_football_and_racing(tmp_path, monkeypatch):
     assert racing
     assert racing[0]["source"] == "racing"
     assert "Ascot" in racing[0]["label"]
+    labels = [row["label"] for row in search("ascot", now=datetime(2026, 8, 31, 10, 0))]
+    assert any(label.startswith("14:50") for label in labels)
+    assert any("Tomorrow" in label for label in labels)
+    york = search("york", now=datetime(2026, 8, 31, 10, 0))
+    assert york
+    assert york[0]["fixture_id"] == "rac_york"
+    assert "Tomorrow" in york[0]["label"]
+    assert york[0]["starts_at"].endswith("15:15")
+    assert search("tomorrow", now=datetime(2026, 8, 31, 10, 0))
     assert not search("sha tin", now=datetime(2026, 8, 31, 10, 0))
     assert not is_finished("football", "42")
     refresh(now=datetime(2026, 8, 31, 15, 0), racing_results=True)
