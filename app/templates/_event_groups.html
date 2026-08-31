@@ -2,7 +2,7 @@
   {% if groups %}
     <div class="event-list">
       {% for group in groups %}
-        <details class="event-card event-card-{{ group.sport or 'other' }}"{% if group.pending %} open{% endif %}>
+        <details class="event-card"{% if group.pending %} open{% endif %}>
           <summary>
             <span class="event-copy">
               <span class="event-title">

@@ -1099,13 +1099,10 @@ h1 .presence { font-size: 0.78rem; font-weight: 600; }
 .event-card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--gold);
   border-radius: 0.85rem;
   box-shadow: var(--shadow);
   overflow: hidden;
 }
-.event-card-racing { border-left-color: var(--gold-deep); }
-.event-card-other { border-left-color: var(--line); }
 .event-card > summary {
   list-style: none;
   display: grid;
