@@ -219,6 +219,18 @@ def _parse_decimal(name: str, default: str = "0") -> Decimal:
         raise ValueError(f"Invalid number for {name.replace('_', ' ')}.") from exc
 
 
+def _lay_override(raw) -> Decimal | None:
+    if raw in ("", None):
+        return None
+    try:
+        value = Decimal(str(raw).strip())
+    except (InvalidOperation, AttributeError):
+        return None
+    if value <= 0:
+        return None
+    return value
+
+
 def _bookies(session: Session) -> list[Account]:
     return list(
         session.scalars(
@@ -533,9 +545,7 @@ def api_calculate():
                 cashback=data.get("cashback") or 0,
             )
             return jsonify(calc.as_dict())
-        override = data.get("lay_stake_override")
-        if override in ("", None):
-            override = None
+        override = _lay_override(data.get("lay_stake_override"))
         calc = calculate(
             bet_type=_calc_kind(bet_type),
             back_stake=data.get("back_stake") or 0,
@@ -557,32 +567,7 @@ def _calculation_from_form():
     lay_odds = _parse_decimal("lay_odds")
     commission = _parse_decimal("commission_percent")
     cashback = _parse_decimal("cashback")
-    override_raw = (request.form.get("lay_stake_override") or "").strip()
-    override = Decimal(override_raw) if override_raw else None
-
-    if bet_type == BetType.OTHER:
-        lay_stake = _parse_decimal("lay_stake_override")
-        liability = (
-            (lay_stake * (lay_odds - 1)).quantize(Decimal("0.01"))
-            if lay_odds > 1
-            else Decimal("0")
-        )
-        expected = _parse_decimal("expected_profit_manual")
-        return {
-            "bet_type": bet_type,
-            "back_stake": back_stake,
-            "back_odds": back_odds,
-            "lay_odds": lay_odds,
-            "commission_percent": commission,
-            "cashback": cashback,
-            "lay_stake": lay_stake,
-            "liability": liability,
-            "expected_profit": expected,
-            "expected_bookie_back": expected,
-            "expected_exchange_back": Decimal("0"),
-            "expected_bookie_lay": expected,
-            "expected_exchange_lay": Decimal("0"),
-        }
+    override = _lay_override(request.form.get("lay_stake_override"))
 
     if lay_odds <= 1:
         calc = unmatched_back(

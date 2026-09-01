@@ -107,8 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "The calculator now has Selections under Type for every bet type, "
-        "matching the Selections column on Bets. "
+        "Other / manual now shows lay odds and a live Result, the same as a qualifying bet. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

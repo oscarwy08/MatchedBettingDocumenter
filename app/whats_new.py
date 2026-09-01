@@ -55,6 +55,14 @@ NOTES = {
         ],
         "primary": "OK",
     },
+    "2.0.5": {
+        "kicker": "This update",
+        "title": "Other / manual uses the calculator",
+        "paragraphs": [
+            "Other / manual now shows lay odds and a live Result, the same as a qualifying bet.",
+        ],
+        "primary": "OK",
+    },
 }
 
 

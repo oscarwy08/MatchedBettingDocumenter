@@ -118,6 +118,8 @@ def test_bet_details_use_date_pickers(tmp_path, monkeypatch):
     js = (Path(__file__).resolve().parents[1] / "app" / "static" / "calculator.js").read_text(encoding="utf-8")
     assert "WITH_SELECTIONS" not in js
     assert 'selections.classList.toggle("is-hidden"' not in js
+    assert 'currentType() === "other"' not in js
+    assert 'type === "other"' not in js
 
     edit = client.get(f"/bets/{bet_id}/edit")
     assert edit.status_code == 200
@@ -149,4 +151,56 @@ def test_bet_details_use_date_pickers(tmp_path, monkeypatch):
     assert saved.date_placed.isoformat() == "2026-09-01"
     assert saved.starts_at == datetime(2026, 9, 2, 15, 30)
     assert saved.market == "Match odds / Liverpool"
+    session.close()
+
+
+def test_other_manual_calculates_like_qualifying(tmp_path, monkeypatch):
+    root = tmp_path / "root"
+    monkeypatch.setenv("MBD_ROOT", str(root))
+    import app
+
+    monkeypatch.setattr(app, "ROOT_DIR", root)
+    monkeypatch.setattr(app, "DATA_DIR", root / "data")
+    monkeypatch.setattr(app, "DB_PATH", root / "data" / "app.db")
+    client = app.create_app().test_client()
+    payload = {
+        "bet_type": "other",
+        "back_stake": "10",
+        "back_odds": "2.5",
+        "lay_odds": "2.46",
+        "commission_percent": "0",
+        "cashback": "0",
+        "lay_stake_override": "0",
+    }
+    other = client.post("/api/calculate", json=payload)
+    qualifying = client.post("/api/calculate", json={**payload, "bet_type": "qualifying"})
+    assert other.status_code == 200
+    assert qualifying.status_code == 200
+    assert Decimal(other.get_json()["lay_stake"]) > 0
+    assert other.get_json()["lay_stake"] == qualifying.get_json()["lay_stake"]
+    assert other.get_json()["liability"] == qualifying.get_json()["liability"]
+
+    import app.db as db
+
+    session = db.SessionLocal()
+    bookie_id = session.scalars(select(Account).where(Account.name == "Betfred")).one().id
+    exchange_id = session.scalars(select(Account).where(Account.name == "Smarkets")).one().id
+    session.close()
+    logged = client.post(
+        "/calculator/log",
+        data={
+            **payload,
+            "bookie_id": str(bookie_id),
+            "exchange_id": str(exchange_id),
+            "date_placed": "2026-09-01",
+            "event": "Stoke vs Norwich",
+        },
+        follow_redirects=True,
+    )
+    assert logged.status_code == 200
+    session = db.SessionLocal()
+    saved = session.scalars(select(Bet).where(Bet.event == "Stoke vs Norwich")).one()
+    assert saved.bet_type == BetType.OTHER
+    assert saved.lay_stake > 0
+    assert saved.lay_odds == Decimal("2.46")
     session.close()

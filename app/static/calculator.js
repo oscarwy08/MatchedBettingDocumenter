@@ -47,8 +47,8 @@ function syncVisibility() {
   const unmatchedHint = document.getElementById("unmatched-hint");
 
   if (cashback) cashback.classList.toggle("is-hidden", type !== "money_back");
-  if (manual) manual.classList.toggle("is-hidden", type !== "other");
-  if (layField) layField.classList.toggle("is-hidden", unmatched || type === "other");
+  if (manual) manual.classList.add("is-hidden");
+  if (layField) layField.classList.toggle("is-hidden", unmatched);
   if (exchangeField) exchangeField.classList.toggle("is-hidden", unmatched);
   if (advanced) advanced.classList.toggle("is-hidden", unmatched);
   if (results) results.classList.toggle("is-unmatched", unmatched);
@@ -90,7 +90,7 @@ function syncVisibility() {
     if (unmatched) {
       if (lay.value && Number(lay.value) > 1) lastMatchedLay = lay.value;
       lay.value = "";
-    } else if (type !== "other" && !lay.value) {
+    } else if (!lay.value) {
       lay.value = lastMatchedLay || "2.10";
     }
   }
@@ -102,16 +102,13 @@ function payload() {
     const el = document.getElementById(name);
     data[name] = el ? el.value : "";
   }
+  if (!Number(data.lay_stake_override)) data.lay_stake_override = "";
   return data;
 }
 
 async function refresh() {
   const error = document.getElementById("calc-error");
   if (!error) return;
-  if (currentType() === "other") {
-    error.classList.add("is-hidden");
-    return;
-  }
   try {
     const response = await fetch("/api/calculate", {
       method: "POST",

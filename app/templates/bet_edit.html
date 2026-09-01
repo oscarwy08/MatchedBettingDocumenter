@@ -62,7 +62,6 @@
           <label>
             Override lay stake
             <input name="lay_stake_override" id="lay_stake_override" type="number" step="0.01" min="0"
-                   value="{{ bet.lay_stake if bet.bet_type == 'other' else '' }}"
                    placeholder="Leave blank for optimal">
           </label>
         </div>
@@ -178,6 +177,6 @@
 {% endblock %}
 {% block scripts %}
   <script src="{{ url_for('static', filename='forms.js') }}?v=1"></script>
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=11"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=12"></script>
   <script src="{{ url_for('static', filename='fixtures.js') }}?v=1"></script>
 {% endblock %}
