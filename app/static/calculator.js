@@ -1,7 +1,6 @@
 const fields = ["bet_type", "back_stake", "back_odds", "lay_odds", "commission_percent", "cashback", "lay_stake_override"];
 
 const UNMATCHED = new Set(["normal", "acca", "bet_builder"]);
-const WITH_SELECTIONS = new Set(["acca", "bet_builder"]);
 
 let lastLay = "";
 let lastLiability = "";
@@ -46,7 +45,6 @@ function syncVisibility() {
   const advanced = document.getElementById("matched-advanced");
   const results = document.getElementById("results-panel");
   const unmatchedHint = document.getElementById("unmatched-hint");
-  const selections = document.getElementById("selections-field");
 
   if (cashback) cashback.classList.toggle("is-hidden", type !== "money_back");
   if (manual) manual.classList.toggle("is-hidden", type !== "other");
@@ -55,9 +53,9 @@ function syncVisibility() {
   if (advanced) advanced.classList.toggle("is-hidden", unmatched);
   if (results) results.classList.toggle("is-unmatched", unmatched);
   if (unmatchedHint) unmatchedHint.classList.toggle("is-hidden", !unmatched);
-  if (selections) {
-    selections.classList.toggle("is-hidden", !WITH_SELECTIONS.has(type) && type !== "normal");
-  }
+
+  const selections = document.getElementById("selections-field");
+  if (selections) selections.classList.remove("is-hidden");
 
   if (type === "free_bet_snr" || type === "free_bet_sr") {
     setText("stake-label", "Free bet stake");
@@ -79,7 +77,7 @@ function syncVisibility() {
     const market = document.getElementById("market");
     if (market) market.placeholder = "Anytime scorer, over 2.5, BTTS…";
   } else {
-    setText("selections-label", "Market");
+    setText("selections-label", "Selections");
     const market = document.getElementById("market");
     if (market) market.placeholder = "Match odds / Liverpool";
   }

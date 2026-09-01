@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 
 from sqlalchemy import select
 
@@ -110,6 +111,13 @@ def test_bet_details_use_date_pickers(tmp_path, monkeypatch):
     assert b'name="starts_at" type="datetime-local"' in calc.data
     assert b'name="ends_at" type="datetime-local"' in calc.data
     assert b"fixtures.js" in calc.data
+    bet_panel, _, _rest = calc.data.partition(b"Log this bet")
+    assert b'id="selections-field"' in bet_panel
+    assert b'name="market"' in bet_panel
+    assert b">Selections</span>" in bet_panel
+    js = (Path(__file__).resolve().parents[1] / "app" / "static" / "calculator.js").read_text(encoding="utf-8")
+    assert "WITH_SELECTIONS" not in js
+    assert 'selections.classList.toggle("is-hidden"' not in js
 
     edit = client.get(f"/bets/{bet_id}/edit")
     assert edit.status_code == 200
@@ -131,6 +139,7 @@ def test_bet_details_use_date_pickers(tmp_path, monkeypatch):
             "date_placed": "2026-09-01",
             "starts_at": "2026-09-02T15:30",
             "event": "Picker cup",
+            "market": "Match odds / Liverpool",
         },
         follow_redirects=True,
     )
@@ -139,4 +148,5 @@ def test_bet_details_use_date_pickers(tmp_path, monkeypatch):
     saved = session.scalars(select(Bet).where(Bet.event == "Picker cup")).one()
     assert saved.date_placed.isoformat() == "2026-09-01"
     assert saved.starts_at == datetime(2026, 9, 2, 15, 30)
+    assert saved.market == "Match odds / Liverpool"
     session.close()

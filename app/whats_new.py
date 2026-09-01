@@ -47,6 +47,14 @@ NOTES = {
         ],
         "primary": "OK",
     },
+    "2.0.4": {
+        "kicker": "This update",
+        "title": "Selections on the calculator",
+        "paragraphs": [
+            "The calculator now has Selections under Type for every bet type. That is the same field as the Selections column on Bets.",
+        ],
+        "primary": "OK",
+    },
 }
 
 

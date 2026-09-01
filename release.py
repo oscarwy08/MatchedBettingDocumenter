@@ -107,8 +107,8 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Friends now show Online or last seen next to their name. "
-        "On Bets, By event groups matched bets by fixture. "
+        "The calculator now has Selections under Type for every bet type, "
+        "matching the Selections column on Bets. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

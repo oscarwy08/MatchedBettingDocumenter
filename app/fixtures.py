@@ -31,7 +31,7 @@ RACING_RESULTS_URL = "https://api.theracingapi.com/v1/results/today/free"
 _UK_REGIONS = {"gb", "ire", "uk", "ireland", "great britain"}
 _FINISHED = {"FINISHED", "AWARDED"}
 _lock = threading.Lock()
-USER_AGENT = "MatchedBettingDocumenter/2.0.3"
+USER_AGENT = "MatchedBettingDocumenter/2.0.4"
 
 
 def football_token_path() -> Path:

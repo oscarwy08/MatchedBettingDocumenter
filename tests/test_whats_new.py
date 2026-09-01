@@ -18,7 +18,7 @@ def test_ok_survives_relaunch(tmp_path, monkeypatch):
 
     client = app.create_app().test_client()
     home = client.get("/")
-    assert b"Friends online, and bets by event" in home.data
+    assert b"Selections on the calculator" in home.data
     assert b"inert" in home.data
     assert b'name="football_token"' not in home.data
     assert b">OK<" in home.data
@@ -28,11 +28,11 @@ def test_ok_survives_relaunch(tmp_path, monkeypatch):
     assert skipped.headers["Location"].endswith("/calculator")
     assert pending() is False
     later = client.get("/")
-    assert b"Friends online, and bets by event" not in later.data
+    assert b"Selections on the calculator" not in later.data
     assert b" inert" not in later.data
     relaunched = app.create_app().test_client()
     again = relaunched.get("/")
-    assert b"Friends online, and bets by event" not in again.data
+    assert b"Selections on the calculator" not in again.data
     assert pending() is False
 
 
@@ -96,25 +96,25 @@ def test_old_event_picker_flag_counts_as_seen(tmp_path, monkeypatch):
     path.write_text('{"event_picker": true}\n', encoding="utf-8")
     assert "1.9.7" in seen()
     assert pending() is True
-    assert current()["title"] == "Friends online, and bets by event"
+    assert current()["title"] == "Selections on the calculator"
 
 
 def test_next_version_shows_ok_card(tmp_path, monkeypatch):
     _root(tmp_path, monkeypatch)
     import app
 
-    mark_seen("2.0.3")
-    monkeypatch.setattr("app.whats_new.VERSION", "2.0.4")
+    mark_seen("2.0.4")
+    monkeypatch.setattr("app.whats_new.VERSION", "2.0.5")
     assert pending() is True
     note = current()
-    assert note["title"] == "Version 2.0.4"
+    assert note["title"] == "Version 2.0.5"
     assert note.get("fields") is None
     client = app.create_app().test_client()
     page = client.get("/")
-    assert b"Version 2.0.4" in page.data
+    assert b"Version 2.0.5" in page.data
     assert b">OK<" in page.data
     assert b'name="football_token"' not in page.data
     client.post("/whats-new", data={"action": "ok", "next": "/"})
     assert pending() is False
     relaunched = app.create_app().test_client()
-    assert b"Version 2.0.4" not in relaunched.get("/").data
+    assert b"Version 2.0.5" not in relaunched.get("/").data

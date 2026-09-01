@@ -15,6 +15,10 @@
             {% endfor %}
           </select>
         </label>
+        <label class="span-2" id="selections-field">
+          <span class="field-name" id="selections-label">Selections</span>
+          <input name="market" id="market" type="text" placeholder="Match odds / Liverpool">
+        </label>
         <label id="stake-field">
           <span class="field-name" id="stake-label">Back stake</span>
           <input name="back_stake" id="back_stake" type="number" step="0.01" min="0" value="10" required>
@@ -117,10 +121,6 @@
           </select>
         </label>
         {% include "_event_fields.html" %}
-        <label class="span-2" id="selections-field">
-          <span class="field-name" id="selections-label">Selections / market</span>
-          <input name="market" id="market" type="text" placeholder="Match odds / Liverpool">
-        </label>
         <label class="span-2">
           <span class="field-name">Offer</span>
           <select name="offer_id" id="offer_pick" onchange="window.syncOfferFields && window.syncOfferFields()">
@@ -166,6 +166,6 @@
 {% endblock %}
 {% block scripts %}
   <script src="{{ url_for('static', filename='forms.js') }}?v=1"></script>
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=9"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=11"></script>
   <script src="{{ url_for('static', filename='fixtures.js') }}?v=1"></script>
 {% endblock %}
