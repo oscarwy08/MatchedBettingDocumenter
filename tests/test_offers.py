@@ -140,6 +140,126 @@ def test_snapshot_keeps_reload(tmp_path, monkeypatch):
     other.close()
 
 
+def test_end_by_expires_open_offers_only(tmp_path):
+    session = _session(tmp_path)
+    sky = session.scalars(select(Account).where(Account.name == "Sky Bet")).one()
+    smarkets = session.scalars(select(Account).where(Account.name == "Smarkets")).one()
+    past = date(2020, 1, 1)
+    future = date(2099, 1, 1)
+
+    open_offer = Offer(name="Open welcome", type=OfferType.WELCOME, bookie_id=sky.id, end_by=past)
+    session.add(open_offer)
+    session.flush()
+    assert open_offer.status == "Expired"
+    assert offer_snapshot(open_offer)["end_by"] == past
+
+    still_open = Offer(name="Later", type=OfferType.WELCOME, bookie_id=sky.id, end_by=future)
+    session.add(still_open)
+    session.flush()
+    assert still_open.status == "In progress"
+
+    reload_offer = Offer(
+        name="Expired reload",
+        type=OfferType.RELOAD,
+        bookie_id=sky.id,
+        reload_frequency="weekly",
+        next_reload_on=past,
+        end_by=past,
+    )
+    session.add(reload_offer)
+    session.flush()
+    assert reload_offer.status == "Expired"
+
+    used = Offer(
+        name="Used welcome",
+        type=OfferType.WELCOME,
+        bookie_id=sky.id,
+        free_funds=Decimal("10"),
+        end_by=past,
+    )
+    session.add(used)
+    session.flush()
+    session.add(
+        Bet(
+            offer_id=used.id,
+            event="Conversion",
+            bet_type=BetType.FREE_BET_SNR,
+            bookie_id=sky.id,
+            exchange_id=smarkets.id,
+            back_stake=Decimal("10.00"),
+            back_odds=Decimal("2.00"),
+            lay_stake=Decimal("9.00"),
+            lay_odds=Decimal("2.10"),
+            commission_percent=Decimal("2"),
+            cashback=Decimal("0"),
+            liability=Decimal("9.90"),
+            expected_profit=Decimal("0.50"),
+            expected_bookie_back=Decimal("10"),
+            expected_exchange_back=Decimal("-9.90"),
+            expected_bookie_lay=Decimal("0"),
+            expected_exchange_lay=Decimal("8.82"),
+            status=BetStatus.BACK_WON,
+        )
+    )
+    session.flush()
+    session.refresh(used)
+    assert used.status == "Used"
+
+    complete = Offer(name="Done", type=OfferType.OTHER, bookie_id=sky.id, end_by=past)
+    session.add(complete)
+    session.flush()
+    session.add(
+        Bet(
+            offer_id=complete.id,
+            event="Settled",
+            bet_type=BetType.QUALIFYING,
+            bookie_id=sky.id,
+            exchange_id=smarkets.id,
+            back_stake=Decimal("10.00"),
+            back_odds=Decimal("2.00"),
+            lay_stake=Decimal("9.00"),
+            lay_odds=Decimal("2.10"),
+            commission_percent=Decimal("2"),
+            cashback=Decimal("0"),
+            liability=Decimal("9.90"),
+            expected_profit=Decimal("-0.50"),
+            expected_bookie_back=Decimal("10"),
+            expected_exchange_back=Decimal("-9.90"),
+            expected_bookie_lay=Decimal("-10"),
+            expected_exchange_lay=Decimal("8.82"),
+            status=BetStatus.BACK_WON,
+        )
+    )
+    session.flush()
+    session.refresh(complete)
+    assert complete.status == "Complete"
+    session.close()
+
+
+def test_snapshot_keeps_end_by(tmp_path, monkeypatch):
+    monkeypatch.setenv("MBD_ROOT", str(tmp_path))
+    session = _session(tmp_path)
+    sky = session.scalars(select(Account).where(Account.name == "Sky Bet")).one()
+    session.add(
+        Offer(
+            name="Ends soon",
+            type=OfferType.WELCOME,
+            bookie_id=sky.id,
+            end_by=date(2026, 9, 20),
+        )
+    )
+    session.commit()
+    payload = dump_snapshot(session)
+    session.close()
+    Session2 = init_db(tmp_path / "copy.db")
+    other = Session2()
+    apply_snapshot(other, payload)
+    other.commit()
+    copied = other.scalars(select(Offer).where(Offer.name == "Ends soon")).one()
+    assert copied.end_by == date(2026, 9, 20)
+    other.close()
+
+
 def test_advance_reload_sets_date():
     offer = Offer(name="x", type=OfferType.RELOAD, bookie_id=1, reload_frequency="daily")
     nxt = advance_reload(offer, date(2026, 8, 30))
@@ -165,6 +285,7 @@ def test_create_reload_via_form(tmp_path, monkeypatch):
     assert b"data-offer-field" in calc.data
     offers_page = client.get("/offers")
     assert b"How often" in offers_page.data
+    assert b"End by" in offers_page.data
     assert b"js-offer-type" in offers_page.data
     assert b"You deposited" in offers_page.data
     import app.db as db
@@ -185,6 +306,7 @@ def test_create_reload_via_form(tmp_path, monkeypatch):
             "reload_stake": "20",
             "reload_reward": "5",
             "next_reload_on": "30/08/2026",
+            "end_by": "20/09/2026",
         },
         follow_redirects=True,
     )
@@ -194,6 +316,7 @@ def test_create_reload_via_form(tmp_path, monkeypatch):
     offer = session.scalars(select(Offer).where(Offer.name == "Form reload")).one()
     assert offer.reload_frequency == "weekly"
     assert offer.reload_stake == Decimal("20.00")
+    assert offer.end_by == date(2026, 9, 20)
     offer_id = offer.id
     session.close()
     claimed = client.post(f"/offers/{offer_id}/claim-reload", follow_redirects=True)

@@ -21,6 +21,7 @@
       {% for invite in invites %}
         <div class="invite-block">
           <p>{{ invite.nickname }} · created {{ invite.created_at }}</p>
+          {% if invite.held %}<p class="hint">Sealed spare kept</p>{% endif %}
           <p class="link-code friend-code" data-code>{{ invite.code }}</p>
           <div class="page-actions">
             <button type="button" class="btn copy-friend">Copy code</button>

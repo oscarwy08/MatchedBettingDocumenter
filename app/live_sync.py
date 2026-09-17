@@ -356,8 +356,10 @@ def push_one(session: Session, peer: dict) -> bool:
 
 def notify_after_save() -> None:
     from app.replicate import notify_after_save as replicate_notify
+    from app.vault import notify as vault_notify
 
     replicate_notify()
+    vault_notify()
 
 
 def last_error() -> str | None:

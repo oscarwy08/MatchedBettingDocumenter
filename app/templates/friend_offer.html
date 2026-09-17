@@ -30,6 +30,9 @@
       <article class="stat-card"><p>Each time</p><strong>{% if offer.reload_stake and offer.reload_stake != "0.00" %}{{ offer.reload_stake | gbp }}{% else %}–{% endif %}{% if offer.reload_reward and offer.reload_reward != "0.00" %} → {{ offer.reload_reward | gbp }}{% endif %}</strong></article>
       <article class="stat-card"><p>Next due</p><strong>{% if offer.reload_due %}Due{% elif offer.next_reload_on %}{{ offer.next_reload_on }}{% else %}–{% endif %}</strong></article>
     {% endif %}
+    {% if offer.end_by %}
+      <article class="stat-card"><p>End by</p><strong>{{ offer.end_by }}</strong></article>
+    {% endif %}
     {% if offer.is_casino %}
       {% if offer.spin_count %}
         <article class="stat-card"><p>Spins EV</p><strong class="{{ offer.expected_spins | pnl }}">{{ offer.expected_spins | gbp }}</strong></article>

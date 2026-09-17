@@ -231,6 +231,7 @@ def offer_snapshot(offer: Offer) -> dict:
         "reload_stake": money(offer.reload_stake or ZERO),
         "reload_reward": money(offer.reload_reward or ZERO),
         "next_reload_on": offer.next_reload_on,
+        "end_by": offer.end_by,
         "reload_due": offer.reload_due,
         "is_casino": offer.is_casino,
         "casino_wager": money(offer.casino_wager or ZERO),

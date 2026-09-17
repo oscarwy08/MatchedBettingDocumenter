@@ -202,6 +202,11 @@ def _apply_reload_fields(offer: Offer, *, prefix: str = "") -> None:
     offer.next_reload_on = parse_uk(raw) if raw else None
 
 
+def _apply_end_by(offer: Offer, *, prefix: str = "") -> None:
+    raw = (request.form.get(f"{prefix}end_by") or "").strip()
+    offer.end_by = parse_uk(raw) if raw else None
+
+
 def _apply_casino_fields(offer: Offer, *, prefix: str = "") -> None:
     kind = (request.form.get("offer_type") if prefix == "offer_" else request.form.get("type")) or offer.type
     casino_types = {OfferType.FREE_SPINS, OfferType.CASINO}
@@ -827,6 +832,7 @@ def _resolve_offer(session: Session, bookie_id: int) -> Offer | None:
     )
     _apply_reload_fields(offer, prefix="offer_")
     _apply_casino_fields(offer, prefix="offer_")
+    _apply_end_by(offer, prefix="offer_")
     session.add(offer)
     session.flush()
     sync_offer_deposit(session, offer, when=parse_uk(request.form.get("date_placed")))
@@ -913,6 +919,7 @@ def create_offer():
         )
         _apply_reload_fields(offer)
         _apply_casino_fields(offer)
+        _apply_end_by(offer)
         session.add(offer)
         session.flush()
         sync_offer_deposit(session, offer)
@@ -1604,6 +1611,7 @@ def edit_offer(offer_id: int):
         offer.free_funds = _parse_decimal("free_funds")
         _apply_reload_fields(offer)
         _apply_casino_fields(offer)
+        _apply_end_by(offer)
         sync_offer_deposit(session, offer)
         _commit_and_sync(session)
         flash("Offer updated.", "ok")
@@ -2076,9 +2084,17 @@ def friends_page():
 
     port = _app_port()
     state = load_friends()
+    from app.vault import held_meta
+
     invites = []
     for invite in state.get("invites") or []:
-        invites.append({**invite, "code": invite_code(invite, port)})
+        invites.append(
+            {
+                **invite,
+                "code": invite_code(invite, port),
+                "held": bool(held_meta(str(invite.get("id") or ""))),
+            }
+        )
     return render_template(
         "friends.html",
         invites=invites,
@@ -2493,6 +2509,54 @@ def friend_view_api():
     session = get_session()
     dto = view_dto(session, nickname=account_name())
     return jsonify({"ciphertext": encrypt_view(secret, dto)})
+
+
+def _vault_invite():
+    from app.friends import invite_by_secret
+
+    token = _bearer_token()
+    if not token.startswith("view."):
+        abort(403)
+    invite = invite_by_secret(token[5:])
+    if invite is None:
+        abort(403)
+    from app.access import client_ip, allow_rate
+
+    if not allow_rate(client_ip() or "local"):
+        abort(429)
+    return invite
+
+
+@bp.get("/api/friend/vault/meta")
+def friend_vault_meta():
+    from app.vault import held_meta
+
+    invite = _vault_invite()
+    meta = held_meta(str(invite.get("id") or ""))
+    if not meta:
+        return jsonify({"held": False})
+    return jsonify({**meta, "held": True})
+
+
+@bp.get("/api/friend/vault")
+def friend_vault_get():
+    from app.vault import load_held
+
+    invite = _vault_invite()
+    envelope = load_held(str(invite.get("id") or ""))
+    if envelope is None:
+        abort(404)
+    return jsonify(envelope)
+
+
+@bp.post("/api/friend/vault")
+def friend_vault_post():
+    from app.vault import store_if_newer
+
+    invite = _vault_invite()
+    body = request.get_json(silent=True) or {}
+    stored = store_if_newer(str(invite.get("id") or ""), body)
+    return jsonify({"ok": True, "stored": stored})
 
 
 @bp.get("/settings")

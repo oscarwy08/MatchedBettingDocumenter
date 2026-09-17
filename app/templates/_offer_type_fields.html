@@ -38,6 +38,13 @@
   <input name="{{ prefix }}next_reload_on" type="text" inputmode="numeric" placeholder="DD/MM/YYYY"
          pattern="\d{2}/\d{2}/\d{4}" value="{{ due if due != '–' else '' }}">
 </label>
+{% set end_by = offer.end_by | ukdate if offer is defined and offer.end_by else "" %}
+<label data-offer-field="end_by">
+  <span class="field-name">End by</span>
+  <input name="{{ prefix }}end_by" type="text" inputmode="numeric" placeholder="DD/MM/YYYY"
+         pattern="\d{2}/\d{2}/\d{4}" value="{{ end_by if end_by != '–' else '' }}">
+  <span class="hint">Optional. Open offers become Expired on this date. Used and Complete stay as they are.</span>
+</label>
 {% set casino_wager = offer.casino_wager if offer is defined else "" %}
 {% set casino_rtp = offer.casino_rtp if offer is defined else "" %}
 {% set spin_count = offer.spin_count if offer is defined else "" %}

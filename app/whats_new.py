@@ -71,6 +71,14 @@ NOTES = {
         ],
         "primary": "OK",
     },
+    "2.0.7": {
+        "kicker": "This update",
+        "title": "Offer end dates and friend spare",
+        "paragraphs": [
+            "Offers can have an End by date. Open ones become Expired when that date is reached; Used and Complete stay as they are. Friends now keep a sealed spare of your log in the background, so a paired computer that is behind can catch up without slowing startup.",
+        ],
+        "primary": "OK",
+    },
 }
 
 

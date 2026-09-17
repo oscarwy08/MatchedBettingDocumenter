@@ -43,6 +43,8 @@ def _ensure_sqlite_columns(engine: Engine) -> None:
             conn.execute(text("ALTER TABLE offers ADD COLUMN reload_reward NUMERIC(12, 2) DEFAULT 0"))
         if "next_reload_on" not in cols:
             conn.execute(text("ALTER TABLE offers ADD COLUMN next_reload_on DATE"))
+        if "end_by" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN end_by DATE"))
         if "casino_wager" not in cols:
             conn.execute(text("ALTER TABLE offers ADD COLUMN casino_wager NUMERIC(12, 2) DEFAULT 0"))
         if "casino_rtp" not in cols:

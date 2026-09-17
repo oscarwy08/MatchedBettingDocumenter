@@ -73,6 +73,7 @@
                 {% elif row.is_casino and row.spin_count %}
                   {{ row.spin_count }} × {{ row.spin_value | gbp }}{% if row.spin_game %} · {{ row.spin_game }}{% endif %}
                 {% else %}–{% endif %}
+                {% if row.end_by %} · ends {{ row.end_by | ukdate }}{% endif %}
               </td>
               <td class="num">{{ row.deposited | gbp }}</td>
               <td class="num">{% if row.free_funds %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}–{% endif %}</td>
@@ -91,5 +92,5 @@
   </section>
 {% endblock %}
 {% block scripts %}
-  <script src="{{ url_for('static', filename='forms.js') }}?v=2"></script>
+  <script src="{{ url_for('static', filename='forms.js') }}?v=3"></script>
 {% endblock %}

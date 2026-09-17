@@ -124,12 +124,18 @@ def create_invite(nickname: str = "") -> dict:
 def revoke_invite(invite_id: str) -> dict:
     state = load_state()
     state["invites"] = [item for item in state["invites"] if item.get("id") != invite_id]
+    from app.vault import delete_held
+
+    delete_held(invite_id)
     return save_state(state)
 
 
 def stop_all_invites() -> dict:
     state = load_state()
     state["invites"] = []
+    from app.vault import delete_all_held
+
+    delete_all_held()
     return save_state(state)
 
 
@@ -298,6 +304,7 @@ def _offer_row(offer) -> dict:
         "reload_stake": _money(row["reload_stake"]),
         "reload_reward": _money(row["reload_reward"]),
         "next_reload_on": _when(nxt) if nxt else "",
+        "end_by": _day(offer.end_by) if offer.end_by else "",
         "reload_due": bool(row["reload_due"]),
         "is_casino": bool(row.get("is_casino")),
         "casino_wager": _money(row.get("casino_wager")),

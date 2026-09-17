@@ -104,6 +104,8 @@ def mug_health(
 
 
 def _offer_open(offer: Offer, today: date) -> bool:
+    if offer.status == "Expired":
+        return False
     if _reload_due(offer, today):
         return True
     return offer.status == "In progress"
@@ -279,7 +281,11 @@ def today_board(
     used_bookies = []
     for account in bookies:
         health = mug_health(account, bets_by_bookie[account.id], threshold=threshold, today=today)
-        due_offers = [offer for offer in offers_by_bookie[account.id] if _reload_due(offer, today)]
+        due_offers = [
+            offer
+            for offer in offers_by_bookie[account.id]
+            if _reload_due(offer, today) and offer.status != "Expired"
+        ]
         due_tasks = [
             task
             for task in tasks_by_bookie[account.id]
@@ -316,6 +322,8 @@ def today_board(
 
     specials: list[dict] = []
     for offer in offers:
+        if offer.status == "Expired":
+            continue
         if _reload_due(offer, today):
             specials.append(
                 {

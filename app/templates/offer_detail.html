@@ -49,6 +49,12 @@
         <strong>{% if snap.reload_stake %}{{ snap.reload_stake | gbp }}{% else %}–{% endif %}{% if snap.reload_reward %} → {{ snap.reload_reward | gbp }}{% endif %}</strong>
       </article>
     {% endif %}
+    {% if offer.end_by %}
+      <article class="stat-card">
+        <p>End by</p>
+        <strong>{{ offer.end_by | ukdate }}</strong>
+      </article>
+    {% endif %}
     {% if snap.is_casino %}
       {% if snap.casino_wager %}
         <article class="stat-card">
@@ -179,5 +185,5 @@
   </form>
 {% endblock %}
 {% block scripts %}
-  <script src="{{ url_for('static', filename='forms.js') }}?v=2"></script>
+  <script src="{{ url_for('static', filename='forms.js') }}?v=3"></script>
 {% endblock %}

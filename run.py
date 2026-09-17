@@ -95,6 +95,7 @@ if __name__ == "__main__":
     from app.nat import refresh as nat_refresh
     from app.p2p import start_background as start_p2p
     from app.sync import ensure_state, has_paired_peers
+    from app.vault import start_background as start_friend_vault
 
     ensure_state()
     want_lan = setting("allow_lan") or has_active_invite() or has_paired_peers()
@@ -141,6 +142,7 @@ if __name__ == "__main__":
     _maybe_open_browser(url)
     start_background()
     start_friend_mailbox()
+    start_friend_vault()
     start_notify()
     if want_lan:
         start_p2p(port)

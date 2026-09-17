@@ -18,6 +18,8 @@ _REMOTE_PATHS = {
     "/api/sync/hello",
     "/api/sync/push",
     "/api/friend/view",
+    "/api/friend/vault/meta",
+    "/api/friend/vault",
 }
 
 

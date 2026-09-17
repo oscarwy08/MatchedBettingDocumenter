@@ -126,6 +126,7 @@ class Offer(Base):
     reload_stake: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
     reload_reward: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
     next_reload_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_by: Mapped[date | None] = mapped_column(Date, nullable=True)
     casino_wager: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
     casino_rtp: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=Decimal("0"))
     spin_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -178,22 +179,28 @@ class Offer(Base):
     @property
     def status(self) -> str:
         if self.repeats and self.reload_due:
-            return "Reload due"
-        pending = any(bet.status == BetStatus.PENDING for bet in self.bets)
-        funds = Decimal(str(self.free_funds or 0))
-        if funds > 0:
-            if self.free_funds_used >= funds and not self.repeats:
-                return "Used"
-            if self.type == OfferType.CASINO and self.bets and not pending and not self.repeats:
-                return "Complete"
-            return "In progress"
-        if not self.bets:
-            return "In progress"
-        if pending:
-            return "In progress"
-        if self.repeats:
-            return "In progress"
-        return "Complete"
+            core = "Reload due"
+        else:
+            pending = any(bet.status == BetStatus.PENDING for bet in self.bets)
+            funds = Decimal(str(self.free_funds or 0))
+            if funds > 0:
+                if self.free_funds_used >= funds and not self.repeats:
+                    core = "Used"
+                elif self.type == OfferType.CASINO and self.bets and not pending and not self.repeats:
+                    core = "Complete"
+                else:
+                    core = "In progress"
+            elif not self.bets:
+                core = "In progress"
+            elif pending:
+                core = "In progress"
+            elif self.repeats:
+                core = "In progress"
+            else:
+                core = "Complete"
+        if self.end_by and self.end_by <= date.today() and core in {"In progress", "Reload due"}:
+            return "Expired"
+        return core
 
 
 class Bet(Base):

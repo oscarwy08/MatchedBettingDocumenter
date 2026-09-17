@@ -215,6 +215,8 @@ def _due(session: Session, clock, today) -> list[dict]:
     for offer in offers:
         if not offer.repeats:
             continue
+        if offer.status == "Expired":
+            continue
         if offer.next_reload_on is not None and offer.next_reload_on > today:
             continue
         bookie = offer.bookie.name if offer.bookie is not None else ""

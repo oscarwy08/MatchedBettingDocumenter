@@ -185,6 +185,7 @@ def _write_offers(ws, offers: list[Offer]) -> None:
             "Reload stake",
             "Reward",
             "Next due",
+            "End by",
             "Deposited",
             "Free funds",
             "Spins",
@@ -207,20 +208,21 @@ def _write_offers(ws, offers: list[Offer]) -> None:
         _money(ws.cell(i, 5), snap["reload_stake"])
         _money(ws.cell(i, 6), snap["reload_reward"])
         ws.cell(i, 7, offer.next_reload_on.isoformat() if offer.next_reload_on else "")
-        _money(ws.cell(i, 8), snap["deposited"])
-        _money(ws.cell(i, 9), snap["free_funds"])
+        ws.cell(i, 8, offer.end_by.isoformat() if offer.end_by else "")
+        _money(ws.cell(i, 9), snap["deposited"])
+        _money(ws.cell(i, 10), snap["free_funds"])
         spins = snap.get("spin_count") or 0
-        ws.cell(i, 10, f"{spins} × {snap.get('spin_value')}" if spins else "")
+        ws.cell(i, 11, f"{spins} × {snap.get('spin_value')}" if spins else "")
         wr = snap.get("wagering_multiplier") or 0
-        ws.cell(i, 11, f"{wr}×" if wr else "")
-        _money(ws.cell(i, 12), snap.get("expected_ev"))
-        _money(ws.cell(i, 13), snap["bookie_profit"])
-        _money(ws.cell(i, 14), snap["exchange_profit"])
-        _money(ws.cell(i, 15), snap["net_profit"])
-        ws.cell(i, 16, snap["status"])
-        ws.cell(i, 17, snap["leg_count"])
-        ws.cell(i, 18, offer.notes)
-    _stripe(ws, 2, 18)
+        ws.cell(i, 12, f"{wr}×" if wr else "")
+        _money(ws.cell(i, 13), snap.get("expected_ev"))
+        _money(ws.cell(i, 14), snap["bookie_profit"])
+        _money(ws.cell(i, 15), snap["exchange_profit"])
+        _money(ws.cell(i, 16), snap["net_profit"])
+        ws.cell(i, 17, snap["status"])
+        ws.cell(i, 18, snap["leg_count"])
+        ws.cell(i, 19, offer.notes)
+    _stripe(ws, 2, 19)
     _autosize(ws)
 
 

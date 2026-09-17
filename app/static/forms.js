@@ -1,14 +1,14 @@
 (function () {
   const OFFER_SHOW = {
-    welcome: ["deposit", "free_funds"],
-    reload: ["reload"],
-    risk_free: ["deposit", "free_funds"],
-    acca_insurance: ["free_funds"],
-    extra_place: [],
-    price_boost: [],
-    free_spins: ["deposit", "casino", "spins", "wagering"],
-    casino: ["deposit", "casino", "free_funds", "spins", "wagering"],
-    other: ["deposit", "free_funds"],
+    welcome: ["deposit", "free_funds", "end_by"],
+    reload: ["reload", "end_by"],
+    risk_free: ["deposit", "free_funds", "end_by"],
+    acca_insurance: ["free_funds", "end_by"],
+    extra_place: ["end_by"],
+    price_boost: ["end_by"],
+    free_spins: ["deposit", "casino", "spins", "wagering", "end_by"],
+    casino: ["deposit", "casino", "free_funds", "spins", "wagering", "end_by"],
+    other: ["deposit", "free_funds", "end_by"],
   };
   const OFFER_HINT = {
     welcome: "Deposit goes on your bankroll once. Free bets are what they give you to convert.",
