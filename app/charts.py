@@ -56,6 +56,8 @@ _OFFER_LABELS = {
     "acca_insurance": "Acca insurance",
     "extra_place": "Extra place",
     "price_boost": "Price boost",
+    "free_spins": "Free spins",
+    "casino": "Casino bonus",
     "other": "Other",
 }
 
@@ -68,6 +70,8 @@ _BET_LABELS = {
     "acca": "Accumulator",
     "bet_builder": "Bet builder",
     "mug": "Mug bet",
+    "casino_wager": "Casino wager",
+    "free_spins": "Free spins",
     "other": "Other",
 }
 

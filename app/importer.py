@@ -101,6 +101,11 @@ BET_TYPE_MAP = {
     "bet builder": BetType.BUILDER,
     "mug": BetType.MUG,
     "mug bet": BetType.MUG,
+    "casino": BetType.CASINO_WAGER,
+    "casino wager": BetType.CASINO_WAGER,
+    "gambling": BetType.CASINO_WAGER,
+    "free spins": BetType.FREE_SPINS,
+    "free spin": BetType.FREE_SPINS,
 }
 
 STATUS_MAP = {
@@ -262,6 +267,10 @@ def _offer_type(raw) -> str:
     mapping["acca insurance"] = OfferType.ACCA_INSURANCE
     mapping["extra place"] = OfferType.EXTRA_PLACE
     mapping["price boost"] = OfferType.PRICE_BOOST
+    mapping["free spins"] = OfferType.FREE_SPINS
+    mapping["casino"] = OfferType.CASINO
+    mapping["casino bonus"] = OfferType.CASINO
+    mapping["gambling"] = OfferType.CASINO
     return mapping.get(_norm(raw), mapping.get(token, OfferType.OTHER))
 
 

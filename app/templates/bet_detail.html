@@ -11,9 +11,17 @@
 {% block content %}
   <section class="stat-grid">
     <article class="stat-card"><p>Type</p><strong>{{ bet.bet_type | labelize }}</strong></article>
-    <article class="stat-card"><p>Back</p><strong>{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}</strong></article>
-    <article class="stat-card"><p>Lay</p><strong>{% if bet.lay_odds and bet.lay_odds > 1 %}{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}{% else %}Unmatched{% endif %}</strong></article>
-    <article class="stat-card"><p>Liability</p><strong>{{ bet.liability | gbp }}</strong></article>
+    {% if bet.is_casino %}
+      <article class="stat-card"><p>{% if bet.spin_count %}Spins{% else %}Wager{% endif %}</p><strong>{% if bet.spin_count %}{{ bet.spin_count }} × {{ bet.spin_coin | gbp }}{% else %}{{ bet.back_stake | gbp }}{% endif %}</strong></article>
+      <article class="stat-card"><p>RTP</p><strong>{% if bet.rtp %}{{ '%.4g'|format(bet.rtp|float) }}%{% else %}–{% endif %}</strong></article>
+      {% if bet.wagering_multiplier %}
+        <article class="stat-card"><p>Wagering</p><strong>{{ '%.4g'|format(bet.wagering_multiplier|float) }}×</strong></article>
+      {% endif %}
+    {% else %}
+      <article class="stat-card"><p>Back</p><strong>{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}</strong></article>
+      <article class="stat-card"><p>Lay</p><strong>{% if bet.lay_odds and bet.lay_odds > 1 %}{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}{% else %}Unmatched{% endif %}</strong></article>
+      <article class="stat-card"><p>Liability</p><strong>{{ bet.liability | gbp }}</strong></article>
+    {% endif %}
     <article class="stat-card"><p>Expected</p><strong class="{{ bet.expected_profit | pnl }}">{{ bet.expected_profit | gbp }}</strong></article>
     <article class="stat-card"><p>Placed</p><strong>{{ (bet.placed_at or bet.date_placed) | uktime }}</strong></article>
     <article class="stat-card"><p>Starts</p><strong>{{ bet.starts_at | uktime }}</strong></article>
@@ -30,6 +38,7 @@
     </p>
   {% endif %}
 
+  {% if not bet.is_casino %}
   <section class="panel">
     <div class="panel-head"><h2>Outcomes</h2></div>
     <table>
@@ -52,11 +61,26 @@
       </tbody>
     </table>
   </section>
+  {% endif %}
 
   {% if bet.is_pending %}
     <section class="panel">
       <div class="panel-head"><h2>Settle</h2></div>
       <form method="post" action="{{ url_for('main.settle_bet', bet_id=bet.id) }}" class="form-grid">
+        {% if bet.is_casino %}
+        <label>
+          Outcome
+          <select name="outcome" id="settle-outcome" required>
+            <option value="back_won">Finished — record actual P&amp;L</option>
+            <option value="void">Void / not played</option>
+          </select>
+        </label>
+        <label class="span-2">
+          What you finished with (P&amp;L)
+          <input name="actual_profit" id="casino-actual" type="number" step="0.01" required>
+          <span class="hint">Expected was {{ bet.expected_profit | gbp }}{% if bet.rtp %} at {{ '%.4g'|format(bet.rtp|float) }}% RTP{% endif %}. Variance is normal — this is the cash you ended with, not the RTP average.</span>
+        </label>
+        {% else %}
         <label>
           Outcome
           <select name="outcome" id="settle-outcome" required>
@@ -77,6 +101,7 @@
           Actual net profit (optional override)
           <input name="actual_profit" type="number" step="0.01" placeholder="Leave blank to sum the two sides">
         </label>
+        {% endif %}
         {% if bet.is_free_bet %}
           <label id="free-bet-returned-row" class="span-2 checkbox-row is-hidden">
             <input type="checkbox" name="free_bet_returned" value="1" checked>
@@ -119,13 +144,24 @@
 <script>
   const outcome = document.getElementById("settle-outcome");
   const returnedRow = document.getElementById("free-bet-returned-row");
+  const casinoActual = document.getElementById("casino-actual");
   function syncReturned() {
     if (!outcome || !returnedRow) return;
     returnedRow.classList.toggle("is-hidden", outcome.value !== "void");
   }
+  function syncCasinoActual() {
+    if (!outcome || !casinoActual) return;
+    const finished = outcome.value !== "void";
+    casinoActual.required = finished;
+    if (!finished) casinoActual.value = "";
+  }
   if (outcome) {
-    outcome.addEventListener("change", syncReturned);
+    outcome.addEventListener("change", () => {
+      syncReturned();
+      syncCasinoActual();
+    });
     syncReturned();
+    syncCasinoActual();
   }
 </script>
 {% endblock %}

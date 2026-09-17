@@ -38,3 +38,51 @@
   <input name="{{ prefix }}next_reload_on" type="text" inputmode="numeric" placeholder="DD/MM/YYYY"
          pattern="\d{2}/\d{2}/\d{4}" value="{{ due if due != '–' else '' }}">
 </label>
+{% set casino_wager = offer.casino_wager if offer is defined else "" %}
+{% set casino_rtp = offer.casino_rtp if offer is defined else "" %}
+{% set spin_count = offer.spin_count if offer is defined else "" %}
+{% set spin_value = offer.spin_value if offer is defined else "" %}
+{% set spin_game = offer.spin_game if offer is defined else "" %}
+{% set spin_rtp = offer.spin_rtp if offer is defined else "" %}
+{% set wagering = offer.wagering_multiplier if offer is defined else "" %}
+{% set max_cashout = offer.max_cashout if offer is defined else "" %}
+{% set bonus_rtp = offer.bonus_rtp if offer is defined else "" %}
+<label data-offer-field="casino">
+  <span class="field-name">Casino playthrough</span>
+  <input name="{{ prefix }}casino_wager" type="number" step="0.01" min="0" value="{{ casino_wager }}" placeholder="10.00">
+  <span class="hint">Amount you must wager on slots to unlock the spins or bonus. Skip if a sports bet qualifies it.</span>
+</label>
+<label data-offer-field="casino">
+  <span class="field-name">Playthrough RTP %</span>
+  <input name="{{ prefix }}casino_rtp" type="number" step="0.01" min="0" max="100" value="{{ casino_rtp }}" placeholder="96.02">
+</label>
+<label data-offer-field="spins">
+  <span class="field-name">Free spins</span>
+  <input name="{{ prefix }}spin_count" type="number" step="1" min="0" value="{{ spin_count }}" placeholder="30">
+</label>
+<label data-offer-field="spins">
+  <span class="field-name">Value each</span>
+  <input name="{{ prefix }}spin_value" type="number" step="0.01" min="0" value="{{ spin_value }}" placeholder="0.20">
+</label>
+<label data-offer-field="spins" class="span-2">
+  <span class="field-name">Game</span>
+  <input name="{{ prefix }}spin_game" type="text" value="{{ spin_game }}" placeholder="Double Bubble">
+</label>
+<label data-offer-field="spins">
+  <span class="field-name">Spins RTP %</span>
+  <input name="{{ prefix }}spin_rtp" type="number" step="0.01" min="0" max="100" value="{{ spin_rtp }}" placeholder="96.02">
+</label>
+<label data-offer-field="wagering">
+  <span class="field-name">Wagering</span>
+  <input name="{{ prefix }}wagering_multiplier" type="number" step="0.01" min="0" value="{{ wagering }}" placeholder="0">
+  <span class="hint">0 means winnings or bonus pay as cash. 40 means 40× playthrough.</span>
+</label>
+<label data-offer-field="wagering">
+  <span class="field-name">Bonus / clearing RTP %</span>
+  <input name="{{ prefix }}bonus_rtp" type="number" step="0.01" min="0" max="100" value="{{ bonus_rtp }}" placeholder="96.02">
+</label>
+<label data-offer-field="wagering">
+  <span class="field-name">Max cashout</span>
+  <input name="{{ prefix }}max_cashout" type="number" step="0.01" min="0" value="{{ max_cashout }}" placeholder="0">
+  <span class="hint">Leave 0 if there is no cap.</span>
+</label>

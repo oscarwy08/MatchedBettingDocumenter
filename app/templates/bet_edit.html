@@ -21,7 +21,7 @@
         </label>
         <label id="stake-field">
           <span class="field-name" id="stake-label">Back stake</span>
-          <input name="back_stake" id="back_stake" type="number" step="0.01" min="0" value="{{ bet.back_stake }}" required>
+          <input name="back_stake" id="back_stake" type="number" step="0.01" min="0" value="{% if bet.spin_count %}{{ '%.2f'|format(bet.spin_coin|float) }}{% else %}{{ bet.back_stake }}{% endif %}" required>
         </label>
         <label id="odds-field">
           <span class="field-name" id="odds-label">Back odds</span>
@@ -51,6 +51,22 @@
           <span class="field-name">Expected profit</span>
           <input name="expected_profit_manual" type="number" step="0.01" value="{{ bet.expected_profit }}">
         </label>
+        <label id="rtp-field" class="is-hidden">
+          <span class="field-name" id="rtp-label">RTP %</span>
+          <input name="rtp" id="rtp" type="number" step="0.01" min="0.01" max="100" value="{{ '%.4g'|format((bet.rtp or 96)|float) }}">
+        </label>
+        <label id="spin-count-field" class="is-hidden">
+          <span class="field-name">Free spins</span>
+          <input name="spin_count" id="spin_count" type="number" step="1" min="0" value="{{ bet.spin_count or 0 }}">
+        </label>
+        <label id="wagering-field" class="is-hidden">
+          <span class="field-name">Wagering on winnings</span>
+          <input name="wagering_multiplier" id="wagering_multiplier" type="number" step="0.01" min="0" value="{{ '%.4g'|format((bet.wagering_multiplier or 0)|float) }}">
+        </label>
+        <label id="max-cashout-field" class="is-hidden">
+          <span class="field-name">Max cashout</span>
+          <input name="max_cashout" id="max_cashout" type="number" step="0.01" min="0" value="0" placeholder="0 = no cap">
+        </label>
       </div>
       <details class="more-block" id="matched-advanced">
         <summary>Commission and lay override</summary>
@@ -71,17 +87,19 @@
     <section class="panel results-panel" id="results-panel">
       <div class="panel-head"><h2>Result</h2></div>
       <p id="unmatched-hint" class="hint is-hidden">No lay — this is just the bookie bet. Expected profit stays £0 until you settle.</p>
+      <p id="casino-hint" class="hint is-hidden">Expected profit is the long-run average from RTP. Settle with what you actually finished with — variance is normal.</p>
       <p id="calc-error" class="flash flash-error is-hidden"></p>
       <dl class="result-dl">
         <div class="matched-only"><dt>Lay stake</dt><dd id="out-lay">–</dd></div>
         <div class="matched-only"><dt>Liability</dt><dd id="out-liability">–</dd></div>
+        <div class="casino-only is-hidden"><dt>Expected return</dt><dd id="out-return">–</dd></div>
         <div><dt id="expected-label">Expected profit</dt><dd id="out-expected">–</dd></div>
       </dl>
       <div class="page-actions matched-only" style="margin-bottom: 0.8rem;">
         <button type="button" class="btn" id="copy-lay">Copy lay stake</button>
         <button type="button" class="btn" id="copy-liability">Copy liability</button>
       </div>
-      <table class="outcome-table">
+      <table class="outcome-table" id="outcome-table">
         <thead>
           <tr>
             <th></th>
@@ -176,7 +194,7 @@
   </form>
 {% endblock %}
 {% block scripts %}
-  <script src="{{ url_for('static', filename='forms.js') }}?v=1"></script>
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=12"></script>
+  <script src="{{ url_for('static', filename='forms.js') }}?v=2"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=15"></script>
   <script src="{{ url_for('static', filename='fixtures.js') }}?v=1"></script>
 {% endblock %}

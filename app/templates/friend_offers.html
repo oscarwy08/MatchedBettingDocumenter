@@ -18,9 +18,10 @@
             <th>Offer</th>
             <th>Bookie</th>
             <th>Type</th>
-            <th>Reload</th>
+            <th>Reload / terms</th>
             <th class="num">Deposited</th>
             <th class="num">Free funds</th>
+            <th class="num">Expected EV</th>
             <th class="num">Bookie P&amp;L</th>
             <th class="num">Exchange P&amp;L</th>
             <th class="num">Net</th>
@@ -40,10 +41,13 @@
                   {% if row.reload_reward and row.reload_reward != "0.00" %} → {{ row.reload_reward | gbp }}{% endif %}
                   {% if row.next_reload_on %} · next {{ row.next_reload_on }}{% endif %}
                   {% if row.reload_due %}<span class="pill on">Due</span>{% endif %}
+                {% elif row.is_casino and row.spin_count %}
+                  {{ row.spin_count }} × {{ row.spin_value | gbp }}{% if row.spin_game %} · {{ row.spin_game }}{% endif %}
                 {% else %}–{% endif %}
               </td>
               <td class="num">{{ row.deposited | gbp }}</td>
               <td class="num">{% if row.free_funds and row.free_funds != "0.00" %}{{ row.free_funds_used | gbp }} / {{ row.free_funds | gbp }}{% else %}–{% endif %}</td>
+              <td class="{{ row.expected_ev | pnl }} num">{% if row.is_casino %}{{ row.expected_ev | gbp }}{% else %}–{% endif %}</td>
               <td class="{{ row.bookie_profit | pnl }} num">{{ row.bookie_profit | gbp }}</td>
               <td class="{{ row.exchange_profit | pnl }} num">{{ row.exchange_profit | gbp }}</td>
               <td class="{{ row.net_profit | pnl }} num">{{ row.net_profit | gbp }}</td>

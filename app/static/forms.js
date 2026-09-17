@@ -6,6 +6,8 @@
     acca_insurance: ["free_funds"],
     extra_place: [],
     price_boost: [],
+    free_spins: ["deposit", "casino", "spins", "wagering"],
+    casino: ["deposit", "casino", "free_funds", "spins", "wagering"],
     other: ["deposit", "free_funds"],
   };
   const OFFER_HINT = {
@@ -15,12 +17,15 @@
     acca_insurance: "The free bet or refund if the acca loses.",
     extra_place: "Just a name and bookie. Attach the extra-place bets to this offer.",
     price_boost: "Just a name and bookie. Attach the boosted bets to this offer.",
-    other: "Use this when it is not a welcome, reload, or insurance offer.",
+    free_spins: "Sports qualifier or a casino playthrough, then the free spins. Wagering 0 means winnings are cash.",
+    casino: "Deposit, play through to unlock a bonus, then clear wagering. RTP is the long-run expected keep.",
+    other: "Use this when it is not a welcome, reload, casino, or insurance offer.",
   };
   const FREE_LABEL = {
     welcome: "Free bets they give you",
     risk_free: "Refund if it loses",
     acca_insurance: "Insurance / free bet",
+    casino: "Bonus they give you",
     other: "Free bets they give you",
   };
   const DEPOSIT_LABEL = {

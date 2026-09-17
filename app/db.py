@@ -43,6 +43,24 @@ def _ensure_sqlite_columns(engine: Engine) -> None:
             conn.execute(text("ALTER TABLE offers ADD COLUMN reload_reward NUMERIC(12, 2) DEFAULT 0"))
         if "next_reload_on" not in cols:
             conn.execute(text("ALTER TABLE offers ADD COLUMN next_reload_on DATE"))
+        if "casino_wager" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN casino_wager NUMERIC(12, 2) DEFAULT 0"))
+        if "casino_rtp" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN casino_rtp NUMERIC(6, 3) DEFAULT 0"))
+        if "spin_count" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN spin_count INTEGER DEFAULT 0"))
+        if "spin_value" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN spin_value NUMERIC(12, 2) DEFAULT 0"))
+        if "spin_game" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN spin_game VARCHAR(120) DEFAULT ''"))
+        if "spin_rtp" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN spin_rtp NUMERIC(6, 3) DEFAULT 0"))
+        if "wagering_multiplier" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN wagering_multiplier NUMERIC(8, 2) DEFAULT 0"))
+        if "max_cashout" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN max_cashout NUMERIC(12, 2) DEFAULT 0"))
+        if "bonus_rtp" not in cols:
+            conn.execute(text("ALTER TABLE offers ADD COLUMN bonus_rtp NUMERIC(6, 3) DEFAULT 0"))
         bet_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(bets)"))}
         if "free_bet_returned" not in bet_cols:
             conn.execute(text("ALTER TABLE bets ADD COLUMN free_bet_returned INTEGER DEFAULT 0"))
@@ -62,6 +80,12 @@ def _ensure_sqlite_columns(engine: Engine) -> None:
             conn.execute(text("ALTER TABLE bets ADD COLUMN fixture_source VARCHAR(20)"))
         if "fixture_id" not in bet_cols:
             conn.execute(text("ALTER TABLE bets ADD COLUMN fixture_id VARCHAR(80)"))
+        if "rtp" not in bet_cols:
+            conn.execute(text("ALTER TABLE bets ADD COLUMN rtp NUMERIC(6, 3) DEFAULT 0"))
+        if "spin_count" not in bet_cols:
+            conn.execute(text("ALTER TABLE bets ADD COLUMN spin_count INTEGER DEFAULT 0"))
+        if "wagering_multiplier" not in bet_cols:
+            conn.execute(text("ALTER TABLE bets ADD COLUMN wagering_multiplier NUMERIC(8, 2) DEFAULT 0"))
         account_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(accounts)"))}
         if "last_checked_on" not in account_cols:
             conn.execute(text("ALTER TABLE accounts ADD COLUMN last_checked_on DATE"))

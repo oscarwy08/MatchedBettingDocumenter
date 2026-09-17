@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Other / manual now shows lay odds and a live Result, the same as a qualifying bet. "
+        "Casino playthrough and free spins can be logged with RTP, wagering, and expected value. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)

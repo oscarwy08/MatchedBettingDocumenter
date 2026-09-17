@@ -63,6 +63,14 @@ NOTES = {
         ],
         "primary": "OK",
     },
+    "2.0.6": {
+        "kicker": "This update",
+        "title": "Casino and free spins",
+        "paragraphs": [
+            "Offers and the calculator can now log casino playthrough and free spins the way Matched Betting Blog does: RTP, spin count and value, wagering, max cashout, and expected value. Settle with what you actually finished with — variance is normal.",
+        ],
+        "primary": "OK",
+    },
 }
 
 

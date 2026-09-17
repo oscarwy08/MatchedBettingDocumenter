@@ -3,7 +3,7 @@
 {% block eyebrow %}Log a bet{% endblock %}
 {% block heading %}Bet calculator{% endblock %}
 {% block content %}
-  <form method="post" action="{{ url_for('main.log_bet') }}" id="calc-form" class="calc-layout">
+  <form method="post" action="{{ url_for('main.log_bet') }}" id="calc-form" class="calc-layout"{% if casino_offer %} data-casino-offer="1" data-casino-wager="{{ casino_wager }}" data-casino-rtp="{{ casino_rtp }}" data-spin-value="{{ spin_value }}" data-spin-count="{{ spin_count_default }}" data-spin-rtp="{{ spin_rtp }}" data-wagering="{{ wagering_default }}" data-max-cashout="{{ max_cashout_default }}" data-spin-game="{{ spin_game }}"{% endif %}>
     <section class="panel">
       <div class="panel-head"><h2>Bet</h2></div>
       <div class="form-grid">
@@ -17,11 +17,11 @@
         </label>
         <label class="span-2" id="selections-field">
           <span class="field-name" id="selections-label">Selections</span>
-          <input name="market" id="market" type="text" placeholder="Match odds / Liverpool">
+          <input name="market" id="market" type="text" placeholder="Match odds / Liverpool" value="{{ calc_market or '' }}">
         </label>
         <label id="stake-field">
           <span class="field-name" id="stake-label">Back stake</span>
-          <input name="back_stake" id="back_stake" type="number" step="0.01" min="0" value="10" required>
+          <input name="back_stake" id="back_stake" type="number" step="0.01" min="0" value="{{ calc_stake or 10 }}" required>
         </label>
         <label id="odds-field">
           <span class="field-name" id="odds-label">Back odds</span>
@@ -50,6 +50,22 @@
           <span class="field-name">Expected profit</span>
           <input name="expected_profit_manual" type="number" step="0.01" value="0">
         </label>
+        <label id="rtp-field" class="is-hidden">
+          <span class="field-name" id="rtp-label">RTP %</span>
+          <input name="rtp" id="rtp" type="number" step="0.01" min="0.01" max="100" value="{{ calc_rtp or '96.00' }}">
+        </label>
+        <label id="spin-count-field" class="is-hidden">
+          <span class="field-name">Free spins</span>
+          <input name="spin_count" id="spin_count" type="number" step="1" min="0" value="{{ calc_spin_count or 30 }}">
+        </label>
+        <label id="wagering-field" class="is-hidden">
+          <span class="field-name">Wagering on winnings</span>
+          <input name="wagering_multiplier" id="wagering_multiplier" type="number" step="0.01" min="0" value="{{ calc_wagering or 0 }}">
+        </label>
+        <label id="max-cashout-field" class="is-hidden">
+          <span class="field-name">Max cashout</span>
+          <input name="max_cashout" id="max_cashout" type="number" step="0.01" min="0" value="{{ calc_max_cashout or 0 }}" placeholder="0 = no cap">
+        </label>
       </div>
       <details class="more-block" id="matched-advanced">
         <summary>Commission and lay override</summary>
@@ -70,16 +86,18 @@
       <div class="panel-head"><h2>Result</h2></div>
       <p id="calc-error" class="flash flash-error is-hidden"></p>
       <p id="unmatched-hint" class="hint is-hidden">No lay — this is just the bookie bet. Expected profit stays £0 until you settle.</p>
+      <p id="casino-hint" class="hint is-hidden">Expected profit is the long-run average from RTP. Settle with what you actually finished with — variance is normal.</p>
       <dl class="result-dl">
         <div class="matched-only"><dt>Lay stake</dt><dd id="out-lay">–</dd></div>
         <div class="matched-only"><dt>Liability</dt><dd id="out-liability">–</dd></div>
+        <div class="casino-only is-hidden"><dt>Expected return</dt><dd id="out-return">–</dd></div>
         <div><dt id="expected-label">Expected profit</dt><dd id="out-expected">–</dd></div>
       </dl>
       <div class="page-actions matched-only" style="margin-bottom: 0.8rem;">
         <button type="button" class="btn" id="copy-lay">Copy lay stake</button>
         <button type="button" class="btn" id="copy-liability">Copy liability</button>
       </div>
-      <table class="outcome-table">
+      <table class="outcome-table" id="outcome-table">
         <thead>
           <tr>
             <th></th>
@@ -108,7 +126,7 @@
     <section class="panel span-2 log-panel">
       <div class="panel-head">
         <h2>Log this bet</h2>
-        <span class="hint">Attach an offer only if this belongs to a welcome, reload, or other campaign.</span>
+        <span class="hint">Attach an offer only if this belongs to a welcome, reload, casino, free spins, or other campaign.</span>
       </div>
       <div class="form-grid log-core">
         <label>
@@ -165,7 +183,7 @@
   </form>
 {% endblock %}
 {% block scripts %}
-  <script src="{{ url_for('static', filename='forms.js') }}?v=1"></script>
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=12"></script>
+  <script src="{{ url_for('static', filename='forms.js') }}?v=2"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=15"></script>
   <script src="{{ url_for('static', filename='fixtures.js') }}?v=1"></script>
 {% endblock %}

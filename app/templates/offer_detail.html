@@ -49,7 +49,42 @@
         <strong>{% if snap.reload_stake %}{{ snap.reload_stake | gbp }}{% else %}–{% endif %}{% if snap.reload_reward %} → {{ snap.reload_reward | gbp }}{% endif %}</strong>
       </article>
     {% endif %}
+    {% if snap.is_casino %}
+      {% if snap.casino_wager %}
+        <article class="stat-card">
+          <p>Playthrough EV</p>
+          <strong class="{{ snap.expected_qualifying | pnl }}">{{ snap.expected_qualifying | gbp }}</strong>
+        </article>
+      {% endif %}
+      {% if snap.spin_count %}
+        <article class="stat-card">
+          <p>Spins EV</p>
+          <strong class="{{ snap.expected_spins | pnl }}">{{ snap.expected_spins | gbp }}</strong>
+        </article>
+      {% endif %}
+      {% if snap.expected_bonus %}
+        <article class="stat-card">
+          <p>Bonus EV</p>
+          <strong class="{{ snap.expected_bonus | pnl }}">{{ snap.expected_bonus | gbp }}</strong>
+        </article>
+      {% endif %}
+      <article class="stat-card">
+        <p>Expected EV</p>
+        <strong class="{{ snap.expected_ev | pnl }}">{{ snap.expected_ev | gbp }}</strong>
+      </article>
+    {% endif %}
   </section>
+
+  {% if snap.is_casino %}
+    <p class="notes">
+      Expected value uses RTP the way Matched Betting Blog does: playthrough cost is stake × (1 − RTP), free-spin winnings are stake-not-returned, then wagering and any max cashout.
+      {% if snap.spin_count %} {{ snap.spin_count }} × {{ snap.spin_value | gbp }}{% if snap.spin_game %} on {{ snap.spin_game }}{% endif %}{% if snap.spin_rtp %} at {{ '%.4g'|format(snap.spin_rtp|float) }}% RTP{% endif %}.{% endif %}
+      {% if snap.casino_wager %} Qualifying playthrough {{ snap.casino_wager | gbp }}{% if snap.casino_rtp %} at {{ '%.4g'|format(snap.casino_rtp|float) }}% RTP{% endif %}.{% endif %}
+      {% if snap.wagering_multiplier %} Wagering {{ '%.4g'|format(snap.wagering_multiplier|float) }}×.{% endif %}
+      {% if snap.max_cashout %} Max cashout {{ snap.max_cashout | gbp }}.{% endif %}
+      Settle each leg with what you actually finished with — variance is normal.
+    </p>
+  {% endif %}
 
   {% if offer.notes %}
     <p class="notes">{{ offer.notes }}</p>
@@ -86,8 +121,8 @@
               <td>{{ bet.starts_at | uktime }}</td>
               <td>{{ bet.bet_type | labelize }}</td>
               <td><a href="{{ url_for('main.bet_detail', bet_id=bet.id) }}">{{ bet.event or "Untitled" }}</a></td>
-              <td class="num">{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}</td>
-              <td class="num">{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}</td>
+              <td class="num">{% if bet.is_casino %}{% if bet.spin_count %}{{ bet.spin_count }} × {{ bet.spin_coin | gbp }}{% else %}{{ bet.back_stake | gbp }}{% endif %}{% if bet.rtp %} @ {{ '%.4g'|format(bet.rtp|float) }}%{% endif %}{% else %}{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}{% endif %}</td>
+              <td class="num">{% if bet.is_casino %}–{% else %}{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}{% endif %}</td>
               <td class="{{ bet.expected_profit | pnl }} num">{{ bet.expected_profit | gbp }}</td>
               <td class="{{ bet.actual_profit | pnl }} num">{{ bet.actual_profit | gbp }}</td>
               <td><span class="pill">{{ bet.status | labelize }}</span>
@@ -144,5 +179,5 @@
   </form>
 {% endblock %}
 {% block scripts %}
-  <script src="{{ url_for('static', filename='forms.js') }}?v=1"></script>
+  <script src="{{ url_for('static', filename='forms.js') }}?v=2"></script>
 {% endblock %}

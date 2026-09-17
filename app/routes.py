@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.calculator import CalcBetType, calculate, unmatched_back
+from app.casino import qualifying_ev, result_dict, spins_ev
 from app.charts import (
     RANGES,
     VIEWS,
@@ -90,6 +91,8 @@ OFFER_TYPE_CHOICES = [
     (OfferType.ACCA_INSURANCE, "Acca insurance"),
     (OfferType.EXTRA_PLACE, "Extra place"),
     (OfferType.PRICE_BOOST, "Price boost"),
+    (OfferType.FREE_SPINS, "Free spins"),
+    (OfferType.CASINO, "Casino bonus"),
     (OfferType.OTHER, "Other"),
 ]
 
@@ -101,6 +104,8 @@ BET_TYPE_CHOICES = [
     (BetType.NORMAL, "Normal / unmatched"),
     (BetType.ACCA, "Accumulator"),
     (BetType.BUILDER, "Bet builder"),
+    (BetType.CASINO_WAGER, "Casino wager"),
+    (BetType.FREE_SPINS, "Free spins"),
     (BetType.MUG, "Mug bet"),
     (BetType.OTHER, "Other / manual"),
 ]
@@ -195,6 +200,33 @@ def _apply_reload_fields(offer: Offer, *, prefix: str = "") -> None:
     offer.reload_reward = _parse_decimal(f"{prefix}reload_reward")
     raw = (request.form.get(f"{prefix}next_reload_on") or "").strip()
     offer.next_reload_on = parse_uk(raw) if raw else None
+
+
+def _apply_casino_fields(offer: Offer, *, prefix: str = "") -> None:
+    kind = (request.form.get("offer_type") if prefix == "offer_" else request.form.get("type")) or offer.type
+    casino_types = {OfferType.FREE_SPINS, OfferType.CASINO}
+    if kind not in casino_types:
+        offer.casino_wager = Decimal("0")
+        offer.casino_rtp = Decimal("0")
+        offer.spin_count = 0
+        offer.spin_value = Decimal("0")
+        offer.spin_game = ""
+        offer.spin_rtp = Decimal("0")
+        offer.wagering_multiplier = Decimal("0")
+        offer.max_cashout = Decimal("0")
+        offer.bonus_rtp = Decimal("0")
+        return
+    offer.casino_wager = _parse_decimal(f"{prefix}casino_wager")
+    offer.casino_rtp = _parse_decimal(f"{prefix}casino_rtp")
+    offer.spin_count = int(_parse_decimal(f"{prefix}spin_count") or 0)
+    offer.spin_value = _parse_decimal(f"{prefix}spin_value")
+    offer.spin_game = (request.form.get(f"{prefix}spin_game") or "").strip()
+    offer.spin_rtp = _parse_decimal(f"{prefix}spin_rtp")
+    offer.wagering_multiplier = _parse_decimal(f"{prefix}wagering_multiplier")
+    offer.max_cashout = _parse_decimal(f"{prefix}max_cashout")
+    offer.bonus_rtp = _parse_decimal(f"{prefix}bonus_rtp")
+    if kind == OfferType.FREE_SPINS:
+        offer.free_funds = offer.spin_face
 
 
 def _resolve_exchange_id(session: Session, numbers: dict) -> int:
@@ -491,12 +523,73 @@ def charts_api():
     )
 
 
+def _default_casino_bet_type(offer: Offer) -> str:
+    if offer.type == OfferType.CASINO:
+        return BetType.CASINO_WAGER
+    if offer.type == OfferType.FREE_SPINS:
+        if offer.casino_wager and not any(bet.bet_type == BetType.CASINO_WAGER for bet in offer.bets):
+            return BetType.CASINO_WAGER
+        return BetType.FREE_SPINS
+    return ""
+
+
+def _casino_calc_defaults(offer: Offer | None, bet_type: str) -> dict:
+    defaults = {
+        "calc_stake": "10",
+        "calc_rtp": "96.00",
+        "calc_spin_count": "30",
+        "calc_wagering": "0",
+        "calc_max_cashout": "0",
+        "calc_market": "",
+        "casino_offer": False,
+        "casino_wager": "",
+        "casino_rtp": "",
+        "spin_value": "",
+        "spin_count_default": "",
+        "spin_rtp": "",
+        "wagering_default": "",
+        "max_cashout_default": "",
+        "spin_game": "",
+    }
+    if offer is None or not offer.is_casino:
+        return defaults
+    defaults["casino_offer"] = True
+    defaults["casino_wager"] = f"{offer.casino_wager:.2f}" if offer.casino_wager else ""
+    defaults["casino_rtp"] = f"{offer.casino_rtp:.4g}" if offer.casino_rtp else ""
+    defaults["spin_value"] = f"{offer.spin_value:.2f}" if offer.spin_value else ""
+    defaults["spin_count_default"] = str(int(offer.spin_count or 0) or "")
+    defaults["spin_rtp"] = f"{offer.spin_rtp:.4g}" if offer.spin_rtp else ""
+    defaults["wagering_default"] = f"{offer.wagering_multiplier:.4g}" if offer.wagering_multiplier else "0"
+    defaults["max_cashout_default"] = f"{offer.max_cashout:.2f}" if offer.max_cashout else "0"
+    defaults["spin_game"] = offer.spin_game or ""
+    defaults["calc_market"] = offer.spin_game or ""
+    if bet_type == BetType.FREE_SPINS:
+        if offer.spin_value:
+            defaults["calc_stake"] = f"{offer.spin_value:.2f}"
+        if offer.spin_rtp:
+            defaults["calc_rtp"] = f"{offer.spin_rtp:.4g}"
+        if offer.spin_count:
+            defaults["calc_spin_count"] = str(int(offer.spin_count))
+        defaults["calc_wagering"] = defaults["wagering_default"]
+        defaults["calc_max_cashout"] = defaults["max_cashout_default"]
+    else:
+        if offer.casino_wager:
+            defaults["calc_stake"] = f"{offer.casino_wager:.2f}"
+        rtp = offer.casino_rtp or offer.spin_rtp
+        if rtp:
+            defaults["calc_rtp"] = f"{rtp:.4g}"
+        if offer.spin_count:
+            defaults["calc_spin_count"] = str(int(offer.spin_count))
+    return defaults
+
+
 @bp.get("/calculator")
 def calculator_page():
     session = get_session()
     ctx = _form_context(session)
     selected_offer_id = (request.args.get("offer_id") or "").strip()
     selected_bookie_id = (request.args.get("bookie_id") or "").strip()
+    offer = None
     if selected_offer_id.isdigit():
         offer = session.get(Offer, int(selected_offer_id))
         if offer:
@@ -516,7 +609,11 @@ def calculator_page():
     if selected_exchange.isdigit() and session.get(Account, int(selected_exchange)) is None:
         selected_exchange = ""
     ctx["selected_exchange_id"] = selected_exchange
-    ctx["selected_bet_type"] = (request.args.get("bet_type") or "").strip()
+    selected_bet_type = (request.args.get("bet_type") or "").strip()
+    if not selected_bet_type and offer is not None:
+        selected_bet_type = _default_casino_bet_type(offer)
+    ctx["selected_bet_type"] = selected_bet_type
+    ctx.update(_casino_calc_defaults(offer, selected_bet_type))
     return render_template("calculator.html", **ctx)
 
 
@@ -532,6 +629,8 @@ def api_calculate():
     data = request.get_json(force=True, silent=True) or {}
     try:
         bet_type = data.get("bet_type") or CalcBetType.QUALIFYING
+        if bet_type in {BetType.CASINO_WAGER, BetType.FREE_SPINS}:
+            return jsonify(_casino_from_payload(data))
         lay_raw = data.get("lay_odds")
         try:
             lay_odds = Decimal(str(lay_raw or 0))
@@ -560,8 +659,89 @@ def api_calculate():
         return jsonify({"error": str(exc)}), 400
 
 
+def _casino_from_payload(data: dict) -> dict:
+    bet_type = data.get("bet_type") or BetType.CASINO_WAGER
+    rtp = data.get("rtp") or data.get("spin_rtp") or 0
+    if bet_type == BetType.FREE_SPINS:
+        count = data.get("spin_count") or 0
+        value = data.get("spin_value") or data.get("back_stake") or 0
+        spins = spins_ev(
+            count,
+            value,
+            rtp,
+            data.get("wagering_multiplier") or 0,
+            data.get("max_cashout") or None,
+            data.get("clear_rtp") or rtp,
+        )
+        return result_dict(
+            bet_type=BetType.FREE_SPINS,
+            stake=spins["face"],
+            expected_profit=spins["cash"],
+            expected_return=spins["cash"],
+        )
+    stake = Decimal(str(data.get("back_stake") or 0))
+    profit = qualifying_ev(stake, rtp)
+    return result_dict(
+        bet_type=BetType.CASINO_WAGER,
+        stake=stake,
+        expected_profit=profit,
+        expected_return=stake + profit,
+    )
+
+
+def _casino_from_form(bet_type: str) -> dict:
+    rtp = _parse_decimal("rtp")
+    if bet_type == BetType.FREE_SPINS:
+        count = int(_parse_decimal("spin_count") or 0)
+        value = _parse_decimal("spin_value")
+        if value == 0:
+            value = _parse_decimal("back_stake")
+        wr = _parse_decimal("wagering_multiplier")
+        cap_raw = _parse_decimal("max_cashout")
+        spins = spins_ev(count, value, rtp, wr, cap_raw if cap_raw else None, rtp)
+        payload = result_dict(
+            bet_type=BetType.FREE_SPINS,
+            stake=spins["face"],
+            expected_profit=spins["cash"],
+            expected_return=spins["cash"],
+        )
+        return _casino_log_numbers(payload, rtp=rtp, spin_count=count, wagering=wr)
+    stake = _parse_decimal("back_stake")
+    profit = qualifying_ev(stake, rtp)
+    payload = result_dict(
+        bet_type=BetType.CASINO_WAGER,
+        stake=stake,
+        expected_profit=profit,
+        expected_return=stake + profit,
+    )
+    return _casino_log_numbers(payload, rtp=rtp, spin_count=0, wagering=Decimal("0"))
+
+
+def _casino_log_numbers(payload: dict, *, rtp: Decimal, spin_count: int, wagering: Decimal) -> dict:
+    return {
+        "bet_type": payload["bet_type"],
+        "back_stake": Decimal(payload["back_stake"]),
+        "back_odds": Decimal(payload["back_odds"]),
+        "lay_odds": Decimal("0"),
+        "commission_percent": Decimal("0"),
+        "cashback": Decimal("0"),
+        "lay_stake": Decimal("0"),
+        "liability": Decimal("0"),
+        "expected_profit": Decimal(payload["expected_profit"]),
+        "expected_bookie_back": Decimal(payload["if_back_wins"]["bookie"]),
+        "expected_exchange_back": Decimal("0"),
+        "expected_bookie_lay": Decimal(payload["if_lay_wins"]["bookie"]),
+        "expected_exchange_lay": Decimal("0"),
+        "rtp": rtp,
+        "spin_count": spin_count,
+        "wagering_multiplier": wagering,
+    }
+
+
 def _calculation_from_form():
     bet_type = request.form.get("bet_type") or BetType.QUALIFYING
+    if bet_type in {BetType.CASINO_WAGER, BetType.FREE_SPINS}:
+        return _casino_from_form(bet_type)
     back_stake = _parse_decimal("back_stake")
     back_odds = _parse_decimal("back_odds")
     lay_odds = _parse_decimal("lay_odds")
@@ -590,6 +770,9 @@ def _calculation_from_form():
             "expected_exchange_back": calc.if_back_wins.exchange,
             "expected_bookie_lay": calc.if_lay_wins.bookie,
             "expected_exchange_lay": calc.if_lay_wins.exchange,
+            "rtp": Decimal("0"),
+            "spin_count": 0,
+            "wagering_multiplier": Decimal("0"),
         }
 
     calc = calculate(
@@ -615,6 +798,9 @@ def _calculation_from_form():
         "expected_exchange_back": calc.if_back_wins.exchange,
         "expected_bookie_lay": calc.if_lay_wins.bookie,
         "expected_exchange_lay": calc.if_lay_wins.exchange,
+        "rtp": Decimal("0"),
+        "spin_count": 0,
+        "wagering_multiplier": Decimal("0"),
     }
 
 
@@ -640,6 +826,7 @@ def _resolve_offer(session: Session, bookie_id: int) -> Offer | None:
         notes=(request.form.get("offer_notes") or "").strip(),
     )
     _apply_reload_fields(offer, prefix="offer_")
+    _apply_casino_fields(offer, prefix="offer_")
     session.add(offer)
     session.flush()
     sync_offer_deposit(session, offer, when=parse_uk(request.form.get("date_placed")))
@@ -725,6 +912,7 @@ def create_offer():
             notes=(request.form.get("notes") or "").strip(),
         )
         _apply_reload_fields(offer)
+        _apply_casino_fields(offer)
         session.add(offer)
         session.flush()
         sync_offer_deposit(session, offer)
@@ -837,6 +1025,7 @@ def settle_bet(bet_id: int):
         bookie_over = request.form.get("actual_bookie_profit") not in (None, "")
         exchange_over = request.form.get("actual_exchange_profit") not in (None, "")
         net_over = request.form.get("actual_profit") not in (None, "")
+        unmatched = bet.is_casino or Decimal(str(bet.lay_stake or 0)) == 0
         bookie_pl = (
             _parse_decimal("actual_bookie_profit", str(suggested["bookie"]))
             if bookie_over
@@ -849,8 +1038,12 @@ def settle_bet(bet_id: int):
         )
         if net_over and not bookie_over and not exchange_over:
             net = _parse_decimal("actual_profit", str(suggested["net"]))
-            bookie_pl = suggested["bookie"]
-            exchange_pl = net - bookie_pl
+            if unmatched:
+                bookie_pl = net
+                exchange_pl = Decimal("0")
+            else:
+                bookie_pl = suggested["bookie"]
+                exchange_pl = net - bookie_pl
         elif net_over and bookie_over and not exchange_over:
             net = _parse_decimal("actual_profit", str(suggested["net"]))
             exchange_pl = net - bookie_pl
@@ -1380,6 +1573,9 @@ def duplicate_bet(bet_id: int):
         expected_exchange_back=bet.expected_exchange_back,
         expected_bookie_lay=bet.expected_bookie_lay,
         expected_exchange_lay=bet.expected_exchange_lay,
+        rtp=bet.rtp,
+        spin_count=bet.spin_count,
+        wagering_multiplier=bet.wagering_multiplier,
         status=BetStatus.PENDING,
     )
     session.add(copy)
@@ -1407,6 +1603,7 @@ def edit_offer(offer_id: int):
         offer.deposit_amount = _parse_decimal("deposit_amount")
         offer.free_funds = _parse_decimal("free_funds")
         _apply_reload_fields(offer)
+        _apply_casino_fields(offer)
         sync_offer_deposit(session, offer)
         _commit_and_sync(session)
         flash("Offer updated.", "ok")

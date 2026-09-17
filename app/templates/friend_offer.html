@@ -30,9 +30,23 @@
       <article class="stat-card"><p>Each time</p><strong>{% if offer.reload_stake and offer.reload_stake != "0.00" %}{{ offer.reload_stake | gbp }}{% else %}–{% endif %}{% if offer.reload_reward and offer.reload_reward != "0.00" %} → {{ offer.reload_reward | gbp }}{% endif %}</strong></article>
       <article class="stat-card"><p>Next due</p><strong>{% if offer.reload_due %}Due{% elif offer.next_reload_on %}{{ offer.next_reload_on }}{% else %}–{% endif %}</strong></article>
     {% endif %}
+    {% if offer.is_casino %}
+      {% if offer.spin_count %}
+        <article class="stat-card"><p>Spins EV</p><strong class="{{ offer.expected_spins | pnl }}">{{ offer.expected_spins | gbp }}</strong></article>
+      {% endif %}
+      <article class="stat-card"><p>Expected EV</p><strong class="{{ offer.expected_ev | pnl }}">{{ offer.expected_ev | gbp }}</strong></article>
+    {% endif %}
   </section>
   {% if offer.notes %}
     <p class="notes">{{ offer.notes }}</p>
+  {% endif %}
+  {% if offer.is_casino %}
+    <p class="notes">
+      Expected value from RTP.
+      {% if offer.spin_count %} {{ offer.spin_count }} × {{ offer.spin_value | gbp }}{% if offer.spin_game %} on {{ offer.spin_game }}{% endif %}.{% endif %}
+      {% if offer.casino_wager and offer.casino_wager != "0.00" %} Playthrough {{ offer.casino_wager | gbp }}.{% endif %}
+      {% if offer.wagering_multiplier and offer.wagering_multiplier != "0" and offer.wagering_multiplier != "0.00" %} Wagering {{ offer.wagering_multiplier }}×.{% endif %}
+    </p>
   {% endif %}
   <section class="panel">
     <div class="panel-head"><h2>Legs</h2></div>

@@ -8,6 +8,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.calculator import money
+from app.casino import offer_ev
 from app.models import (
     Account,
     AccountType,
@@ -202,6 +203,17 @@ def offer_snapshot(offer: Offer) -> dict:
     exchange_pl = _sum(row["exchange"] for row in amounts)
     net = _sum(row["net"] for row in amounts)
     expected_pending = _sum(bet.expected_profit for bet in pending)
+    casino = offer_ev(
+        casino_wager=offer.casino_wager or 0,
+        casino_rtp=offer.casino_rtp or 0,
+        spin_count=offer.spin_count or 0,
+        spin_value=offer.spin_value or 0,
+        spin_rtp=offer.spin_rtp or 0,
+        bonus=offer.free_funds or 0 if offer.type == "casino" else 0,
+        wagering=offer.wagering_multiplier or 0,
+        bonus_rtp=offer.bonus_rtp or offer.casino_rtp or offer.spin_rtp or 0,
+        max_cashout=offer.max_cashout or None,
+    )
     return {
         "offer": offer,
         "status": offer.status,
@@ -220,6 +232,19 @@ def offer_snapshot(offer: Offer) -> dict:
         "reload_reward": money(offer.reload_reward or ZERO),
         "next_reload_on": offer.next_reload_on,
         "reload_due": offer.reload_due,
+        "is_casino": offer.is_casino,
+        "casino_wager": money(offer.casino_wager or ZERO),
+        "casino_rtp": offer.casino_rtp or ZERO,
+        "spin_count": int(offer.spin_count or 0),
+        "spin_value": money(offer.spin_value or ZERO),
+        "spin_game": offer.spin_game or "",
+        "spin_rtp": offer.spin_rtp or ZERO,
+        "wagering_multiplier": offer.wagering_multiplier or ZERO,
+        "max_cashout": money(offer.max_cashout or ZERO),
+        "expected_qualifying": casino["qualifying"],
+        "expected_spins": casino["spins"],
+        "expected_bonus": casino["bonus"],
+        "expected_ev": casino["net"],
     }
 
 

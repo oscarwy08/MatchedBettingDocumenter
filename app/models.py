@@ -24,6 +24,8 @@ class OfferType(StrEnum):
     ACCA_INSURANCE = "acca_insurance"
     EXTRA_PLACE = "extra_place"
     PRICE_BOOST = "price_boost"
+    FREE_SPINS = "free_spins"
+    CASINO = "casino"
     OTHER = "other"
 
 
@@ -36,6 +38,8 @@ class BetType(StrEnum):
     ACCA = "acca"
     BUILDER = "bet_builder"
     MUG = "mug"
+    CASINO_WAGER = "casino_wager"
+    FREE_SPINS = "free_spins"
     OTHER = "other"
 
 
@@ -122,6 +126,15 @@ class Offer(Base):
     reload_stake: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
     reload_reward: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
     next_reload_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    casino_wager: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
+    casino_rtp: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=Decimal("0"))
+    spin_count: Mapped[int] = mapped_column(Integer, default=0)
+    spin_value: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
+    spin_game: Mapped[str] = mapped_column(String(120), default="")
+    spin_rtp: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=Decimal("0"))
+    wagering_multiplier: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"))
+    max_cashout: Mapped[Decimal] = mapped_column(Money, default=Decimal("0.00"))
+    bonus_rtp: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=Decimal("0"))
     notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
@@ -133,12 +146,22 @@ class Offer(Base):
     def free_funds_used(self) -> Decimal:
         used = Decimal("0.00")
         for bet in self.bets:
-            if bet.bet_type not in {BetType.FREE_BET_SNR, BetType.FREE_BET_SR}:
-                continue
             if bet.status == BetStatus.VOID and bet.free_bet_returned:
                 continue
-            used += Decimal(str(bet.back_stake or 0))
+            if bet.bet_type in {BetType.FREE_BET_SNR, BetType.FREE_BET_SR}:
+                used += Decimal(str(bet.back_stake or 0))
+            elif bet.bet_type == BetType.FREE_SPINS:
+                used += Decimal(str(bet.back_stake or 0))
         return used
+
+    @property
+    def is_casino(self) -> bool:
+        return self.type in {OfferType.FREE_SPINS, OfferType.CASINO}
+
+    @property
+    def spin_face(self) -> Decimal:
+        count = Decimal(str(self.spin_count or 0))
+        return count * Decimal(str(self.spin_value or 0))
 
     @property
     def repeats(self) -> bool:
@@ -156,14 +179,17 @@ class Offer(Base):
     def status(self) -> str:
         if self.repeats and self.reload_due:
             return "Reload due"
+        pending = any(bet.status == BetStatus.PENDING for bet in self.bets)
         funds = Decimal(str(self.free_funds or 0))
         if funds > 0:
             if self.free_funds_used >= funds and not self.repeats:
                 return "Used"
+            if self.type == OfferType.CASINO and self.bets and not pending and not self.repeats:
+                return "Complete"
             return "In progress"
         if not self.bets:
             return "In progress"
-        if any(bet.status == BetStatus.PENDING for bet in self.bets):
+        if pending:
             return "In progress"
         if self.repeats:
             return "In progress"
@@ -204,6 +230,9 @@ class Bet(Base):
     ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     fixture_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     fixture_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    rtp: Mapped[Decimal] = mapped_column(Numeric(6, 3), default=Decimal("0"))
+    spin_count: Mapped[int] = mapped_column(Integer, default=0)
+    wagering_multiplier: Mapped[Decimal] = mapped_column(Numeric(8, 2), default=Decimal("0"))
     free_bet_returned: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
@@ -226,6 +255,18 @@ class Bet(Base):
     @property
     def is_free_bet(self) -> bool:
         return self.bet_type in {BetType.FREE_BET_SNR, BetType.FREE_BET_SR}
+
+    @property
+    def is_casino(self) -> bool:
+        return self.bet_type in {BetType.CASINO_WAGER, BetType.FREE_SPINS}
+
+    @property
+    def spin_coin(self) -> Decimal:
+        count = int(self.spin_count or 0)
+        stake = Decimal(str(self.back_stake or 0))
+        if count > 0:
+            return stake / count
+        return stake
 
 
 class Transfer(Base):

@@ -299,6 +299,18 @@ def _offer_row(offer) -> dict:
         "reload_reward": _money(row["reload_reward"]),
         "next_reload_on": _when(nxt) if nxt else "",
         "reload_due": bool(row["reload_due"]),
+        "is_casino": bool(row.get("is_casino")),
+        "casino_wager": _money(row.get("casino_wager")),
+        "spin_count": int(row.get("spin_count") or 0),
+        "spin_value": _money(row.get("spin_value")),
+        "spin_game": offer.spin_game or "",
+        "spin_rtp": str(row.get("spin_rtp") or ""),
+        "wagering_multiplier": str(row.get("wagering_multiplier") or ""),
+        "max_cashout": _money(row.get("max_cashout")),
+        "expected_ev": _money(row.get("expected_ev")),
+        "expected_qualifying": _money(row.get("expected_qualifying")),
+        "expected_spins": _money(row.get("expected_spins")),
+        "expected_bonus": _money(row.get("expected_bonus")),
     }
 
 
@@ -522,6 +534,15 @@ def _bet_row(bet) -> dict:
         "profit": _money(profit),
         "pending": pending,
         "free_bet_returned": bool(getattr(bet, "free_bet_returned", False)),
+        "is_casino": bet.bet_type in {"casino_wager", "free_spins"},
+        "rtp": str(getattr(bet, "rtp", "") or ""),
+        "spin_count": int(getattr(bet, "spin_count", 0) or 0),
+        "spin_coin": _money(
+            (Decimal(str(bet.back_stake or 0)) / int(bet.spin_count))
+            if int(getattr(bet, "spin_count", 0) or 0)
+            else bet.back_stake
+        ),
+        "wagering_multiplier": str(getattr(bet, "wagering_multiplier", "") or ""),
     }
 
 

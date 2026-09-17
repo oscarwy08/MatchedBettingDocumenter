@@ -12,9 +12,14 @@
   {{ friend_banner(live, last_available, fetch_error) }}
   <section class="stat-grid">
     <article class="stat-card"><p>Type</p><strong>{{ bet.bet_type | labelize }}</strong></article>
-    <article class="stat-card"><p>Back</p><strong>{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}</strong></article>
-    <article class="stat-card"><p>Lay</p><strong>{% if bet.lay_odds and bet.lay_odds != "0.00" and bet.lay_odds != "0" %}{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}{% else %}Unmatched{% endif %}</strong></article>
-    <article class="stat-card"><p>Liability</p><strong>{{ bet.liability | gbp }}</strong></article>
+    {% if bet.is_casino %}
+      <article class="stat-card"><p>{% if bet.spin_count %}Spins{% else %}Wager{% endif %}</p><strong>{% if bet.spin_count %}{{ bet.spin_count }} × {{ bet.spin_coin | gbp }}{% else %}{{ bet.back_stake | gbp }}{% endif %}</strong></article>
+      <article class="stat-card"><p>RTP</p><strong>{% if bet.rtp %}{{ bet.rtp }}%{% else %}–{% endif %}</strong></article>
+    {% else %}
+      <article class="stat-card"><p>Back</p><strong>{{ bet.back_stake | gbp }} @ {{ bet.back_odds }}</strong></article>
+      <article class="stat-card"><p>Lay</p><strong>{% if bet.lay_odds and bet.lay_odds != "0.00" and bet.lay_odds != "0" %}{{ bet.lay_stake | gbp }} @ {{ bet.lay_odds }}{% else %}Unmatched{% endif %}</strong></article>
+      <article class="stat-card"><p>Liability</p><strong>{{ bet.liability | gbp }}</strong></article>
+    {% endif %}
     <article class="stat-card"><p>Expected</p><strong class="{{ bet.expected_profit | pnl }}">{{ bet.expected_profit | gbp }}</strong></article>
     <article class="stat-card"><p>Placed</p><strong>{{ bet.placed or bet.date }}</strong></article>
     <article class="stat-card"><p>Starts</p><strong>{{ bet.starts or "—" }}</strong></article>
@@ -30,6 +35,7 @@
     </p>
   {% endif %}
 
+  {% if not bet.is_casino %}
   <section class="panel">
     <div class="panel-head"><h2>Outcomes</h2></div>
     <table>
@@ -50,6 +56,7 @@
       </tbody>
     </table>
   </section>
+  {% endif %}
 
   {% if not bet.pending %}
     <section class="panel">
