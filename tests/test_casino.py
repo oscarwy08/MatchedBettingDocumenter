@@ -142,6 +142,9 @@ def test_create_free_spins_offer_log_and_settle(tmp_path, monkeypatch):
     assert b'data-casino-offer="1"' in calc.data
     assert b"Cashed out" in calc.data
     assert b"Profit" in calc.data
+    assert b"out-cashout" in calc.data
+    assert b"out-actual-profit" in calc.data
+    assert b"Expected return (RTP)" in calc.data
     assert b"0.20" in calc.data or b"10.00" in calc.data
 
     logged = client.post(

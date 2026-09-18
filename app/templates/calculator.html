@@ -69,12 +69,12 @@
         <label id="casino-cashout-field" class="casino-only is-hidden">
           <span class="field-name">Cashed out</span>
           <input name="casino_cashout" id="casino_cashout" type="number" step="0.01" placeholder="0.00">
-          <span class="hint">Balance after the slots, including a big win. Leave blank to log as pending.</span>
+          <span class="hint">Balance after the slots. Leave blank if still playing.</span>
         </label>
         <label id="casino-profit-field" class="casino-only is-hidden">
           <span class="field-name">Profit</span>
           <input name="casino_profit" id="casino_profit" type="number" step="0.01" placeholder="0.00">
-          <span class="hint">Either box is enough. Profit is what hits your log.</span>
+          <span class="hint">Or type profit — the other box fills in.</span>
         </label>
       </div>
       <details class="more-block" id="matched-advanced">
@@ -96,11 +96,13 @@
       <div class="panel-head"><h2>Result</h2></div>
       <p id="calc-error" class="flash flash-error is-hidden"></p>
       <p id="unmatched-hint" class="hint is-hidden">No lay — this is just the bookie bet. Expected profit stays £0 until you settle.</p>
-      <p id="casino-hint" class="hint is-hidden">RTP is the long-run average. Put what you cashed, or the profit, when you finish — a big hit is the real result.</p>
+      <p id="casino-hint" class="hint is-hidden">RTP is the long-run average. Cashed out and Profit are what you actually finished with.</p>
       <dl class="result-dl">
         <div class="matched-only"><dt>Lay stake</dt><dd id="out-lay">–</dd></div>
         <div class="matched-only"><dt>Liability</dt><dd id="out-liability">–</dd></div>
-        <div class="casino-only is-hidden"><dt>Expected return</dt><dd id="out-return">–</dd></div>
+        <div class="casino-actual-only is-hidden"><dt>Cashed out</dt><dd id="out-cashout">–</dd></div>
+        <div class="casino-actual-only is-hidden"><dt>Profit</dt><dd id="out-actual-profit">–</dd></div>
+        <div class="casino-only is-hidden"><dt>Expected return (RTP)</dt><dd id="out-return">–</dd></div>
         <div><dt id="expected-label">Expected profit</dt><dd id="out-expected">–</dd></div>
       </dl>
       <div class="page-actions matched-only" style="margin-bottom: 0.8rem;">
@@ -194,6 +196,6 @@
 {% endblock %}
 {% block scripts %}
   <script src="{{ url_for('static', filename='forms.js') }}?v=3"></script>
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=16"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=17"></script>
   <script src="{{ url_for('static', filename='fixtures.js') }}?v=1"></script>
 {% endblock %}

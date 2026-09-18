@@ -87,12 +87,14 @@
     <section class="panel results-panel" id="results-panel">
       <div class="panel-head"><h2>Result</h2></div>
       <p id="unmatched-hint" class="hint is-hidden">No lay — this is just the bookie bet. Expected profit stays £0 until you settle.</p>
-      <p id="casino-hint" class="hint is-hidden">RTP is the long-run average. Put what you cashed, or the profit, when you settle — a big hit is the real result.</p>
+      <p id="casino-hint" class="hint is-hidden">RTP is the long-run average. Cashed out and Profit are what you actually finished with.</p>
       <p id="calc-error" class="flash flash-error is-hidden"></p>
       <dl class="result-dl">
         <div class="matched-only"><dt>Lay stake</dt><dd id="out-lay">–</dd></div>
         <div class="matched-only"><dt>Liability</dt><dd id="out-liability">–</dd></div>
-        <div class="casino-only is-hidden"><dt>Expected return</dt><dd id="out-return">–</dd></div>
+        <div class="casino-actual-only is-hidden"><dt>Cashed out</dt><dd id="out-cashout">–</dd></div>
+        <div class="casino-actual-only is-hidden"><dt>Profit</dt><dd id="out-actual-profit">–</dd></div>
+        <div class="casino-only is-hidden"><dt>Expected return (RTP)</dt><dd id="out-return">–</dd></div>
         <div><dt id="expected-label">Expected profit</dt><dd id="out-expected">–</dd></div>
       </dl>
       <div class="page-actions matched-only" style="margin-bottom: 0.8rem;">
@@ -195,6 +197,6 @@
 {% endblock %}
 {% block scripts %}
   <script src="{{ url_for('static', filename='forms.js') }}?v=3"></script>
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=16"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=17"></script>
   <script src="{{ url_for('static', filename='fixtures.js') }}?v=1"></script>
 {% endblock %}

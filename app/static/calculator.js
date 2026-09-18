@@ -60,7 +60,10 @@ function syncVisibility() {
   if (layField) layField.classList.toggle("is-hidden", unmatched || casino);
   if (exchangeField) exchangeField.classList.toggle("is-hidden", unmatched || casino);
   if (advanced) advanced.classList.toggle("is-hidden", unmatched || casino);
-  if (results) results.classList.toggle("is-unmatched", unmatched || casino);
+  if (results) {
+    results.classList.toggle("is-unmatched", unmatched || casino);
+    results.classList.toggle("is-casino", casino);
+  }
   if (unmatchedHint) unmatchedHint.classList.toggle("is-hidden", !unmatched || casino);
   if (casinoHint) casinoHint.classList.toggle("is-hidden", !casino);
   if (rtpField) rtpField.classList.toggle("is-hidden", !casino);
@@ -84,6 +87,7 @@ function syncVisibility() {
   if (outcomeTable) outcomeTable.classList.toggle("is-hidden", casino);
   document.querySelectorAll(".casino-only").forEach((el) => el.classList.toggle("is-hidden", !casino));
   syncLogButton();
+  paintActuals();
 
   const selections = document.getElementById("selections-field");
   if (selections) selections.classList.remove("is-hidden");
@@ -155,6 +159,19 @@ function syncCasinoBoxes(from) {
     if (!Number.isNaN(p)) cash.value = (spins ? p : p + stake).toFixed(2);
   }
   syncLogButton();
+  paintActuals();
+}
+
+function paintActuals() {
+  const cash = document.getElementById("casino_cashout");
+  const profit = document.getElementById("casino_profit");
+  const filled = CASINO.has(currentType()) && ((cash && cash.value !== "") || (profit && profit.value !== ""));
+  document.querySelectorAll(".casino-actual-only").forEach((el) => {
+    el.classList.toggle("is-hidden", !filled);
+  });
+  if (!filled) return;
+  if (cash && cash.value !== "") paint("out-cashout", cash.value);
+  if (profit && profit.value !== "") paint("out-actual-profit", profit.value);
 }
 
 function syncLogButton() {
@@ -208,6 +225,7 @@ async function refresh() {
     paint("lay-bookie", data.if_lay_wins.bookie);
     paint("lay-exchange", data.if_lay_wins.exchange);
     paint("lay-total", data.if_lay_wins.total);
+    paintActuals();
   } catch (err) {
     error.textContent = err.message;
     error.classList.remove("is-hidden");

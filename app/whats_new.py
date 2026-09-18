@@ -87,6 +87,14 @@ NOTES = {
         ],
         "primary": "OK",
     },
+    "2.0.9": {
+        "kicker": "This update",
+        "title": "Result shows what you cashed",
+        "paragraphs": [
+            "On casino and free spins, Result now shows Cashed out and Profit as soon as you type them. Expected return and expected profit stay as the RTP average underneath.",
+        ],
+        "primary": "OK",
+    },
 }
 
 

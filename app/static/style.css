@@ -551,6 +551,7 @@ th[data-sort-dir="desc"] .th-arrows::before { opacity: 0.25; }
 }
 .results-panel.is-unmatched .matched-only { display: none; }
 .results-panel.is-unmatched .result-dl { grid-template-columns: 1fr; }
+.results-panel.is-casino .result-dl { grid-template-columns: 1fr 1fr; }
 .stack { display: flex; flex-direction: column; gap: 0.7rem; }
 label { display: flex; flex-direction: column; gap: 0.28rem; font-size: 0.86rem; color: var(--muted); }
 input, select {
