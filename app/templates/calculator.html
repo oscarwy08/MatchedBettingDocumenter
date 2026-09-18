@@ -66,6 +66,16 @@
           <span class="field-name">Max cashout</span>
           <input name="max_cashout" id="max_cashout" type="number" step="0.01" min="0" value="{{ calc_max_cashout or 0 }}" placeholder="0 = no cap">
         </label>
+        <label id="casino-cashout-field" class="casino-only is-hidden">
+          <span class="field-name">Cashed out</span>
+          <input name="casino_cashout" id="casino_cashout" type="number" step="0.01" placeholder="0.00">
+          <span class="hint">Balance after the slots, including a big win. Leave blank to log as pending.</span>
+        </label>
+        <label id="casino-profit-field" class="casino-only is-hidden">
+          <span class="field-name">Profit</span>
+          <input name="casino_profit" id="casino_profit" type="number" step="0.01" placeholder="0.00">
+          <span class="hint">Either box is enough. Profit is what hits your log.</span>
+        </label>
       </div>
       <details class="more-block" id="matched-advanced">
         <summary>Commission and lay override</summary>
@@ -86,7 +96,7 @@
       <div class="panel-head"><h2>Result</h2></div>
       <p id="calc-error" class="flash flash-error is-hidden"></p>
       <p id="unmatched-hint" class="hint is-hidden">No lay — this is just the bookie bet. Expected profit stays £0 until you settle.</p>
-      <p id="casino-hint" class="hint is-hidden">Expected profit is the long-run average from RTP. Settle with what you actually finished with — variance is normal.</p>
+      <p id="casino-hint" class="hint is-hidden">RTP is the long-run average. Put what you cashed, or the profit, when you finish — a big hit is the real result.</p>
       <dl class="result-dl">
         <div class="matched-only"><dt>Lay stake</dt><dd id="out-lay">–</dd></div>
         <div class="matched-only"><dt>Liability</dt><dd id="out-liability">–</dd></div>
@@ -177,13 +187,13 @@
         </label>
       </details>
       <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Log pending bet</button>
+        <button type="submit" class="btn btn-primary" id="log-bet-submit">Log pending bet</button>
       </div>
     </section>
   </form>
 {% endblock %}
 {% block scripts %}
   <script src="{{ url_for('static', filename='forms.js') }}?v=3"></script>
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=15"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=16"></script>
   <script src="{{ url_for('static', filename='fixtures.js') }}?v=1"></script>
 {% endblock %}

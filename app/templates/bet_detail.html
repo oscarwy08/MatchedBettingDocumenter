@@ -71,14 +71,20 @@
         <label>
           Outcome
           <select name="outcome" id="settle-outcome" required>
-            <option value="back_won">Finished — record actual P&amp;L</option>
+            <option value="back_won">Finished — record actual winnings</option>
             <option value="void">Void / not played</option>
           </select>
         </label>
-        <label class="span-2">
-          What you finished with (P&amp;L)
-          <input name="actual_profit" id="casino-actual" type="number" step="0.01" required>
-          <span class="hint">Expected was {{ bet.expected_profit | gbp }}{% if bet.rtp %} at {{ '%.4g'|format(bet.rtp|float) }}% RTP{% endif %}. Variance is normal — this is the cash you ended with, not the RTP average.</span>
+        <label id="casino-cashout-row">
+          <span class="field-name">Cashed out</span>
+          <input name="casino_cashout" id="casino_cashout" type="number" step="0.01" placeholder="0.00"
+                 data-casino-type="{{ bet.bet_type }}" data-casino-stake="{{ bet.back_stake }}">
+          <span class="hint">Balance after the slots, including a big win.</span>
+        </label>
+        <label id="casino-profit-row">
+          <span class="field-name">Profit</span>
+          <input name="casino_profit" id="casino_profit" type="number" step="0.01" placeholder="0.00">
+          <span class="hint">{% if bet.bet_type == 'free_spins' %}What you kept from the spins. Either box is enough.{% else %}Cashed out minus the {{ bet.back_stake | gbp }} you wagered. Either box is enough.{% endif %} Expected was {{ bet.expected_profit | gbp }}.</span>
         </label>
         {% else %}
         <label>
@@ -116,7 +122,12 @@
   {% else %}
     <section class="panel">
       <div class="panel-head"><h2>Settled result</h2></div>
-      <p>Bookie {{ bet.actual_bookie_profit | gbp }} · Exchange {{ bet.actual_exchange_profit | gbp }} · Net <strong class="{{ bet.actual_profit | pnl }}">{{ bet.actual_profit | gbp }}</strong>
+      <p>
+        {% if bet.is_casino %}
+          Cashed out {{ bet.casino_cashout | gbp }} · Profit <strong class="{{ bet.actual_profit | pnl }}">{{ bet.actual_profit | gbp }}</strong>
+        {% else %}
+          Bookie {{ bet.actual_bookie_profit | gbp }} · Exchange {{ bet.actual_exchange_profit | gbp }} · Net <strong class="{{ bet.actual_profit | pnl }}">{{ bet.actual_profit | gbp }}</strong>
+        {% endif %}
         {% if bet.settled_at %} · Settled {{ bet.settled_at | uktime }}{% endif %}
       </p>
       {% if bet.status == "void" and bet.is_free_bet %}
@@ -144,17 +155,45 @@
 <script>
   const outcome = document.getElementById("settle-outcome");
   const returnedRow = document.getElementById("free-bet-returned-row");
-  const casinoActual = document.getElementById("casino-actual");
+  const cashout = document.getElementById("casino_cashout");
+  const profit = document.getElementById("casino_profit");
+  const cashRow = document.getElementById("casino-cashout-row");
+  const profitRow = document.getElementById("casino-profit-row");
   function syncReturned() {
     if (!outcome || !returnedRow) return;
     returnedRow.classList.toggle("is-hidden", outcome.value !== "void");
   }
-  function syncCasinoActual() {
-    if (!outcome || !casinoActual) return;
-    const finished = outcome.value !== "void";
-    casinoActual.required = finished;
-    if (!finished) casinoActual.value = "";
+  function casinoStake() {
+    if (!cashout) return 0;
+    return Number(cashout.dataset.casinoStake || 0);
   }
+  function isSpins() {
+    return (cashout && cashout.dataset.casinoType) === "free_spins";
+  }
+  function syncCasinoBoxes(from) {
+    if (!cashout || !profit) return;
+    const stake = casinoStake();
+    const spins = isSpins();
+    if (from === "cashout" && cashout.value !== "") {
+      const c = Number(cashout.value);
+      if (!Number.isNaN(c)) profit.value = (spins ? c : c - stake).toFixed(2);
+    } else if (from === "profit" && profit.value !== "") {
+      const p = Number(profit.value);
+      if (!Number.isNaN(p)) cashout.value = (spins ? p : p + stake).toFixed(2);
+    }
+  }
+  function syncCasinoActual() {
+    if (!outcome) return;
+    const finished = outcome.value !== "void";
+    if (cashRow) cashRow.classList.toggle("is-hidden", !finished);
+    if (profitRow) profitRow.classList.toggle("is-hidden", !finished);
+    if (!finished) {
+      if (cashout) cashout.value = "";
+      if (profit) profit.value = "";
+    }
+  }
+  if (cashout) cashout.addEventListener("input", () => syncCasinoBoxes("cashout"));
+  if (profit) profit.addEventListener("input", () => syncCasinoBoxes("profit"));
   if (outcome) {
     outcome.addEventListener("change", () => {
       syncReturned();

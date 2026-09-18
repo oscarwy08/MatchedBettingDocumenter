@@ -268,6 +268,14 @@ class Bet(Base):
         return self.bet_type in {BetType.CASINO_WAGER, BetType.FREE_SPINS}
 
     @property
+    def casino_cashout(self) -> Decimal | None:
+        if not self.is_casino or self.actual_profit is None:
+            return None
+        from app.casino import cashout_from_profit
+
+        return cashout_from_profit(self.bet_type, self.back_stake, self.actual_profit)
+
+    @property
     def spin_coin(self) -> Decimal:
         count = int(self.spin_count or 0)
         stake = Decimal(str(self.back_stake or 0))

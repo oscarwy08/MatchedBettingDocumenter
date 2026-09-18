@@ -536,6 +536,7 @@ def _bet_row(bet) -> dict:
         "expected_bookie_lay": _money(bet.expected_bookie_lay),
         "expected_exchange_lay": _money(bet.expected_exchange_lay),
         "actual_profit": _money(bet.actual_profit) if bet.actual_profit is not None else "",
+        "actual_cashout": _money(bet.casino_cashout) if bet.casino_cashout is not None else "",
         "actual_bookie_profit": _money(bet.actual_bookie_profit) if bet.actual_bookie_profit is not None else "",
         "actual_exchange_profit": _money(bet.actual_exchange_profit) if bet.actual_exchange_profit is not None else "",
         "profit": _money(profit),

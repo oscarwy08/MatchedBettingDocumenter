@@ -157,6 +157,47 @@ def _cap(cash: Decimal, max_cashout: Decimal | int | float | str | None) -> Deci
     return money(min(cash, cap))
 
 
+def cashout_from_profit(
+    bet_type: str,
+    stake: Decimal | int | float | str,
+    profit: Decimal | int | float | str,
+) -> Decimal:
+    """Balance after the slots given logged P&L. Free spins are stake-not-returned."""
+    p = money(profit)
+    if bet_type in {"free_spins", "FREE_SPINS"}:
+        return p
+    return money(money(stake or 0) + p)
+
+
+def profit_from_cashout(
+    bet_type: str,
+    stake: Decimal | int | float | str,
+    cashout: Decimal | int | float | str,
+) -> Decimal:
+    """P&L from the balance you finished with."""
+    c = money(cashout)
+    if bet_type in {"free_spins", "FREE_SPINS"}:
+        return c
+    return money(c - money(stake or 0))
+
+
+def actuals(
+    bet_type: str,
+    stake: Decimal | int | float | str = 0,
+    *,
+    cashout: Decimal | int | float | str | None = None,
+    profit: Decimal | int | float | str | None = None,
+) -> dict:
+    """Either box is enough. Profit is what the log stores; cashout is the slot balance."""
+    if profit not in (None, ""):
+        p = money(profit)
+        return {"cashout": cashout_from_profit(bet_type, stake, p), "profit": p}
+    if cashout not in (None, ""):
+        c = money(cashout)
+        return {"cashout": c, "profit": profit_from_cashout(bet_type, stake, c)}
+    raise ValueError("Enter what you cashed out or the profit.")
+
+
 def result_dict(
     *,
     bet_type: str,

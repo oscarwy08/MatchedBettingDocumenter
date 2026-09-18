@@ -61,7 +61,12 @@
   {% if not bet.pending %}
     <section class="panel">
       <div class="panel-head"><h2>Settled result</h2></div>
-      <p>Bookie {{ bet.actual_bookie_profit | gbp }} · Exchange {{ bet.actual_exchange_profit | gbp }} · Net <strong class="{{ bet.actual_profit | pnl }}">{{ bet.actual_profit | gbp }}</strong>
+      <p>
+        {% if bet.is_casino %}
+          Cashed out {{ bet.actual_cashout | gbp }} · Profit <strong class="{{ bet.actual_profit | pnl }}">{{ bet.actual_profit | gbp }}</strong>
+        {% else %}
+          Bookie {{ bet.actual_bookie_profit | gbp }} · Exchange {{ bet.actual_exchange_profit | gbp }} · Net <strong class="{{ bet.actual_profit | pnl }}">{{ bet.actual_profit | gbp }}</strong>
+        {% endif %}
         {% if bet.settled %} · Settled {{ bet.settled }}{% endif %}
       </p>
     </section>

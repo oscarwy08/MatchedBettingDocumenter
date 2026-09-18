@@ -79,6 +79,14 @@ NOTES = {
         ],
         "primary": "OK",
     },
+    "2.0.8": {
+        "kicker": "This update",
+        "title": "Actual slot winnings",
+        "paragraphs": [
+            "Casino and free spins now have Cashed out and Profit boxes. Put what you actually finished with — a big hit is the real result, not the RTP average. Fill either box; the other fills itself. You can log it when you place the bet, or when you settle.",
+        ],
+        "primary": "OK",
+    },
 }
 
 

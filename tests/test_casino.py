@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from app.casino import bonus_ev, offer_ev, playthrough_cost, qualifying_ev, spins_ev
+from app.casino import actuals, bonus_ev, offer_ev, playthrough_cost, qualifying_ev, spins_ev
 from app.models import Account, Bet, BetStatus, BetType, Offer, OfferType
 from app.services import offer_snapshot
 from app.snapshot import apply_snapshot, dump_snapshot
@@ -140,6 +140,8 @@ def test_create_free_spins_offer_log_and_settle(tmp_path, monkeypatch):
     assert calc.status_code == 200
     assert b'value="casino_wager" selected' in calc.data or b"casino_wager" in calc.data
     assert b'data-casino-offer="1"' in calc.data
+    assert b"Cashed out" in calc.data
+    assert b"Profit" in calc.data
     assert b"0.20" in calc.data or b"10.00" in calc.data
 
     logged = client.post(
@@ -194,7 +196,8 @@ def test_create_free_spins_offer_log_and_settle(tmp_path, monkeypatch):
 
     detail = client.get(f"/bets/{wager_id}")
     assert detail.status_code == 200
-    assert b"What you finished with" in detail.data
+    assert b"Cashed out" in detail.data
+    assert b"Profit" in detail.data
     assert b"Finished" in detail.data
     assert b"Lay won" not in detail.data
 
@@ -289,4 +292,81 @@ def test_casino_bonus_offer_completes_when_settled(tmp_path, monkeypatch):
     session = db.SessionLocal()
     offer = session.get(Offer, offer_id)
     assert offer.status == "Complete"
+    session.close()
+
+
+def test_actuals_from_cashout_or_profit():
+    assert actuals("casino_wager", 10, cashout=50) == {"cashout": D("50.00"), "profit": D("40.00")}
+    assert actuals("casino_wager", 10, profit=40) == {"cashout": D("50.00"), "profit": D("40.00")}
+    assert actuals("casino_wager", 10, cashout=0) == {"cashout": D("0.00"), "profit": D("-10.00")}
+    assert actuals("free_spins", 6, cashout="187.50") == {"cashout": D("187.50"), "profit": D("187.50")}
+    assert actuals("free_spins", 6, profit=0) == {"cashout": D("0.00"), "profit": D("0.00")}
+
+
+def test_log_slots_with_winnings(tmp_path, monkeypatch):
+    client, db = _client(tmp_path, monkeypatch)
+    session = db.SessionLocal()
+    bookie = session.scalars(select(Account).where(Account.name == "LeoVegas")).one()
+    bookie_id = bookie.id
+    session.close()
+    logged = client.post(
+        "/calculator/log",
+        data={
+            "bet_type": "free_spins",
+            "back_stake": "0.20",
+            "spin_count": "30",
+            "rtp": "96.02",
+            "bookie_id": str(bookie_id),
+            "date_placed": "2026-09-01",
+            "event": "Big hit",
+            "market": "Big Bass",
+            "casino_cashout": "240",
+        },
+        follow_redirects=True,
+    )
+    assert logged.status_code == 200
+    session = db.SessionLocal()
+    bet = session.scalars(select(Bet).where(Bet.event == "Big hit")).one()
+    assert bet.status == BetStatus.BACK_WON
+    assert bet.actual_profit == D("240.00")
+    assert bet.casino_cashout == D("240.00")
+    session.close()
+
+
+def test_settle_playthrough_from_cashout(tmp_path, monkeypatch):
+    client, db = _client(tmp_path, monkeypatch)
+    session = db.SessionLocal()
+    bookie = session.scalars(select(Account).where(Account.name == "LeoVegas")).one()
+    bookie_id = bookie.id
+    session.close()
+    client.post(
+        "/calculator/log",
+        data={
+            "bet_type": "casino_wager",
+            "back_stake": "10",
+            "rtp": "96.02",
+            "bookie_id": str(bookie_id),
+            "date_placed": "2026-09-01",
+            "event": "Playthrough",
+        },
+        follow_redirects=True,
+    )
+    session = db.SessionLocal()
+    bet = session.scalars(select(Bet).where(Bet.event == "Playthrough")).one()
+    bet_id = bet.id
+    session.close()
+    settled = client.post(
+        f"/bets/{bet_id}/settle",
+        data={"outcome": "back_won", "casino_cashout": "85"},
+        follow_redirects=True,
+    )
+    assert settled.status_code == 200
+    session = db.SessionLocal()
+    bet = session.get(Bet, bet_id)
+    assert bet.actual_profit == D("75.00")
+    assert bet.casino_cashout == D("85.00")
+    assert bet.actual_bookie_profit == D("75.00")
+    detail = client.get(f"/bets/{bet_id}")
+    assert b"Cashed out" in detail.data
+    assert "£85.00".encode() in detail.data
     session.close()

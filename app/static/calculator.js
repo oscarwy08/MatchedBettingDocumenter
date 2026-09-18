@@ -83,6 +83,7 @@ function syncVisibility() {
   if (oddsField) oddsField.classList.toggle("is-hidden", casino);
   if (outcomeTable) outcomeTable.classList.toggle("is-hidden", casino);
   document.querySelectorAll(".casino-only").forEach((el) => el.classList.toggle("is-hidden", !casino));
+  syncLogButton();
 
   const selections = document.getElementById("selections-field");
   if (selections) selections.classList.remove("is-hidden");
@@ -134,6 +135,36 @@ function syncVisibility() {
       lay.value = lastMatchedLay || "2.10";
     }
   }
+}
+
+function casinoWagerStake() {
+  return Number((document.getElementById("back_stake") || {}).value) || 0;
+}
+
+function syncCasinoBoxes(from) {
+  const cash = document.getElementById("casino_cashout");
+  const profit = document.getElementById("casino_profit");
+  if (!cash || !profit) return;
+  const spins = currentType() === "free_spins";
+  const stake = casinoWagerStake();
+  if (from === "cashout" && cash.value !== "") {
+    const c = Number(cash.value);
+    if (!Number.isNaN(c)) profit.value = (spins ? c : c - stake).toFixed(2);
+  } else if (from === "profit" && profit.value !== "") {
+    const p = Number(profit.value);
+    if (!Number.isNaN(p)) cash.value = (spins ? p : p + stake).toFixed(2);
+  }
+  syncLogButton();
+}
+
+function syncLogButton() {
+  const btn = document.getElementById("log-bet-submit");
+  if (!btn) return;
+  const casino = CASINO.has(currentType());
+  const cash = document.getElementById("casino_cashout");
+  const profit = document.getElementById("casino_profit");
+  const filled = casino && ((cash && cash.value !== "") || (profit && profit.value !== ""));
+  btn.textContent = filled ? "Log with winnings" : "Log pending bet";
 }
 
 function payload() {
@@ -209,6 +240,11 @@ for (const name of fields) {
         syncVisibility();
         applyCasinoDefaults();
       }
+      if (name === "back_stake" || name === "bet_type") {
+        const cash = document.getElementById("casino_cashout");
+        if (cash && cash.value !== "") syncCasinoBoxes("cashout");
+        else syncCasinoBoxes("profit");
+      }
       refresh();
     });
   }
@@ -280,6 +316,12 @@ if (!calcForm?.dataset.keepCommission && exchange?.selectedOptions[0]?.dataset.c
   commission.value = exchange.selectedOptions[0].dataset.commission;
 }
 refresh();
+
+const casinoCashout = document.getElementById("casino_cashout");
+const casinoProfit = document.getElementById("casino_profit");
+if (casinoCashout) casinoCashout.addEventListener("input", () => syncCasinoBoxes("cashout"));
+if (casinoProfit) casinoProfit.addEventListener("input", () => syncCasinoBoxes("profit"));
+syncLogButton();
 
 async function copyAmount(value, button) {
   if (value === "" || value === undefined || Number.isNaN(Number(value))) return;

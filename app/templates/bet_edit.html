@@ -87,7 +87,7 @@
     <section class="panel results-panel" id="results-panel">
       <div class="panel-head"><h2>Result</h2></div>
       <p id="unmatched-hint" class="hint is-hidden">No lay — this is just the bookie bet. Expected profit stays £0 until you settle.</p>
-      <p id="casino-hint" class="hint is-hidden">Expected profit is the long-run average from RTP. Settle with what you actually finished with — variance is normal.</p>
+      <p id="casino-hint" class="hint is-hidden">RTP is the long-run average. Put what you cashed, or the profit, when you settle — a big hit is the real result.</p>
       <p id="calc-error" class="flash flash-error is-hidden"></p>
       <dl class="result-dl">
         <div class="matched-only"><dt>Lay stake</dt><dd id="out-lay">–</dd></div>
@@ -195,6 +195,6 @@
 {% endblock %}
 {% block scripts %}
   <script src="{{ url_for('static', filename='forms.js') }}?v=3"></script>
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=15"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=16"></script>
   <script src="{{ url_for('static', filename='fixtures.js') }}?v=1"></script>
 {% endblock %}

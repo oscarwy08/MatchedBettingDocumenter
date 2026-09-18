@@ -21,7 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.calculator import CalcBetType, calculate, unmatched_back
-from app.casino import qualifying_ev, result_dict, spins_ev
+from app.casino import actuals as casino_actuals, qualifying_ev, result_dict, spins_ev
 from app.charts import (
     RANGES,
     VIEWS,
@@ -254,6 +254,34 @@ def _parse_decimal(name: str, default: str = "0") -> Decimal:
         return Decimal(raw)
     except InvalidOperation as exc:
         raise ValueError(f"Invalid number for {name.replace('_', ' ')}.") from exc
+
+
+def _optional_decimal(name: str) -> Decimal | None:
+    raw = (request.form.get(name) or "").strip().replace("£", "").replace(",", "")
+    if raw == "":
+        return None
+    try:
+        return Decimal(raw)
+    except InvalidOperation as exc:
+        raise ValueError(f"Invalid number for {name.replace('_', ' ')}.") from exc
+
+
+def _casino_actuals_from_form(bet_type: str, stake) -> dict | None:
+    cashout = _optional_decimal("casino_cashout")
+    profit = _optional_decimal("casino_profit")
+    if profit is None:
+        profit = _optional_decimal("actual_profit")
+    if cashout is None and profit is None:
+        return None
+    return casino_actuals(bet_type, stake, cashout=cashout, profit=profit)
+
+
+def _apply_casino_result(bet: Bet, actuals: dict) -> None:
+    bet.status = BetStatus.BACK_WON
+    bet.actual_profit = actuals["profit"]
+    bet.actual_bookie_profit = actuals["profit"]
+    bet.actual_exchange_profit = Decimal("0")
+    bet.settled_at = local_now()
 
 
 def _lay_override(raw) -> Decimal | None:
@@ -880,11 +908,15 @@ def log_bet():
             **numbers,
         )
         _apply_fixture_fields(bet)
+        if numbers["bet_type"] in {BetType.CASINO_WAGER, BetType.FREE_SPINS}:
+            actuals = _casino_actuals_from_form(numbers["bet_type"], numbers["back_stake"])
+            if actuals:
+                _apply_casino_result(bet, actuals)
         session.add(bet)
         web_session["last_bookie_id"] = bookie_id
         web_session["last_exchange_id"] = exchange_id
         _commit_and_sync(session)
-        flash("Bet logged as pending.", "ok")
+        flash("Bet logged with actual winnings." if bet.status != BetStatus.PENDING else "Bet logged as pending.", "ok")
         if offer:
             return redirect(url_for("main.offer_detail", offer_id=offer.id))
         return redirect(url_for("main.bets"))
@@ -1029,36 +1061,44 @@ def settle_bet(bet_id: int):
         if outcome not in {BetStatus.BACK_WON, BetStatus.LAY_WON, BetStatus.VOID}:
             raise ValueError("Choose how the bet settled.")
         suggested = suggested_settlement(bet)[outcome]
-        bookie_over = request.form.get("actual_bookie_profit") not in (None, "")
-        exchange_over = request.form.get("actual_exchange_profit") not in (None, "")
-        net_over = request.form.get("actual_profit") not in (None, "")
-        unmatched = bet.is_casino or Decimal(str(bet.lay_stake or 0)) == 0
-        bookie_pl = (
-            _parse_decimal("actual_bookie_profit", str(suggested["bookie"]))
-            if bookie_over
-            else suggested["bookie"]
-        )
-        exchange_pl = (
-            _parse_decimal("actual_exchange_profit", str(suggested["exchange"]))
-            if exchange_over
-            else suggested["exchange"]
-        )
-        if net_over and not bookie_over and not exchange_over:
-            net = _parse_decimal("actual_profit", str(suggested["net"]))
-            if unmatched:
-                bookie_pl = net
-                exchange_pl = Decimal("0")
-            else:
-                bookie_pl = suggested["bookie"]
-                exchange_pl = net - bookie_pl
-        elif net_over and bookie_over and not exchange_over:
-            net = _parse_decimal("actual_profit", str(suggested["net"]))
-            exchange_pl = net - bookie_pl
-        elif net_over and exchange_over and not bookie_over:
-            net = _parse_decimal("actual_profit", str(suggested["net"]))
-            bookie_pl = net - exchange_pl
+        if bet.is_casino and outcome != BetStatus.VOID:
+            actuals = _casino_actuals_from_form(bet.bet_type, bet.back_stake)
+            if actuals is None:
+                raise ValueError("Enter what you cashed out or the profit.")
+            bookie_pl = actuals["profit"]
+            exchange_pl = Decimal("0")
+            net = actuals["profit"]
         else:
-            net = bookie_pl + exchange_pl
+            bookie_over = request.form.get("actual_bookie_profit") not in (None, "")
+            exchange_over = request.form.get("actual_exchange_profit") not in (None, "")
+            net_over = request.form.get("actual_profit") not in (None, "")
+            unmatched = bet.is_casino or Decimal(str(bet.lay_stake or 0)) == 0
+            bookie_pl = (
+                _parse_decimal("actual_bookie_profit", str(suggested["bookie"]))
+                if bookie_over
+                else suggested["bookie"]
+            )
+            exchange_pl = (
+                _parse_decimal("actual_exchange_profit", str(suggested["exchange"]))
+                if exchange_over
+                else suggested["exchange"]
+            )
+            if net_over and not bookie_over and not exchange_over:
+                net = _parse_decimal("actual_profit", str(suggested["net"]))
+                if unmatched:
+                    bookie_pl = net
+                    exchange_pl = Decimal("0")
+                else:
+                    bookie_pl = suggested["bookie"]
+                    exchange_pl = net - bookie_pl
+            elif net_over and bookie_over and not exchange_over:
+                net = _parse_decimal("actual_profit", str(suggested["net"]))
+                exchange_pl = net - bookie_pl
+            elif net_over and exchange_over and not bookie_over:
+                net = _parse_decimal("actual_profit", str(suggested["net"]))
+                bookie_pl = net - exchange_pl
+            else:
+                net = bookie_pl + exchange_pl
         bet.status = outcome
         bet.actual_bookie_profit = bookie_pl
         bet.actual_exchange_profit = exchange_pl

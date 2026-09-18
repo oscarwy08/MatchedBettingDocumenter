@@ -107,7 +107,7 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Offers can expire on an End by date. Friends keep a sealed spare of your log and sync it in the background. "
+        "Casino and free spins now record what you actually cashed and the profit, including a big slot win. "
         "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
