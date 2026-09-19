@@ -373,3 +373,58 @@ def test_settle_playthrough_from_cashout(tmp_path, monkeypatch):
     assert b"Cashed out" in detail.data
     assert "£85.00".encode() in detail.data
     session.close()
+
+
+def test_edit_page_has_casino_actual_boxes(tmp_path, monkeypatch):
+    client, db = _client(tmp_path, monkeypatch)
+    session = db.SessionLocal()
+    bookie = session.scalars(select(Account).where(Account.name == "LeoVegas")).one()
+    bookie_id = bookie.id
+    session.close()
+    client.post(
+        "/calculator/log",
+        data={
+            "bet_type": "casino_wager",
+            "back_stake": "10",
+            "rtp": "96",
+            "bookie_id": str(bookie_id),
+            "date_placed": "2026-09-01",
+            "event": "Edit slots",
+            "market": "Double Bubble",
+        },
+        follow_redirects=True,
+    )
+    session = db.SessionLocal()
+    bet = session.scalars(select(Bet).where(Bet.event == "Edit slots")).one()
+    bet_id = bet.id
+    exchange_id = bet.exchange_id
+    session.close()
+    page = client.get(f"/bets/{bet_id}/edit")
+    assert page.status_code == 200
+    assert b'id="casino_cashout"' in page.data
+    assert b'id="casino_profit"' in page.data
+    assert b"out-cashout" in page.data
+    saved = client.post(
+        f"/bets/{bet_id}/edit",
+        data={
+            "bet_type": "casino_wager",
+            "back_stake": "10",
+            "rtp": "96",
+            "bookie_id": str(bookie_id),
+            "exchange_id": str(exchange_id),
+            "date_placed": "2026-09-01",
+            "event": "Edit slots",
+            "market": "Double Bubble",
+            "casino_cashout": "100",
+        },
+        follow_redirects=True,
+    )
+    assert saved.status_code == 200
+    session = db.SessionLocal()
+    bet = session.get(Bet, bet_id)
+    assert bet.casino_cashout == D("100.00")
+    assert bet.actual_profit == D("90.00")
+    session.close()
+    again = client.get(f"/bets/{bet_id}/edit")
+    assert b'value="100.00"' in again.data
+    assert b'value="90.00"' in again.data

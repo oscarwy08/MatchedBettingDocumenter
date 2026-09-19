@@ -95,6 +95,14 @@ NOTES = {
         ],
         "primary": "OK",
     },
+    "2.0.10": {
+        "kicker": "This update",
+        "title": "Cashed out on bet edit",
+        "paragraphs": [
+            "Editing a casino or free-spin bet now has the same Cashed out and Profit boxes as the calculator. Result shows what you finished with, and saving records it.",
+        ],
+        "primary": "OK",
+    },
 }
 
 

@@ -1578,6 +1578,10 @@ def edit_bet(bet_id: int):
         bet.exchange_id = exchange_id
         _apply_fixture_fields(bet)
         _apply_numbers(bet, numbers)
+        if numbers["bet_type"] in {BetType.CASINO_WAGER, BetType.FREE_SPINS}:
+            actuals = _casino_actuals_from_form(numbers["bet_type"], numbers["back_stake"])
+            if actuals:
+                _apply_casino_result(bet, actuals)
         _commit_and_sync(session)
         flash("Bet updated.", "ok")
         return redirect(url_for("main.bet_detail", bet_id=bet.id))

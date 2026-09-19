@@ -107,8 +107,8 @@ def main() -> int:
         "--title",
         f"Matched Betting Documenter {tag}",
         "--notes",
-        "Casino Result now shows the amount you cashed and the profit as soon as you type them; "
-        "RTP stays as the expected average. data/ is never overwritten.",
+        "Editing a casino bet now has Cashed out and Profit, and Result shows them. "
+        "data/ is never overwritten.",
     )
     _publish_latest_txt(repo, VERSION)
     print(f"Published {tag}. Installed copies will pick it up the next time they start.")

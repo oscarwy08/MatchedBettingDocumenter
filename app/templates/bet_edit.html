@@ -67,6 +67,18 @@
           <span class="field-name">Max cashout</span>
           <input name="max_cashout" id="max_cashout" type="number" step="0.01" min="0" value="0" placeholder="0 = no cap">
         </label>
+        <label id="casino-cashout-field" class="casino-only is-hidden">
+          <span class="field-name">Cashed out</span>
+          <input name="casino_cashout" id="casino_cashout" type="number" step="0.01" placeholder="0.00"
+                 value="{% if bet.casino_cashout is not none %}{{ '%.2f'|format(bet.casino_cashout|float) }}{% endif %}">
+          <span class="hint">Balance after the slots. Leave blank if still playing.</span>
+        </label>
+        <label id="casino-profit-field" class="casino-only is-hidden">
+          <span class="field-name">Profit</span>
+          <input name="casino_profit" id="casino_profit" type="number" step="0.01" placeholder="0.00"
+                 value="{% if bet.is_casino and bet.actual_profit is not none %}{{ '%.2f'|format(bet.actual_profit|float) }}{% endif %}">
+          <span class="hint">Or type profit — the other box fills in.</span>
+        </label>
       </div>
       <details class="more-block" id="matched-advanced">
         <summary>Commission and lay override</summary>
@@ -197,6 +209,6 @@
 {% endblock %}
 {% block scripts %}
   <script src="{{ url_for('static', filename='forms.js') }}?v=3"></script>
-  <script src="{{ url_for('static', filename='calculator.js') }}?v=17"></script>
+  <script src="{{ url_for('static', filename='calculator.js') }}?v=18"></script>
   <script src="{{ url_for('static', filename='fixtures.js') }}?v=1"></script>
 {% endblock %}
